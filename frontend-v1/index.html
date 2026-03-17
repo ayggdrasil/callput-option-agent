@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Callput Lite Frontend V1</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+
+    <header class="topbar">
+      <div class="brand">Callput Lite</div>
+      <nav class="topnav">
+        <a href="#flows">Flows</a>
+        <a href="#contracts">Contracts</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <p class="kicker">Frontend V1</p>
+        <h1>Operator Console for OpenClaw Agent Owners</h1>
+        <p class="subtitle">
+          This UI is guidance-only. Agents own key management and execute trades through Skill + MCP.
+        </p>
+        <div class="chips">
+          <span>V1 Scope Locked</span>
+          <span>No Key Handling in Frontend</span>
+          <span>Mobile + Desktop Ready</span>
+        </div>
+      </section>
+
+      <section id="flows" class="panel">
+        <div class="panel-head">
+          <h2>User Flows (V1)</h2>
+          <small>Market analysis template is deferred to V2.</small>
+        </div>
+        <div class="grid grid-4">
+          <article class="card flow-card">
+            <h3>Flow A</h3>
+            <p class="title">Direction Setup</p>
+            <p>Pick directional bias and strategy side for spread intent.</p>
+          </article>
+          <article class="card flow-card">
+            <h3>Flow B</h3>
+            <p class="title">Option Lookup</p>
+            <p>Read option chains and select target expiry/strikes.</p>
+          </article>
+          <article class="card flow-card">
+            <h3>Flow C</h3>
+            <p class="title">Execution</p>
+            <p>Validate spread, run dry-run first, then real execution by agent.</p>
+          </article>
+          <article class="card flow-card">
+            <h3>Flow D</h3>
+            <p class="title">Position Adjustment</p>
+            <p>Track request status, close pre-expiry, settle post-expiry.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="contracts" class="panel">
+        <div class="panel-head">
+          <h2>MCP Tool-to-UI Contract</h2>
+          <small>1 tool maps to 1 action card.</small>
+        </div>
+        <div class="contract-list" id="contractList"></div>
+      </section>
+
+      <section id="architecture" class="panel">
+        <div class="panel-head">
+          <h2>Runtime Architecture</h2>
+          <small>Frontend explains, agent executes.</small>
+        </div>
+        <div class="arch-grid">
+          <div class="arch-node">Frontend UI</div>
+          <div class="arch-arrow">-></div>
+          <div class="arch-node">Agent Runtime (Key Owner)</div>
+          <div class="arch-arrow">-></div>
+          <div class="arch-node">Skill + MCP</div>
+          <div class="arch-arrow">-></div>
+          <div class="arch-node">Callput.app on Base</div>
+        </div>
+        <div class="warning">
+          <strong>Security Boundary</strong>
+          <p>The frontend does not request, store, or process <code>CALLPUT_PRIVATE_KEY</code>.</p>
+        </div>
+      </section>
+
+      <section id="faq" class="panel">
+        <div class="panel-head">
+          <h2>FAQ</h2>
+          <small>Common operator questions</small>
+        </div>
+        <div class="faq-list">
+          <details open>
+            <summary>Does this frontend execute transactions directly?</summary>
+            <p>No. Agent runtimes execute through Skill + MCP. Frontend is guidance-only.</p>
+          </details>
+          <details>
+            <summary>Where should private keys be managed?</summary>
+            <p>Inside each external agent runtime environment. Never in frontend state.</p>
+          </details>
+          <details>
+            <summary>Can I skip spread validation?</summary>
+            <p>No. Validation is mandatory before any execution flow.</p>
+          </details>
+          <details>
+            <summary>Is market analysis available in this version?</summary>
+            <p>Not as a template in V1. It is planned for V2.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Operator Prompt Snippet</h2>
+        </div>
+        <pre class="prompt"><code>Run V1 flow: direction setup -> option lookup -> spread validation -> execute (dry-run first) -> request status polling -> position adjustment.</code></pre>
+      </section>
+    </main>
+
+    <footer class="footer">Callput Lite Frontend V1</footer>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
