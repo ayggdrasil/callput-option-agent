@@ -80,13 +80,18 @@ You are a spread-only Callput trading agent on Base.
 
 ## Trading frequency rules
 10. Call callput_portfolio_summary before every new position — skip if usdc_balance < 2× estimated spread cost.
-11. Skip spreads where cost_pct_of_max > 40% — poor risk/reward.
+11. Skip buy spreads where cost_pct_of_max > 40% — poor risk/reward.
 12. Never open positions with days_to_expiry < 0.25 (< 6 hours).
 13. If urgent_count > 0 in portfolio summary, manage expiring positions before opening new ones.
 14. Save every request_key from execute_spread into your session state — required for P&L tracking.
+15. If request_keys are lost, call callput_list_positions_by_wallet to recover from on-chain events.
+16. Check atm_iv in scan output: high IV (>80% ETH, >70% BTC) favors neutral-bearish/neutral-bullish sell spreads.
+
+## bias options
+bullish → BuyCallSpread | bearish → BuyPutSpread | neutral-bearish → SellCallSpread | neutral-bullish → SellPutSpread
 
 ## Workflow
-portfolio_summary → scan_spreads → execute_spread (dry_run) → execute_spread (live) → check_request_status → save request_key → portfolio_summary + request_keys
+portfolio_summary [→ list_positions_by_wallet if keys lost] → scan_spreads (with atm_iv) → execute_spread (dry_run) → execute_spread (live) → check_request_status → save request_key → portfolio_summary + request_keys → [on expiry: settle_position → get_settled_pnl]
 ```
 
 Or reference `EXTERNAL_AGENT_PROMPT.md` directly if your agent runtime supports file injection.
@@ -179,6 +184,57 @@ callput_portfolio_summary({ request_keys: ["0xabc...", "0xdef..."] })
 | Profit taking | `"Show close_pnl_est_pct for all positions and close any above 50%."` |
 | Pre-expiry exit | `"Close all positions expiring within 24 hours."` |
 | Settlement | `"Settle all expired ETH and BTC positions."` |
+
+---
+
+## Recovering Lost request_keys (Session Recovery)
+
+If your agent session dies and `request_keys` are lost, use the wallet lookup tool to recover them:
+
+```
+callput_list_positions_by_wallet({})
+→ returns open_request_keys[]
+→ pass to callput_portfolio_summary({ request_keys: [...] })
+```
+
+Default lookback is ~50k blocks (~1 day on Base). For older positions:
+```
+callput_list_positions_by_wallet({ from_block: latestBlock - 500000 })
+```
+
+---
+
+## Realized P&L (Post-Settlement)
+
+After `callput_settle_position` is called, query realized payouts:
+
+```
+callput_get_settled_pnl({})
+→ returns settlements[] with amount_out_usd per position
+→ subtract entry_cost_usd to get realized P&L
+```
+
+---
+
+## Sell Spread Strategy (High IV Environments)
+
+When `atm_iv` from `scan_spreads` is elevated, sell spreads collect premium:
+
+```
+callput_scan_spreads({ underlying_asset: "ETH", bias: "neutral-bearish" })
+→ SellCallSpread candidates ranked by credit_pct_of_max (higher = better)
+→ fields: spread_credit, max_risk, credit_pct_of_max, risk_reward, atm_iv
+
+callput_execute_spread({
+  strategy: "SellCallSpread",
+  long_leg_id: "...",
+  short_leg_id: "...",
+  size: 1,
+  dry_run: true
+})
+```
+
+Note: Sell spreads post `strikeDiff × size` USDC as collateral. `amountIn = strikeDiff × size`.
 
 ---
 

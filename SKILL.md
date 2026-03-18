@@ -15,11 +15,15 @@ Trade Callput spreads autonomously with minimal tool calls and minimal context.
 
 ```
 1. callput_portfolio_summary          ← check positions + USDC balance before every trade
-2. callput_scan_spreads               ← pick asset + bias, get ranked candidates
+   [if request_keys lost]
+   callput_list_positions_by_wallet   ← recover request_keys from on-chain events
+2. callput_scan_spreads               ← pick asset + bias, get ranked candidates + atm_iv
 3. callput_execute_spread (dry_run)   ← confirm tx payload with rank 1 candidate
 4. callput_execute_spread (live)      ← real execution (explicit user auth required)
 5. callput_check_request_status       ← poll until executed/cancelled
 6. persist request_key                ← REQUIRED for P&L tracking
+   [after settlement]
+   callput_get_settled_pnl            ← realized payout history
 ```
 
 ---
@@ -35,15 +39,21 @@ Trade Callput spreads autonomously with minimal tool calls and minimal context.
 7. Keep `dry_run=true` unless user explicitly authorizes real execution.
 8. `CALLPUT_PRIVATE_KEY` must never appear in any output or log.
 9. **Save every `request_key` returned by `execute_spread`** — required for P&L via `portfolio_summary`.
+10. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them from on-chain events.
+11. Check `atm_iv` from scan output: high IV (>80% ETH, >70% BTC) favors sell spreads over buy spreads.
 
 ---
 
 ## Bias → strategy mapping
 
-| Bias     | Strategy        | Option type | Long leg         | Short leg        |
-|----------|-----------------|-------------|------------------|------------------|
-| bullish  | BuyCallSpread   | Call        | ATM call         | OTM call (higher strike) |
-| bearish  | BuyPutSpread    | Put         | ATM put          | OTM put (lower strike)   |
+| Bias             | Strategy        | Option type | Direction          | Rank metric           |
+|------------------|-----------------|-------------|--------------------|-----------------------|
+| bullish          | BuyCallSpread   | Call        | Pay premium        | cost_pct_of_max ↓     |
+| bearish          | BuyPutSpread    | Put         | Pay premium        | cost_pct_of_max ↓     |
+| neutral-bearish  | SellCallSpread  | Call        | Collect premium    | credit_pct_of_max ↑   |
+| neutral-bullish  | SellPutSpread   | Put         | Collect premium    | credit_pct_of_max ↑   |
+
+Sell spreads post `strikeDiff × size` USDC as collateral. Best used in high-IV environments.
 
 ---
 

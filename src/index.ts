@@ -10,6 +10,8 @@ import {
   getOptionChains,
   getPortfolioSummary,
   getPositions,
+  getSettledPnl,
+  listPositionsByWallet,
   scanSpreads,
   settlePosition,
   validateSpread
@@ -59,14 +61,16 @@ server.registerTool(
         "Use check_request_status after tx broadcast until executed/cancelled."
       ],
       tools: [
-        "callput_scan_spreads — primary entry point for market scan (bias-driven, returns ≤5 ranked spreads)",
+        "callput_scan_spreads — primary market scan (bias: bullish/bearish/neutral-bearish/neutral-bullish, returns ≤5 ranked spreads + IV)",
         "callput_portfolio_summary — positions + mark value + P&L (pass request_keys for cost basis)",
+        "callput_list_positions_by_wallet — recover ALL request_keys from on-chain events (use after session loss)",
+        "callput_get_settled_pnl — realized payout history from SettlePosition events",
         "callput_validate_spread — pre-execution check",
-        "callput_execute_spread — execute or dry-run",
+        "callput_execute_spread — execute or dry-run (buy AND sell spreads)",
         "callput_check_request_status — poll keeper after broadcast",
         "callput_close_position — pre-expiry exit",
         "callput_settle_position — post-expiry settlement",
-        "callput_get_option_chains — raw chain data (use scan_spreads first)"
+        "callput_get_option_chains — raw chain data with IV (use scan_spreads first)"
       ],
       minimal_state: [
         "asset",
@@ -76,7 +80,8 @@ server.registerTool(
         "short_leg_id",
         "request_key",
         "request_status",
-        "request_keys[]  ← persist ALL executed request_keys for P&L tracking"
+        "request_keys[]  ← persist ALL executed request_keys for P&L tracking",
+        "tip: if request_keys lost, use callput_list_positions_by_wallet to recover them"
       ]
     });
   }
@@ -257,10 +262,10 @@ server.registerTool(
   "callput_scan_spreads",
   {
     description:
-      "Primary market scan. Returns up to max_results pre-ranked, ready-to-execute spread candidates for a given asset and directional bias. ATM-anchored: generates narrow/medium/wide widths automatically. Eliminates manual chain parsing — pass long_leg_id + short_leg_id directly to execute_spread.",
+      "Primary market scan. Returns up to max_results pre-ranked, ready-to-execute spread candidates. ATM-anchored with narrow/medium/wide widths. Includes ATM implied volatility (atm_iv) for buy-vs-sell strategy decisions. bias: bullish=BuyCallSpread, bearish=BuyPutSpread, neutral-bearish=SellCallSpread (collect premium), neutral-bullish=SellPutSpread (collect premium). High IV favors sell spreads. Pass long_leg_id + short_leg_id directly to execute_spread.",
     inputSchema: z.object({
       underlying_asset: z.string(),
-      bias: z.enum(["bullish", "bearish"]),
+      bias: z.enum(["bullish", "bearish", "neutral-bearish", "neutral-bullish"]),
       max_results: z.number().int().min(1).max(5).optional()
     })
   },
@@ -297,6 +302,52 @@ server.registerTool(
       return ok(result as Record<string, unknown>);
     } catch (e: any) {
       return fail(`portfolio_summary failed: ${e.message}`);
+    }
+  }
+);
+
+server.registerTool(
+  "callput_list_positions_by_wallet",
+  {
+    description:
+      "Recover all request_keys from on-chain GenerateRequestKey events for a wallet. Use this after session loss to restore P&L tracking. Returns open_request_keys (pass to portfolio_summary) and close_request_keys. Default lookback: ~50k blocks (~1 day on Base). Set from_block lower for older positions.",
+    inputSchema: z.object({
+      address: z.string().optional(),
+      from_block: z.number().int().optional()
+    })
+  },
+  async (args) => {
+    try {
+      const result = await listPositionsByWallet({
+        address: args.address,
+        fromBlock: args.from_block
+      });
+      return ok(result as Record<string, unknown>);
+    } catch (e: any) {
+      return fail(`list_positions_by_wallet failed: ${e.message}`);
+    }
+  }
+);
+
+server.registerTool(
+  "callput_get_settled_pnl",
+  {
+    description:
+      "Query SettlePosition events to retrieve realized payout history. Returns amount_out_usd (gross USDC received at settlement) per position. Subtract entry_cost_usd from portfolio_summary to compute realized P&L. Default lookback: ~50k blocks (~1 day on Base). Set from_block lower for older settlements.",
+    inputSchema: z.object({
+      address: z.string().optional(),
+      from_block: z.number().int().optional()
+    })
+  },
+  async (args) => {
+    try {
+      const result = await getSettledPnl({
+        address: args.address,
+        fromBlock: args.from_block
+      });
+      return ok(result as Record<string, unknown>);
+    } catch (e: any) {
+      return fail(`get_settled_pnl failed: ${e.message}`);
     }
   }
 );

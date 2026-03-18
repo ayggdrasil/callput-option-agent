@@ -17,6 +17,7 @@ type MarketOption = {
   expirySec: number;
   expiryCode: string;
   isAvailable: boolean;
+  iv: number | null;
 };
 
 type MarketDataPayload = {
@@ -162,6 +163,8 @@ export async function getMarketSnapshot(force = false): Promise<{ options: Marke
           const strike = Number(row.strikePrice ?? 0);
           const optionId = String(row.optionId ?? "");
           const isAvailable = Boolean(row.isOptionAvailable);
+          const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIV ?? row.sigma ?? 0);
+          const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
           if (!optionId || !Number.isFinite(strike) || !Number.isFinite(mark)) continue;
 
           options.push({
@@ -175,7 +178,8 @@ export async function getMarketSnapshot(force = false): Promise<{ options: Marke
             optionType,
             expirySec,
             expiryCode,
-            isAvailable
+            isAvailable,
+            iv
           });
         }
       }
@@ -224,8 +228,8 @@ export async function getOptionChains(params: {
     const calls = items.filter((o) => o.optionType === "Call").sort((a, b) => a.strikePrice - b.strikePrice).slice(0, maxStrikes);
     const puts = items.filter((o) => o.optionType === "Put").sort((a, b) => a.strikePrice - b.strikePrice).slice(0, maxStrikes);
     output[code] = {
-      call: calls.map((o) => [o.strikePrice, o.markPrice, o.bid, o.ask, o.optionId, o.instrument]),
-      put: puts.map((o) => [o.strikePrice, o.markPrice, o.bid, o.ask, o.optionId, o.instrument])
+      call: calls.map((o) => [o.strikePrice, o.markPrice, o.bid, o.ask, o.optionId, o.instrument, o.iv]),
+      put: puts.map((o) => [o.strikePrice, o.markPrice, o.bid, o.ask, o.optionId, o.instrument, o.iv])
     };
   }
 
@@ -759,13 +763,133 @@ export async function getPositions(addressInput?: string) {
   return { account, positions: out, total_active_count: out.length };
 }
 
+// ─── listPositionsByWallet ────────────────────────────────────────────────────
+// Recovers all request_keys by querying GenerateRequestKey events on-chain.
+// Critical for restoring P&L tracking after session loss.
+
+export async function listPositionsByWallet(params: {
+  address?: string;
+  fromBlock?: number;
+}) {
+  const provider = getProvider();
+
+  let address = params.address;
+  if (!address) {
+    const pk = process.env.CALLPUT_PRIVATE_KEY;
+    if (!pk) throw new Error("address is required when CALLPUT_PRIVATE_KEY is not set.");
+    const wallet = new ethers.Wallet(pk.startsWith("0x") ? pk : `0x${pk}`);
+    address = wallet.address;
+  }
+  if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
+  const account = ethers.getAddress(address);
+
+  const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
+  const latestBlock = await provider.getBlockNumber();
+  // Default: look back ~50k blocks (~1 day on Base at 2s/block). Increase for older positions.
+  const fromBlock = params.fromBlock ?? Math.max(0, latestBlock - 50_000);
+
+  const filter = pm.filters.GenerateRequestKey(account);
+  const logs = await pm.queryFilter(filter, fromBlock, latestBlock);
+
+  const openKeys: string[] = [];
+  const closeKeys: string[] = [];
+
+  for (const log of logs) {
+    const ev = log as ethers.EventLog;
+    const key = String(ev.args.key);
+    const isOpen = Boolean(ev.args.isOpen);
+    if (isOpen) openKeys.push(key);
+    else closeKeys.push(key);
+  }
+
+  return {
+    account,
+    from_block: fromBlock,
+    to_block: latestBlock,
+    open_request_keys: openKeys,
+    close_request_keys: closeKeys,
+    total_open: openKeys.length,
+    total_close: closeKeys.length,
+    note: "Pass open_request_keys to callput_portfolio_summary to restore P&L tracking. If missing older positions, set from_block further back (e.g., latestBlock - 500000 for ~10 days)."
+  };
+}
+
+// ─── getSettledPnl ────────────────────────────────────────────────────────────
+// Queries SettlePosition events to surface realized payout history.
+// amountOut = gross USDC received at settlement (subtract entry_cost for realized P&L).
+
+export async function getSettledPnl(params: {
+  address?: string;
+  fromBlock?: number;
+}) {
+  const provider = getProvider();
+
+  let address = params.address;
+  if (!address) {
+    const pk = process.env.CALLPUT_PRIVATE_KEY;
+    if (!pk) throw new Error("address is required when CALLPUT_PRIVATE_KEY is not set.");
+    const wallet = new ethers.Wallet(pk.startsWith("0x") ? pk : `0x${pk}`);
+    address = wallet.address;
+  }
+  if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
+  const account = ethers.getAddress(address);
+
+  const settle = new ethers.Contract(CONFIG.CONTRACTS.SETTLE_MANAGER, SETTLE_MANAGER_ABI, provider);
+  const latestBlock = await provider.getBlockNumber();
+  const fromBlock = params.fromBlock ?? Math.max(0, latestBlock - 50_000);
+
+  const filter = settle.filters.SettlePosition(account);
+  const logs = await settle.queryFilter(filter, fromBlock, latestBlock);
+
+  let totalAmountOutUsd = 0;
+  const settlements: any[] = [];
+
+  for (const log of logs) {
+    const ev = log as ethers.EventLog;
+    const underlyingAssetIndex = Number(ev.args.underlyingAssetIndex);
+    const underlying: UnderlyingAsset | string =
+      underlyingAssetIndex === 1 ? "BTC" :
+      underlyingAssetIndex === 2 ? "ETH" :
+      `UNKNOWN(${underlyingAssetIndex})`;
+    const expirySec = Number(ev.args.expiry);
+    const optionTokenId = String(ev.args.optionTokenId);
+    const assetDecimals = underlyingAssetIndex === 1 ? CONFIG.ASSETS.BTC.decimals : CONFIG.ASSETS.ETH.decimals;
+    const size = Number(ev.args.size) / 10 ** assetDecimals;
+    const amountOutUsd = Number(ev.args.amountOut) / 10 ** CONFIG.ASSETS.USDC.decimals;
+    const settlePrice = Number(ev.args.settlePrice);
+
+    totalAmountOutUsd += amountOutUsd;
+
+    settlements.push({
+      underlying,
+      expiry_code: formatExpiry(expirySec),
+      option_token_id: optionTokenId,
+      size,
+      settle_price: settlePrice,
+      amount_out_usd: Math.round(amountOutUsd * 100) / 100,
+      block_number: log.blockNumber,
+      tx_hash: log.transactionHash
+    });
+  }
+
+  return {
+    account,
+    from_block: fromBlock,
+    to_block: latestBlock,
+    total_settled_positions: settlements.length,
+    total_amount_out_usd: Math.round(totalAmountOutUsd * 100) / 100,
+    settlements,
+    note: "amount_out_usd is gross USDC received at settlement. Subtract entry_cost_usd (from portfolio_summary or open position records) to get realized P&L."
+  };
+}
+
 // ─── scanSpreads ─────────────────────────────────────────────────────────────
 // Returns at most max_results pre-ranked, ready-to-execute spread candidates.
 // bias drives option type selection; ATM anchoring eliminates combinatorial explosion.
 
 export async function scanSpreads(params: {
   underlyingAsset: string;
-  bias: "bullish" | "bearish";
+  bias: "bullish" | "bearish" | "neutral-bearish" | "neutral-bullish";
   maxResults?: number;
 }) {
   const underlying = normalizeAsset(params.underlyingAsset);
@@ -775,11 +899,17 @@ export async function scanSpreads(params: {
   const snapshot = await getMarketSnapshot();
   const spot = snapshot.spot[underlying];
   const now = Date.now() / 1000;
-  const minSpreadCost = underlying === "BTC" ? 60 : 3;
+  const minSpreadValue = underlying === "BTC" ? 60 : 3;
 
-  const isBullish = params.bias === "bullish";
-  const optionType: OptionSide = isBullish ? "Call" : "Put";
-  const strategy: SpreadStrategy = isBullish ? "BuyCallSpread" : "BuyPutSpread";
+  // bias → strategy + option type + buy/sell direction
+  const isBuy = params.bias === "bullish" || params.bias === "bearish";
+  const isCallBased = params.bias === "bullish" || params.bias === "neutral-bearish";
+  const optionType: OptionSide = isCallBased ? "Call" : "Put";
+  const strategy: SpreadStrategy =
+    params.bias === "bullish" ? "BuyCallSpread" :
+    params.bias === "bearish" ? "BuyPutSpread" :
+    params.bias === "neutral-bearish" ? "SellCallSpread" :
+    "SellPutSpread";
 
   const available = snapshot.options.filter(
     (o) =>
@@ -817,41 +947,69 @@ export async function scanSpreads(params: {
       0
     );
 
+    // ATM IV exposed for market context
+    const atmIv = legs[atmIdx]?.iv ?? null;
+
     for (let width = 1; width <= 3; width++) {
       let longLeg: MarketOption;
       let shortLeg: MarketOption;
 
-      if (isBullish) {
-        // BuyCallSpread: long ATM call, short higher call
+      if (isCallBased) {
+        // Call spreads: long ATM (lower strike), short OTM (higher strike)
+        // Works for both BuyCallSpread and SellCallSpread — isBuy handled in execute
         const shortIdx = atmIdx + width;
         if (shortIdx >= legs.length) continue;
         longLeg = legs[atmIdx];
         shortLeg = legs[shortIdx];
       } else {
-        // BuyPutSpread: long ATM put (higher strike), short lower-strike put
+        // Put spreads: long ATM (higher strike), short OTM (lower strike)
+        // Works for both BuyPutSpread and SellPutSpread
         const shortIdx = atmIdx - width;
         if (shortIdx < 0) continue;
         longLeg = legs[atmIdx];
         shortLeg = legs[shortIdx];
       }
 
-      const spreadCost = longLeg.markPrice - shortLeg.markPrice;
+      const spreadValue = longLeg.markPrice - shortLeg.markPrice;
       const strikeDiff = Math.abs(longLeg.strikePrice - shortLeg.strikePrice);
 
-      if (spreadCost < minSpreadCost || strikeDiff <= 0) continue;
+      if (spreadValue < minSpreadValue || strikeDiff <= 0) continue;
 
-      candidates.push({
-        strategy,
-        long_leg_id: longLeg.optionId,
-        short_leg_id: shortLeg.optionId,
-        long_strike: longLeg.strikePrice,
-        short_strike: shortLeg.strikePrice,
-        spread_cost: Math.round(spreadCost * 100) / 100,
-        max_payout: strikeDiff,
-        cost_pct_of_max: Math.round((spreadCost / strikeDiff) * 10000) / 100,
-        expiry_code: expiryCode,
-        days_to_expiry: daysToExpiry
-      });
+      if (isBuy) {
+        // Buy spread: pay premium, profit if spread widens
+        candidates.push({
+          strategy,
+          long_leg_id: longLeg.optionId,
+          short_leg_id: shortLeg.optionId,
+          long_strike: longLeg.strikePrice,
+          short_strike: shortLeg.strikePrice,
+          spread_cost: Math.round(spreadValue * 100) / 100,
+          max_payout: strikeDiff,
+          cost_pct_of_max: Math.round((spreadValue / strikeDiff) * 10000) / 100,
+          atm_iv: atmIv,
+          expiry_code: expiryCode,
+          days_to_expiry: daysToExpiry
+        });
+      } else {
+        // Sell spread: collect premium upfront, post strikeDiff as collateral
+        // Profit if spread narrows / expires worthless
+        const maxRisk = strikeDiff - spreadValue;
+        candidates.push({
+          strategy,
+          long_leg_id: longLeg.optionId,
+          short_leg_id: shortLeg.optionId,
+          long_strike: longLeg.strikePrice,
+          short_strike: shortLeg.strikePrice,
+          spread_credit: Math.round(spreadValue * 100) / 100,
+          max_risk: Math.round(Math.max(0, maxRisk) * 100) / 100,
+          max_payout: strikeDiff,
+          credit_pct_of_max: Math.round((spreadValue / strikeDiff) * 10000) / 100,
+          risk_reward: maxRisk > 0 ? Math.round((spreadValue / maxRisk) * 100) / 100 : null,
+          atm_iv: atmIv,
+          expiry_code: expiryCode,
+          days_to_expiry: daysToExpiry
+        });
+      }
     }
   }
 
@@ -859,17 +1017,25 @@ export async function scanSpreads(params: {
     throw new Error("No valid spread candidates found. Try a different asset or bias.");
   }
 
-  const ranked = candidates
-    .sort((a, b) => a.cost_pct_of_max - b.cost_pct_of_max)
-    .slice(0, maxResults)
-    .map((c, i) => ({ rank: i + 1, ...c }));
+  // Buy spreads: rank by cost_pct_of_max ascending (lower cost = better value)
+  // Sell spreads: rank by credit_pct_of_max descending (higher credit = more premium)
+  const ranked = isBuy
+    ? candidates.sort((a, b) => a.cost_pct_of_max - b.cost_pct_of_max)
+    : candidates.sort((a, b) => b.credit_pct_of_max - a.credit_pct_of_max);
+
+  const top = ranked.slice(0, maxResults).map((c, i) => ({ rank: i + 1, ...c }));
+
+  const tip = isBuy
+    ? "Use rank 1 for best value. cost_pct_of_max < 30 preferred. atm_iv shows current implied volatility — high IV favors sell spreads instead."
+    : "Use rank 1 for best premium. credit_pct_of_max > 30 preferred. High IV environments maximize sell spread edge. Collateral = strikeDiff × size.";
 
   return {
     asset: underlying,
     spot_price: spot,
     bias: params.bias,
-    tip: "Use rank 1 for best value. cost_pct_of_max < 30 is preferred. Pass long_leg_id + short_leg_id directly to callput_execute_spread.",
-    candidates: ranked
+    strategy,
+    tip,
+    candidates: top
   };
 }
 
@@ -987,7 +1153,7 @@ export async function getPortfolioSummary(params: {
       const spreadClose = pos.side === "long"
         ? nakedOpt.bid - pairOpt.ask   // conservative: spread bid side
         : nakedOpt.ask - pairOpt.bid;  // cost to close short spread
-      closeBidValueUsd = Math.round(Math.max(0, spreadClose) * absSize * 100) / 100;
+      closeBidValueUsd = Math.round(spreadClose * absSize * 100) / 100;
     }
 
     // ── Per-position P&L via tokenId → entry cost bridge ──────────────────
