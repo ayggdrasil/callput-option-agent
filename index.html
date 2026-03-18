@@ -321,6 +321,23 @@
   .highlight-box .hl-body { font-size: 11px; color: var(--text-secondary); line-height: 1.7; }
   .highlight-box .hl-body code { color: var(--text-code); background: rgba(0,200,255,0.08); padding: 1px 5px; border-radius: 2px; font-size: 10px; }
 
+  /* PAYOFF DIAGRAMS */
+  .payoff-intro { font-size: 12px; color: var(--text-secondary); margin-bottom: 32px; line-height: 1.7; max-width: 680px; }
+  .payoff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .payoff-card { background: var(--bg-card); padding: 20px 20px 16px; position: relative; }
+  .payoff-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .payoff-strategy-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .payoff-bias-tag { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 2px; letter-spacing: 0.12em; text-transform: uppercase; flex-shrink: 0; }
+  .payoff-bias-tag.bullish { color: var(--green); background: var(--green-glow); border: 1px solid rgba(0,255,136,0.25); }
+  .payoff-bias-tag.bearish { color: var(--red); background: rgba(255,68,68,0.06); border: 1px solid rgba(255,68,68,0.25); }
+  .payoff-bias-tag.nb { color: var(--amber); background: rgba(255,184,0,0.06); border: 1px solid rgba(255,184,0,0.25); }
+  .payoff-bias-tag.nbu { color: #aa88ff; background: rgba(170,136,255,0.06); border: 1px solid rgba(170,136,255,0.25); }
+  .payoff-canvas { display: block; width: 100%; }
+  .payoff-legend { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
+  .payoff-legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); }
+  .payoff-legend-dot { width: 14px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+  @media (max-width: 768px) { .payoff-grid { grid-template-columns: 1fr; } }
+
   /* FOOTER */
   footer {
     position: relative; z-index: 1; border-top: 1px solid var(--border);
@@ -362,6 +379,7 @@
     <li><a href="#tools">Tools</a></li>
     <li><a href="#workflow">Workflow</a></li>
     <li><a href="#pnl">P&amp;L</a></li>
+    <li><a href="#payoff">Payoff</a></li>
     <li><a href="#setup">Setup</a></li>
     <li><a href="https://callput.app" target="_blank">callput.app ↗</a></li>
   </ul>
@@ -809,6 +827,71 @@
 
 <hr class="section-divider">
 
+<!-- PAYOFF DIAGRAMS -->
+<section id="payoff">
+  <div class="section-label">Strategy Mechanics</div>
+  <h2>Spread Payoff at Expiry</h2>
+  <p class="payoff-intro">
+    All 4 strategies have <strong style="color:var(--cyan)">capped profit and capped loss</strong>.
+    <strong style="color:var(--green)">Buy spreads</strong> pay premium upfront for directional exposure — max loss is the premium paid, max profit is the spread width minus premium.
+    <strong style="color:var(--amber)">Sell spreads</strong> collect premium as collateral credit — max profit is the credit received, max loss is the spread width minus credit.
+    The <span style="color:var(--amber)">B/E</span> marker shows the breakeven price at expiry.
+  </p>
+  <div class="payoff-grid">
+
+    <div class="payoff-card">
+      <div class="payoff-header">
+        <span class="payoff-bias-tag bullish">bullish</span>
+        <span class="payoff-strategy-name">BuyCallSpread</span>
+      </div>
+      <canvas id="chart-bcs" class="payoff-canvas"></canvas>
+      <div class="payoff-legend">
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = spread width − premium</span>
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = premium paid</span>
+      </div>
+    </div>
+
+    <div class="payoff-card">
+      <div class="payoff-header">
+        <span class="payoff-bias-tag bearish">bearish</span>
+        <span class="payoff-strategy-name">BuyPutSpread</span>
+      </div>
+      <canvas id="chart-bps" class="payoff-canvas"></canvas>
+      <div class="payoff-legend">
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = spread width − premium</span>
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = premium paid</span>
+      </div>
+    </div>
+
+    <div class="payoff-card">
+      <div class="payoff-header">
+        <span class="payoff-bias-tag nb">neutral-bearish</span>
+        <span class="payoff-strategy-name">SellCallSpread</span>
+      </div>
+      <canvas id="chart-scs" class="payoff-canvas"></canvas>
+      <div class="payoff-legend">
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = credit received</span>
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = spread width − credit</span>
+      </div>
+    </div>
+
+    <div class="payoff-card">
+      <div class="payoff-header">
+        <span class="payoff-bias-tag nbu">neutral-bullish</span>
+        <span class="payoff-strategy-name">SellPutSpread</span>
+      </div>
+      <canvas id="chart-sps" class="payoff-canvas"></canvas>
+      <div class="payoff-legend">
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = credit received</span>
+        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = spread width − credit</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<hr class="section-divider">
+
 <!-- SETUP -->
 <section id="setup">
   <div class="section-label">Agent Owner Setup</div>
@@ -998,6 +1081,200 @@ node build/index.js --help</pre>
 
   const terminal = document.getElementById('wf-terminal');
   if (terminal) wfObs.observe(terminal);
+
+  // ─── Payoff diagram drawing ───────────────────────────────────────────────
+  function drawPayoffChart(canvasId, payoffFn, opts) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const card = canvas.parentElement;
+    const Wp = card.clientWidth - 40; // subtract 20px padding × 2
+    const Hp = 190;
+    canvas.width  = Math.round(Wp * dpr);
+    canvas.height = Math.round(Hp * dpr);
+    canvas.style.width  = Wp + 'px';
+    canvas.style.height = Hp + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const pad = { t: 28, r: 18, b: 36, l: 46 };
+    const cw = Wp - pad.l - pad.r;
+    const ch = Hp - pad.t - pad.b;
+
+    const { xMin, xMax, yMin, yMax, k1, k2, be, lineColor } = opts;
+    const tx = v => pad.l + ((v - xMin) / (xMax - xMin)) * cw;
+    const ty = v => pad.t + ((yMax - v) / (yMax - yMin)) * ch;
+
+    // Background
+    ctx.fillStyle = '#060d14';
+    ctx.fillRect(0, 0, Wp, Hp);
+
+    // Subtle horizontal grid
+    ctx.strokeStyle = 'rgba(0,200,255,0.05)';
+    ctx.lineWidth = 1;
+    [yMin * 0.6, yMax * 0.6].forEach(y => {
+      ctx.beginPath(); ctx.moveTo(pad.l, ty(y)); ctx.lineTo(Wp - pad.r, ty(y)); ctx.stroke();
+    });
+
+    // Zero line
+    ctx.strokeStyle = 'rgba(160,200,230,0.22)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath(); ctx.moveTo(pad.l, ty(0)); ctx.lineTo(Wp - pad.r, ty(0)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Strike vertical lines (K1, K2)
+    [k1, k2].forEach(k => {
+      ctx.strokeStyle = 'rgba(0,200,255,0.16)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.moveTo(tx(k), pad.t); ctx.lineTo(tx(k), Hp - pad.b); ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // Generate payoff points
+    const N = 400;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const x = xMin + (i / N) * (xMax - xMin);
+      pts.push([x, payoffFn(x)]);
+    }
+
+    // Profit fill (above zero)
+    ctx.beginPath();
+    ctx.moveTo(tx(pts[0][0]), ty(0));
+    for (const [x, y] of pts) ctx.lineTo(tx(x), ty(Math.max(0, y)));
+    ctx.lineTo(tx(pts[pts.length - 1][0]), ty(0));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,255,136,0.10)';
+    ctx.fill();
+
+    // Loss fill (below zero)
+    ctx.beginPath();
+    ctx.moveTo(tx(pts[0][0]), ty(0));
+    for (const [x, y] of pts) ctx.lineTo(tx(x), ty(Math.min(0, y)));
+    ctx.lineTo(tx(pts[pts.length - 1][0]), ty(0));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,68,68,0.10)';
+    ctx.fill();
+
+    // Payoff line
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => {
+      i === 0 ? ctx.moveTo(tx(x), ty(y)) : ctx.lineTo(tx(x), ty(y));
+    });
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // Axes
+    ctx.strokeStyle = 'rgba(100,150,190,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, Hp - pad.b);
+    ctx.lineTo(Wp - pad.r, Hp - pad.b);
+    ctx.stroke();
+
+    // Y-axis: zero label
+    ctx.font = `9px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(100,150,190,0.6)';
+    ctx.fillText('0', pad.l - 6, ty(0) + 3);
+
+    // Y-axis: +MAX and −MAX lines + labels
+    const maxY = Math.max(...pts.map(p => p[1]));
+    const minY = Math.min(...pts.map(p => p[1]));
+
+    ctx.strokeStyle = 'rgba(0,255,136,0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, ty(maxY)); ctx.lineTo(Wp - pad.r, ty(maxY)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(0,255,136,0.7)';
+    ctx.fillText('+MAX', pad.l - 6, ty(maxY) + 3);
+
+    ctx.strokeStyle = 'rgba(255,68,68,0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, ty(minY)); ctx.lineTo(Wp - pad.r, ty(minY)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,68,68,0.7)';
+    ctx.fillText('−MAX', pad.l - 6, ty(minY) + 3);
+
+    // Strike labels (K₁, K₂)
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,200,255,0.5)';
+    ctx.font = `9px 'JetBrains Mono', monospace`;
+    ctx.fillText('K₁', tx(k1), Hp - pad.b + 14);
+    ctx.fillText('K₂', tx(k2), Hp - pad.b + 14);
+
+    // Breakeven dashed line + dot + label
+    if (be !== null && be >= xMin && be <= xMax) {
+      ctx.strokeStyle = 'rgba(255,184,0,0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(tx(be), pad.t + 4); ctx.lineTo(tx(be), Hp - pad.b); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.arc(tx(be), ty(0), 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffb800';
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,184,0,0.75)';
+      ctx.font = `8px 'JetBrains Mono', monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText('B/E', tx(be), Hp - pad.b + 14);
+    }
+
+    // X-axis caption
+    ctx.fillStyle = 'rgba(100,150,190,0.28)';
+    ctx.font = `8px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('Underlying price at expiry →', Wp / 2, Hp - 2);
+  }
+
+  // Chart parameters (normalized 0–100 price axis)
+  // K1=32, K2=68 → 36-unit spread width; premium/credit=10
+  const _K1 = 32, _K2 = 68, _PREM = 10;
+  const _SW = _K2 - _K1;           // 36 = spread width
+  const _MAX_BUY  = _SW - _PREM;   // 26 = max profit for buy spreads
+  const _MAX_SELL = _SW - _PREM;   // 26 = max loss  for sell spreads
+  const _xMin = 4, _xMax = 96, _buf = 6;
+
+  function drawAll() {
+    // BuyCallSpread: profit if price > K1+PREM at expiry
+    drawPayoffChart('chart-bcs',
+      x => x <= _K1 ? -_PREM : x >= _K2 ? _MAX_BUY : x - _K1 - _PREM,
+      { xMin: _xMin, xMax: _xMax, yMin: -_PREM - _buf, yMax: _MAX_BUY + _buf,
+        k1: _K1, k2: _K2, be: _K1 + _PREM, lineColor: '#00c8ff' }
+    );
+    // BuyPutSpread: profit if price < K2-PREM at expiry
+    drawPayoffChart('chart-bps',
+      x => x >= _K2 ? -_PREM : x <= _K1 ? _MAX_BUY : _K2 - x - _PREM,
+      { xMin: _xMin, xMax: _xMax, yMin: -_PREM - _buf, yMax: _MAX_BUY + _buf,
+        k1: _K1, k2: _K2, be: _K2 - _PREM, lineColor: '#00c8ff' }
+    );
+    // SellCallSpread: profit if price < K1+PREM at expiry (collect credit)
+    drawPayoffChart('chart-scs',
+      x => x <= _K1 ? _PREM : x >= _K2 ? -_MAX_SELL : _PREM - (x - _K1),
+      { xMin: _xMin, xMax: _xMax, yMin: -_MAX_SELL - _buf, yMax: _PREM + _buf,
+        k1: _K1, k2: _K2, be: _K1 + _PREM, lineColor: '#ffb800' }
+    );
+    // SellPutSpread: profit if price > K2-PREM at expiry (collect credit)
+    drawPayoffChart('chart-sps',
+      x => x >= _K2 ? _PREM : x <= _K1 ? -_MAX_SELL : _PREM - (_K2 - x),
+      { xMin: _xMin, xMax: _xMax, yMin: -_MAX_SELL - _buf, yMax: _PREM + _buf,
+        k1: _K1, k2: _K2, be: _K2 - _PREM, lineColor: '#ffb800' }
+    );
+  }
+
+  // Draw after layout; redraw on resize
+  requestAnimationFrame(drawAll);
+  window.addEventListener('resize', () => requestAnimationFrame(drawAll));
 </script>
 </body>
 </html>
