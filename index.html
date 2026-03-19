@@ -490,15 +490,6 @@
   <div class="tools-grid">
 
     <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>bootstrap <span class="tool-badge badge-core">start here</span></div>
-      <div class="tool-desc">Load rules, workflow, and tool index for the current session. Call once at session start.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">— none —</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">rules[]<br>flow[]<br>tools[]<br>minimal_state</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
       <div class="tool-name"><span class="prefix">callput_</span>scan_spreads <span class="tool-badge badge-core">primary entry</span></div>
       <div class="tool-desc">Bias-driven market scan. Returns ≤5 pre-ranked spread candidates, ATM-anchored. Includes <code style="color:var(--cyan-dim);font-size:10px">atm_iv</code> for buy vs sell decisions.</div>
       <div class="tool-io">
@@ -509,19 +500,19 @@
 
     <div class="tool-card">
       <div class="tool-name"><span class="prefix">callput_</span>execute_spread</div>
-      <div class="tool-desc">Execute or dry-run a spread. Auto-approves USDC. Returns <code style="color:var(--cyan-dim);font-size:10px">request_key</code> — must be persisted for P&L tracking.</div>
+      <div class="tool-desc">Build unsigned spread tx. Returns <code style="color:var(--cyan-dim);font-size:10px">unsigned_tx</code> + <code style="color:var(--cyan-dim);font-size:10px">usdc_approval</code>. Agent signs and broadcasts. No private key in MCP.</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">strategy<br>long_leg_id<br>short_leg_id<br>size<br>dry_run: bool</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">request_key ★<br>tx_hash<br>estimated_cost_usd<br>keeper_status</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">strategy<br>from_address ★<br>long_leg_id<br>short_leg_id<br>size</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>usdc_approval<br>&nbsp;&nbsp;approve_tx?<br>quote</div></div>
       </div>
     </div>
 
     <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>validate_spread</div>
-      <div class="tool-desc">Pre-execution validation. Required when not using the scan path. Checks leg ordering and expiry constraints.</div>
+      <div class="tool-name"><span class="prefix">callput_</span>get_request_key_from_tx <span class="tool-badge badge-new">new</span></div>
+      <div class="tool-desc">Parse <code style="color:var(--cyan-dim);font-size:10px">GenerateRequestKey</code> event from tx receipt after broadcast. Returns <code style="color:var(--cyan-dim);font-size:10px">request_key</code> — persist for P&L.</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">strategy<br>long_leg_id<br>short_leg_id</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">valid: bool<br>errors[]<br>details</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">tx_hash</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">request_key ★<br>is_open: bool</div></div>
       </div>
     </div>
 
@@ -529,16 +520,16 @@
       <div class="tool-name"><span class="prefix">callput_</span>portfolio_summary</div>
       <div class="tool-desc">Active positions with mark value and bid-based P&L. Pass <code style="color:var(--cyan-dim);font-size:10px">request_keys</code> to unlock all 7 P&L fields.</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address?<br>request_keys[]</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>request_keys[]</div></div>
         <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">usdc_balance<br>positions[]<br>unrealized_pnl<br>close_pnl_est<br>urgent_count</div></div>
       </div>
     </div>
 
     <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>list_positions_by_wallet <span class="tool-badge badge-new">new</span></div>
+      <div class="tool-name"><span class="prefix">callput_</span>list_positions_by_wallet</div>
       <div class="tool-desc">Recover all request_keys from on-chain <code style="color:var(--cyan-dim);font-size:10px">GenerateRequestKey</code> events. Use after session loss. Default lookback ~50k blocks (~1 day on Base).</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address?<br>from_block?</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>from_block?</div></div>
         <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">open_request_keys[]<br>close_request_keys[]<br>total_count</div></div>
       </div>
     </div>
@@ -554,27 +545,27 @@
 
     <div class="tool-card">
       <div class="tool-name"><span class="prefix">callput_</span>close_position</div>
-      <div class="tool-desc">Pre-expiry exit. Use when <code style="color:var(--cyan-dim);font-size:10px">days_to_expiry &lt; 1</code> or when profit target is hit. Supports dry-run.</div>
+      <div class="tool-desc">Build unsigned close tx. Use when <code style="color:var(--cyan-dim);font-size:10px">days_to_expiry &lt; 1</code> or profit target hit. Agent signs and broadcasts.</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>option_token_id<br>size<br>dry_run: bool</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">request_key<br>tx_hash<br>keeper_status</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>from_address ★<br>option_token_id<br>size</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>close</div></div>
       </div>
     </div>
 
     <div class="tool-card">
       <div class="tool-name"><span class="prefix">callput_</span>settle_position</div>
-      <div class="tool-desc">Post-expiry settlement. Expired positions only. Supports dry-run. Follow up with <code style="color:var(--cyan-dim);font-size:10px">get_settled_pnl</code>.</div>
+      <div class="tool-desc">Build unsigned settle tx for expired positions. Agent signs and broadcasts. Follow up with <code style="color:var(--cyan-dim);font-size:10px">get_settled_pnl</code>.</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>option_token_id<br>dry_run: bool</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">tx_hash<br>settle_price<br>amount_out_usd</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>option_token_id</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>settle</div></div>
       </div>
     </div>
 
     <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>get_settled_pnl <span class="tool-badge badge-new">new</span></div>
+      <div class="tool-name"><span class="prefix">callput_</span>get_settled_pnl</div>
       <div class="tool-desc">Query <code style="color:var(--cyan-dim);font-size:10px">SettlePosition</code> events for realized payout history. Subtract <code style="color:var(--cyan-dim);font-size:10px">entry_cost_usd</code> for net realized P&L.</div>
       <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address?<br>from_block?</div></div>
+        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>from_block?</div></div>
         <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">settlements[]<br>amount_out_usd<br>settle_price<br>tx_hash<br>total_out_usd</div></div>
       </div>
     </div>
@@ -637,18 +628,7 @@
       <div class="wf-step">
         <div class="wf-num">01</div>
         <div class="wf-content">
-          <span class="wf-cmd">callput_bootstrap()</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">load rules + tools + session state template</span>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">02</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_portfolio_summary({ request_keys: [] })</span>
+          <span class="wf-cmd">callput_portfolio_summary({ address })</span>
           <span class="wf-arrow">→</span>
           <span class="wf-out">usdc_balance · urgent_count · open positions</span>
           <div class="wf-note">Skip if <span class="kw">usdc_balance</span> &lt; 2× spread cost · Handle <span class="kw">urgent_count</span> &gt; 0 first</div>
@@ -656,16 +636,16 @@
       </div>
       <div class="wf-indent">
         <span>↳ [if request_keys lost]</span>
-        <span class="cmd"> callput_list_positions_by_wallet()</span>
+        <span class="cmd"> callput_list_positions_by_wallet({ address })</span>
         <span> → recover open_request_keys[] from on-chain events</span>
       </div>
 
       <hr class="wf-separator">
 
       <div class="wf-step">
-        <div class="wf-num">03</div>
+        <div class="wf-num">02</div>
         <div class="wf-content">
-          <span class="wf-cmd">callput_scan_spreads({ asset: "ETH", bias: "bullish" })</span>
+          <span class="wf-cmd">callput_scan_spreads({ underlying_asset: "ETH", bias: "bullish" })</span>
           <span class="wf-arrow">→</span>
           <span class="wf-out">ranked candidates + atm_iv</span>
           <div class="wf-note">Check <span class="kw">atm_iv</span>: ETH &gt; 80% or BTC &gt; 70% → favor <span class="val">sell spreads</span></div>
@@ -676,11 +656,24 @@
       <hr class="wf-separator">
 
       <div class="wf-step">
+        <div class="wf-num">03</div>
+        <div class="wf-content">
+          <span class="wf-cmd">callput_execute_spread({ ...rank1, from_address, size: 1 })</span>
+          <span class="wf-arrow">→</span>
+          <span class="wf-out">unsigned_tx · usdc_approval</span>
+          <div class="wf-note">If <span class="kw">usdc_approval.sufficient == false</span> → sign + broadcast <span class="val">approve_tx</span> first</div>
+        </div>
+      </div>
+
+      <hr class="wf-separator">
+
+      <div class="wf-step">
         <div class="wf-num">04</div>
         <div class="wf-content">
-          <span class="wf-cmd">callput_execute_spread({ ...rank1, size: 1, dry_run: <span style="color:var(--green)">true</span> })</span>
+          <span class="wf-out">agent signs + broadcasts</span> <span class="wf-cmd">unsigned_tx</span>
           <span class="wf-arrow">→</span>
-          <span class="wf-out">preview tx payload · estimated_cost_usd</span>
+          <span class="wf-out">tx_hash</span>
+          <div class="wf-note"><span class="kw">★</span> Agent's own key — MCP never holds private key</div>
         </div>
       </div>
 
@@ -689,10 +682,10 @@
       <div class="wf-step">
         <div class="wf-num">05</div>
         <div class="wf-content">
-          <span class="wf-cmd">callput_execute_spread({ ...rank1, size: 1, dry_run: <span style="color:var(--red)">false</span> })</span>
+          <span class="wf-cmd">callput_get_request_key_from_tx({ tx_hash })</span>
           <span class="wf-arrow">→</span>
-          <span class="wf-out">request_key ★ · tx_hash</span>
-          <div class="wf-note"><span class="kw">⚠</span> Requires <span class="val">explicit user authorization</span> before calling</div>
+          <span class="wf-out">request_key ★</span>
+          <div class="wf-note"><span class="kw">★ REQUIRED</span> — persist for P&amp;L tracking via portfolio_summary</div>
         </div>
       </div>
 
@@ -713,18 +706,7 @@
       <div class="wf-step">
         <div class="wf-num">07</div>
         <div class="wf-content">
-          <span class="wf-out">persist</span> <span class="wf-cmd">request_key</span> <span class="wf-arrow">→</span>
-          <span class="wf-out">session_state.request_keys.push(key)</span>
-          <div class="wf-note"><span class="kw">★ REQUIRED</span> for P&amp;L tracking via portfolio_summary</div>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">08</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_portfolio_summary({ request_keys: session_state.request_keys })</span>
+          <span class="wf-cmd">callput_portfolio_summary({ address, request_keys })</span>
           <span class="wf-arrow">→</span>
           <span class="wf-out">mark P&amp;L + bid-based close estimate</span>
           <div class="wf-note">Consider closing when <span class="kw">close_pnl_est_pct</span> &gt; <span class="val">50%</span></div>
@@ -903,7 +885,7 @@
       <div class="step-content">
         <div class="step-title">Clone &amp; Build</div>
         <pre class="code-block"><span class="comment"># Clone the repository</span>
-git clone https://github.com/ayggdrasil/optiontradingagent callput-lite-mcp-skill-standalone
+git clone https://github.com/ayggdrasil/callput-option-agent callput-option-agent
 cd callput-lite-mcp-skill-standalone
 
 npm install
@@ -923,28 +905,22 @@ node build/index.js --help</pre>
   <span class="key">"mcpServers"</span>: {
     <span class="key">"callput"</span>: {
       <span class="key">"command"</span>: <span class="str">"node"</span>,
-      <span class="key">"args"</span>: [<span class="str">"/absolute/path/to/callput-lite-mcp-skill-standalone/build/index.js"</span>],
+      <span class="key">"args"</span>: [<span class="str">"/absolute/path/to/callput-option-agent/build/index.js"</span>],
       <span class="key">"env"</span>: {
-        <span class="key">"CALLPUT_PRIVATE_KEY"</span>: <span class="str">"0xYOUR_PRIVATE_KEY_HERE"</span>,
-        <span class="key">"CALLPUT_RPC_URL"</span>: <span class="str">"https://mainnet.base.org"</span>
+        <span class="key">"RPC_URL"</span>: <span class="str">"https://mainnet.base.org"</span>
       }
     }
   }
 }</pre>
+        <div class="step-desc" style="margin-top:8px;color:var(--green-dim)">No private key required — MCP only builds unsigned transactions. The agent signs with its own key.</div>
         <table class="env-table">
           <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
           <tbody>
             <tr>
-              <td class="var">CALLPUT_PRIVATE_KEY</td>
-              <td><span class="req">Yes (live)</span></td>
-              <td style="color:var(--text-dim)">—</td>
-              <td style="color:var(--text-secondary)">Wallet private key (hex, 0x prefix). Dry-run mode works without it.</td>
-            </tr>
-            <tr>
-              <td class="var">CALLPUT_RPC_URL</td>
+              <td class="var">RPC_URL</td>
               <td><span class="opt">optional</span></td>
               <td style="color:var(--text-dim)">mainnet.base.org</td>
-              <td style="color:var(--text-secondary)">Base Mainnet RPC endpoint.</td>
+              <td style="color:var(--text-secondary)">Base Mainnet RPC endpoint (read-only).</td>
             </tr>
           </tbody>
         </table>
@@ -955,17 +931,14 @@ node build/index.js --help</pre>
       <div class="step-num">03</div>
       <div class="step-content">
         <div class="step-title">Inject Agent System Prompt</div>
-        <div class="step-desc">Inject <code style="color:var(--text-code)">EXTERNAL_AGENT_PROMPT.md</code> as the agent's system prompt. Contains all 16 safety and trading rules including IV-based strategy selection and session recovery.</div>
-        <pre class="code-block"><span class="comment"># Key rules in the prompt:</span>
-<span class="kw">Rule 03</span>: Keep dry_run=true until user explicitly authorizes live execution
-<span class="kw">Rule 09</span>: Never expose CALLPUT_PRIVATE_KEY in any output or log
-<span class="kw">Rule 10</span>: Call portfolio_summary before every new position
-<span class="kw">Rule 11</span>: Skip if cost_pct_of_max &gt; 40% — poor risk/reward
-<span class="kw">Rule 12</span>: Never open positions with days_to_expiry &lt; 0.25
-<span class="kw">Rule 13</span>: Manage urgent positions before opening new ones
-<span class="kw">Rule 14</span>: Persist every request_key — required for P&amp;L tracking
-<span class="kw">Rule 15</span>: High IV (ETH &gt;80%, BTC &gt;70%) → favor sell spreads
-<span class="kw">Rule 16</span>: If request_keys lost → use list_positions_by_wallet</pre>
+        <div class="step-desc">Inject <code style="color:var(--text-code)">SKILL.md</code> as the agent's system prompt or skill document. Contains all trading rules, unsigned-tx flow, and IV-based strategy selection.</div>
+        <pre class="code-block"><span class="comment"># Key rules:</span>
+<span class="kw">Rule 01</span>: Spread-only — no single-leg execution
+<span class="kw">Rule 06</span>: MCP never holds private key — agent signs externally
+<span class="kw">Rule 07</span>: If usdc_approval.sufficient == false → send approve_tx first
+<span class="kw">Rule 08</span>: Persist every request_key from get_request_key_from_tx
+<span class="kw">Rule 09</span>: If request_keys lost → use list_positions_by_wallet
+<span class="kw">Rule 10</span>: High IV (ETH &gt;80%, BTC &gt;70%) → favor sell spreads</pre>
       </div>
     </div>
 
@@ -982,11 +955,12 @@ node build/index.js --help</pre>
       <div class="step-content">
         <div class="step-title">First Session Checklist</div>
         <ul class="checklist">
-          <li><span class="cmd">callput_bootstrap()</span> — load rules and workflow</li>
-          <li><span class="cmd">callput_portfolio_summary({ request_keys: [] })</span> — check balance and open positions</li>
+          <li><span class="cmd">callput_portfolio_summary({ address: "0x..." })</span> — check balance and open positions</li>
           <li><span class="cmd">callput_scan_spreads({ underlying_asset: "ETH", bias: "bullish" })</span> — get ranked candidates + atm_iv</li>
-          <li><span class="cmd">callput_execute_spread({ ...rank1, size: 1, dry_run: true })</span> — preview tx, check estimated_cost_usd</li>
-          <li>[Only after explicit user authorization] <span class="cmd">callput_execute_spread({ ...rank1, size: 1, dry_run: false })</span> — live execution, save request_key</li>
+          <li><span class="cmd">callput_execute_spread({ ...rank1, from_address: "0x...", size: 1 })</span> — get unsigned_tx + usdc_approval</li>
+          <li>[if usdc_approval.sufficient == false] sign + broadcast approve_tx first</li>
+          <li>sign + broadcast unsigned_tx → get tx_hash</li>
+          <li><span class="cmd">callput_get_request_key_from_tx({ tx_hash })</span> — parse + persist request_key</li>
           <li><span class="cmd">callput_check_request_status({ request_key, is_open: true })</span> — poll every 30s until executed</li>
         </ul>
       </div>
