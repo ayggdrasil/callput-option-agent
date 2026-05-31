@@ -17,10 +17,12 @@
         <span>Callput Lite</span>
       </a>
       <nav class="topnav" aria-label="Operator console navigation">
+        <a href="#start">Start</a>
         <a href="#markets">Markets</a>
         <a href="#flows">Flows</a>
         <a href="#contracts">Tools</a>
         <a href="#security">Security</a>
+        <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
     </header>
 
@@ -38,6 +40,10 @@
             <span>Stock/ETF feed enabled</span>
             <span>No frontend key handling</span>
           </div>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="button primary" href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Open GitHub</a>
+            <a class="button" href="#start">Install and connect</a>
+          </div>
         </div>
         <div class="scan-card" aria-label="Market scan preview">
           <div class="scan-head">
@@ -46,6 +52,52 @@
           </div>
           <div class="symbol-tabs" id="symbolTabs"></div>
           <div class="scan-table" id="scanTable"></div>
+        </div>
+      </section>
+
+      <section id="start" class="panel setup-panel">
+        <div class="panel-head">
+          <h2>Start Trading Through an Agent</h2>
+          <p>This page is not a wallet. Install the MCP server, connect it to an agent host, then sign transactions in your own runtime.</p>
+        </div>
+        <div class="setup-grid">
+          <article class="setup-step">
+            <span>1</span>
+            <h3>Get the package</h3>
+            <pre class="prompt"><code>git clone https://github.com/ayggdrasil/callput-option-agent.git
+cd callput-option-agent
+npm install
+npm run build
+npm run verify
+npm run verify:mcp</code></pre>
+          </article>
+          <article class="setup-step">
+            <span>2</span>
+            <h3>Register the MCP server</h3>
+            <pre class="prompt"><code>node build/index.js
+
+{
+  "mcpServers": {
+    "callput-lite-agent-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/callput-option-agent/build/index.js"],
+      "env": {
+        "BASE_RPC_URL": "https://mainnet.base.org"
+      }
+    }
+  }
+}</code></pre>
+          </article>
+          <article class="setup-step">
+            <span>3</span>
+            <h3>Run the trade loop</h3>
+            <pre class="prompt"><code>Scan TSLA spreads, validate a candidate, build unsigned_tx, ask for approval, sign externally, broadcast, parse request_key, then poll status.</code></pre>
+          </article>
+        </div>
+        <div class="link-strip" aria-label="Repository links">
+          <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Source repo</a>
+          <a href="https://github.com/ayggdrasil/skills/tree/main/callput" target="_blank" rel="noreferrer">Skill-only mirror</a>
+          <a href="https://callput.app" target="_blank" rel="noreferrer">Callput.app</a>
         </div>
       </section>
 
@@ -129,7 +181,10 @@
       </section>
     </main>
 
-    <footer class="footer">Callput Lite Operator Console - stock-option aware</footer>
+    <footer class="footer">
+      <span>Callput Lite Operator Console - stock-option aware</span>
+      <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">GitHub</a>
+    </footer>
 
     <script src="./app.js" defer></script>
   </body>
