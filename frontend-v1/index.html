@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Callput Lite Operator Console</title>
+    <title>Callput Lite MCP Operator Console</title>
+    <meta
+      name="description"
+      content="One-page Callput Lite MCP operator console for external agents trading crypto and stock option spreads on Base."
+    />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,9 +16,9 @@
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="../index.html">
+      <a class="brand" href="#start">
         <span class="brand-mark">&gt;_</span>
-        <span>Callput Lite</span>
+        <span>Callput Lite MCP</span>
       </a>
       <nav class="topnav" aria-label="Operator console navigation">
         <a href="#start">Start</a>
@@ -30,16 +34,22 @@
     <main class="wrap">
       <section class="hero">
         <div class="hero-copy">
-          <h1>Operator Console for Crypto + Stock Option Agents</h1>
+          <h1>One Console for Crypto + Stock Option Agents</h1>
           <p>
-            A static control-map for OpenClaw, Bankr, and compatible runtimes using
-            <code>callput-lite-agent-mcp</code>. The page explains what to run; the agent signs and submits.
+            A single operator map for OpenClaw, Bankr, and compatible runtimes using
+            <code>callput-lite-agent-mcp</code>. Scan, build, and manage spread-only positions while the agent
+            signs and submits externally.
           </p>
           <div class="chips">
+            <span>Base 8453</span>
             <span>Unsigned transactions</span>
             <span>Spread-only risk</span>
             <span>Stock/ETF feed enabled</span>
             <span>No frontend key handling</span>
+          </div>
+          <div class="hero-meta" aria-label="Package identifiers">
+            <span>Package <strong>callput-lite-mcp-skill</strong></span>
+            <span>Server <strong>callput-lite-agent-mcp</strong></span>
           </div>
           <div class="hero-actions" aria-label="Primary actions">
             <a class="button primary" href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Open GitHub</a>
@@ -59,7 +69,7 @@
       <section id="start" class="panel setup-panel">
         <div class="panel-head">
           <h2>Start Trading Through an Agent</h2>
-          <p>This page is not a wallet. Install the MCP server, connect it to an agent host, then sign transactions in your own runtime.</p>
+          <p>This single page is not a wallet. Install the package, register the MCP server, then sign transactions in your own agent runtime.</p>
         </div>
         <div class="setup-grid">
           <article class="setup-step">
@@ -108,6 +118,10 @@ npm run verify:mcp</code></pre>
           <p>Live tradability depends on the Callput feed. The MCP can still normalize configured symbols and aliases.</p>
         </div>
         <div class="market-grid" id="marketGrid"></div>
+        <div class="market-summary" aria-label="Market support summary">
+          <div><strong>11</strong> <span>feed symbols across crypto, stocks, and ETFs</span></div>
+          <div><strong>8</strong> <span>configured option-token contracts wired in the package registry</span></div>
+        </div>
       </section>
 
       <section id="strategies" class="panel strategy-panel">
@@ -160,24 +174,34 @@ npm run verify:mcp</code></pre>
           <h2>Agent Flows</h2>
           <p>Each flow maps to one or more MCP calls. Signing remains outside the MCP boundary.</p>
         </div>
-        <div class="grid grid-4">
+        <div class="grid grid-6">
           <article class="flow-card">
-            <span>Flow A</span>
+            <span>Step 1</span>
             <h3>Market Scan</h3>
             <p>Choose symbol and bias, then rank spread candidates with IV and expiry context.</p>
           </article>
           <article class="flow-card">
-            <span>Flow B</span>
+            <span>Step 2</span>
+            <h3>Select</h3>
+            <p>Pick a candidate by strike width, cost or credit, expiry, and directional thesis.</p>
+          </article>
+          <article class="flow-card">
+            <span>Step 3</span>
             <h3>Build Transaction</h3>
             <p>Generate unsigned calldata plus USDC approval details for an external signer.</p>
           </article>
           <article class="flow-card">
-            <span>Flow C</span>
+            <span>Step 4</span>
+            <h3>Sign</h3>
+            <p>Send approval and order payloads to the agent runtime wallet boundary.</p>
+          </article>
+          <article class="flow-card">
+            <span>Step 5</span>
             <h3>Track Request</h3>
             <p>Persist the request key and poll keeper status until the request reaches terminal state.</p>
           </article>
           <article class="flow-card">
-            <span>Flow D</span>
+            <span>Step 6</span>
             <h3>Manage Position</h3>
             <p>Read P&amp;L, close before expiry when needed, and settle after expiry.</p>
           </article>
