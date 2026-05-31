@@ -543,6 +543,13 @@
         gap: 14px;
       }
 
+      .composition-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 14px;
+      }
+
       .payoff-card {
         padding: 16px;
       }
@@ -558,6 +565,26 @@
         border: 1px solid var(--line);
         border-radius: 6px;
         background: #071017;
+      }
+
+      .composition-card {
+        padding: 18px;
+        border-color: rgba(244, 184, 74, 0.24);
+        background: rgba(244, 184, 74, 0.06);
+      }
+
+      .composition-card strong {
+        display: block;
+        color: var(--amber);
+        font-family: var(--font-mono);
+        margin-bottom: 8px;
+      }
+
+      .composition-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
       }
 
       .setup-grid {
@@ -620,7 +647,8 @@
 
         .workflow,
         .tool-grid,
-        .payoff-grid {
+        .payoff-grid,
+        .composition-grid {
           grid-template-columns: repeat(2, 1fr);
         }
 
@@ -666,6 +694,7 @@
         .workflow,
         .tool-grid,
         .payoff-grid,
+        .composition-grid,
         .boundary {
           grid-template-columns: 1fr;
         }
@@ -708,6 +737,7 @@
           <a href="#markets">Markets</a>
           <a href="#workflow">Workflow</a>
           <a href="#tools">Tools</a>
+          <a href="#strategies">Strategies</a>
           <a href="#security">Security</a>
           <a href="#setup">Setup</a>
           <span class="base-pill"><span class="base-dot"></span>Base 8453</span>
@@ -922,12 +952,12 @@
         </div>
       </section>
 
-      <section class="shell" aria-labelledby="payoff-title">
+      <section id="strategies" class="shell" aria-labelledby="payoff-title">
         <div class="section-head">
           <h2 id="payoff-title">Four spread strategies, one capped-risk mental model.</h2>
           <p class="section-copy">
-            Crypto and synthetic stock options share the same spread mechanics: buy spreads pay premium for
-            directional exposure; sell spreads collect credit with defined max loss.
+            Crypto and synthetic stock options share the same mechanics: BuyCallSpread and BuyPutSpread pay
+            premium for directional exposure; SellCallSpread and SellPutSpread collect credit with defined max loss.
           </p>
         </div>
         <div class="payoff-grid">
@@ -946,6 +976,16 @@
           <article class="panel payoff-card">
             <h3>SellPutSpread</h3>
             <canvas id="sps" width="360" height="190" aria-label="Sell put spread payoff chart"></canvas>
+          </article>
+        </div>
+        <div class="composition-grid">
+          <article class="panel composition-card">
+            <strong>Butterfly from spreads</strong>
+            <p>Combine one buy spread and one sell spread around the same middle strike. The agent submits and tracks multiple unsigned spread orders rather than one atomic bundle.</p>
+          </article>
+          <article class="panel composition-card">
+            <strong>Iron Condor from spreads</strong>
+            <p>Combine a sell call spread and a sell put spread around a target range. Each side stays capped-risk while the agent manages separate request keys.</p>
           </article>
         </div>
       </section>
