@@ -159,12 +159,20 @@ npm run verify:mcp</code></pre>
           <article class="composition-card">
             <strong>Butterfly</strong>
             <p>Compose one buy spread and one sell spread around the same middle strike. The agent coordinates multiple unsigned transactions and tracks each request key.</p>
-            <canvas id="chart-bfly" width="360" height="190" aria-label="Butterfly payoff chart"></canvas>
+            <div class="variant-list" aria-label="Butterfly buy and sell variants">
+              <div><span class="variant-side buy">Buy</span><b>BuyButterfly</b><em>debit tent, max profit near the middle strike</em></div>
+              <div><span class="variant-side sell">Sell</span><b>SellButterfly</b><em>credit inverse tent, profit outside the wings</em></div>
+            </div>
+            <canvas id="chart-bfly" width="360" height="190" aria-label="BuyButterfly and SellButterfly payoff chart"></canvas>
           </article>
           <article class="composition-card">
             <strong>Iron Condor</strong>
             <p>Compose a sell call spread and a sell put spread around a target range. Each wing remains capped-risk; execution is managed as separate spread orders.</p>
-            <canvas id="chart-icondor" width="360" height="190" aria-label="Iron Condor payoff chart"></canvas>
+            <div class="variant-list" aria-label="Iron Condor buy and sell variants">
+              <div><span class="variant-side buy">Buy</span><b>BuyIronCondor</b><em>debit outside-range structure, profit past either wing</em></div>
+              <div><span class="variant-side sell">Sell</span><b>SellIronCondor</b><em>credit range structure, max profit between short strikes</em></div>
+            </div>
+            <canvas id="chart-icondor" width="360" height="190" aria-label="BuyIronCondor and SellIronCondor payoff chart"></canvas>
           </article>
         </div>
       </section>
