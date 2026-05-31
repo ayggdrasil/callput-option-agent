@@ -1,11 +1,11 @@
 # Callput Lite MCP + Skill
 
-Minimal documentation package for external agents (OpenClaw, Bankr, others) to trade on Callput.app on Base.
+Minimal documentation package for external agents (OpenClaw, Bankr, others) to trade Callput crypto and synthetic stock/ETF options on Base.
 
 This package is designed for:
 - minimal setup
 - minimal context usage
-- spread-only safe workflow
+- spread-only safe workflow for crypto and supported stock/ETF underlyings
 - no Python SDK dependency on the external agent side
 
 ## What You Get
@@ -13,7 +13,7 @@ This package is designed for:
 - Ready-to-use `SKILL.md`
 - OpenClaw/Bankr MCP config templates
 - First-trade prompt templates
-- Safe defaults (`dry_run=true`)
+- Unsigned transaction flow by default; signing stays outside MCP
 - Frontend V1 guidance console (`frontend-v1/`)
 
 ## Folder Contents
@@ -29,6 +29,13 @@ This package is designed for:
 - `ARCHITECTURE_V1.md` : frontend vs agent runtime responsibilities
 - `FAQ.md` : operator FAQ
 - `frontend-v1/` : static responsive UI for V1 guidance
+
+## Supported Underlyings
+- Crypto: `BTC`, `ETH`
+- Stock/ETF symbols in the Callput feed: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Deployed option-token contracts configured here: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
+- Live tradability is determined by the market feed. If a symbol has no available contracts, `callput_scan_spreads` returns no candidates.
+- Stock options are synthetic on-chain options. They are not broker-listed options, shares, ETFs, or tokenized stock ownership.
 
 ## MCP Tool Set (10 tools)
 - `callput_scan_spreads` — Market scan with ranked spread candidates
@@ -55,14 +62,14 @@ npm run verify:mcp
 ## Runtime Environment
 - `RPC_URL` (optional)
   - default: `https://mainnet.base.org`
-- `CALLPUT_PRIVATE_KEY` (required only for real execution mode)
+- `CALLPUT_PRIVATE_KEY` is not read by this MCP server. Configure private keys only in the external agent/signer runtime if that runtime requires one.
 
 ## Connect OpenClaw / Bankr
 1. Copy template:
    - `OPENCLAW_MCP_CONFIG.template.json` or `BANKR_MCP_CONFIG.template.json`
 2. Replace placeholders:
    - `<repo_root>`
-   - `CALLPUT_PRIVATE_KEY`
+   - signer/private-key settings in your external runtime, if that runtime requires them
 3. Restart agent runtime.
 4. Run first prompts from `FIRST_TRADE_PROMPTS.md`.
 
@@ -86,17 +93,13 @@ V1 flow in UI:
 V1 note:
 - Market analysis template is deferred to V2.
 
-## Execution Modes
-- Dry-run (default):
-  - `callput_execute_spread(dry_run=true)`
-  - `callput_close_position(dry_run=true)`
-  - `callput_settle_position(dry_run=true)`
-- Real execution:
-  - set `dry_run=false`
-  - ensure `CALLPUT_PRIVATE_KEY` is set in MCP env
+## Execution Model
+- MCP preview/build mode: tools return unsigned transactions only. Nothing is signed or broadcast by the MCP server.
+- Live execution: the external agent runtime signs and broadcasts `unsigned_tx` using its own wallet, HSM, Bankr signer, Ledger, or equivalent signer.
+- If `usdc_approval.sufficient == false`, the agent signs and broadcasts `usdc_approval.approve_tx` before the main transaction.
 
 ## Mandatory Trading Rules
-1. Spread-only execution.
+1. Spread-only execution across crypto and supported stock/ETF symbols.
 2. Validate before execute.
 3. Call spread: long lower strike, short higher strike.
 4. Put spread: long higher strike, short lower strike.
@@ -104,7 +107,7 @@ V1 note:
 6. Close pre-expiry, settle post-expiry.
 
 ## Notes
-- The server fetches live market data from Callput S3 feed.
+- The server fetches live crypto and stock/ETF option data from the Callput S3 feed.
 - Keep private keys out of logs and chat output.
 - For production use, add your own notional/risk limits at orchestrator layer.
 - Frontend does not store or process private keys. Key ownership remains in each external agent runtime.

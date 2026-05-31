@@ -12,17 +12,17 @@ This document defines one UI component per MCP tool.
 
 ### 1. `callput_scan_spreads`
 - Component: `MarketScanCard`
-- Inputs: `asset` (ETH/BTC), `bias` (bullish/bearish/neutral-bearish/neutral-bullish)
+- Inputs: `underlying_asset` (BTC/ETH/TSLA/QQQ/SPY/EWY/NVDA/COIN/CRCL/SAMSUNG/HYNIX), `bias` (bullish/bearish/neutral-bearish/neutral-bullish)
 - Outputs: ranked spread candidates, ATM IV, cost/credit, max profit/loss
 - Trigger: user selects direction
-- Note: Replaces old bootstrap + validate_spread workflow
+- Note: Primary market entry for both crypto and synthetic stock/ETF spreads
 
 ### 2. `callput_execute_spread`
 - Component: `ExecutionCard`
 - Inputs: `strategy`, `from_address`, `long_leg_id`, `short_leg_id`, `size`
 - Outputs: `unsigned_tx`, `usdc_approval` check, estimated costs
 - Trigger: explicit operator authorization
-- Note: Builds transaction; agent signs externally
+- Note: Builds unsigned transaction; agent signs externally. Leg IDs may be decimal or `0x` hex strings.
 
 ### 3. `callput_check_request_status`
 - Component: `RequestStatusCard`
@@ -77,5 +77,5 @@ This document defines one UI component per MCP tool.
 
 ## UX Guardrails
 - Disable execution buttons until validation passes.
-- Always default `dry_run=true` in UI examples.
 - Show explicit warning: private key is not handled by this frontend.
+- Show explicit warning: stock options are synthetic on-chain options, not broker-listed options, shares, ETFs, or tokenized stock ownership.

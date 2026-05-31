@@ -1,1489 +1,1049 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Callput Lite MCP — Spread Trading for AI Agents on Base</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg-void: #020408;
-    --bg-deep: #060d14;
-    --bg-surface: #0a1520;
-    --bg-card: #0d1e2e;
-    --bg-card-hover: #111f30;
-    --grid-line: rgba(0, 200, 255, 0.06);
-    --border: rgba(0, 200, 255, 0.15);
-    --border-bright: rgba(0, 200, 255, 0.35);
-    --cyan: #00c8ff;
-    --cyan-dim: rgba(0, 200, 255, 0.6);
-    --cyan-glow: rgba(0, 200, 255, 0.12);
-    --green: #00ff88;
-    --green-dim: rgba(0, 255, 136, 0.6);
-    --green-glow: rgba(0, 255, 136, 0.08);
-    --amber: #ffb800;
-    --amber-dim: rgba(255, 184, 0, 0.6);
-    --red: #ff4444;
-    --text-primary: #e0f0ff;
-    --text-secondary: rgba(160, 200, 230, 0.7);
-    --text-dim: rgba(100, 150, 190, 0.5);
-    --text-code: #7de0ff;
-    --font-mono: 'JetBrains Mono', 'Space Mono', monospace;
-  }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Callput Lite MCP - Crypto + Stock Option Spreads for AI Agents</title>
+    <meta
+      name="description"
+      content="Callput Lite MCP lets external agents scan, build, and manage crypto plus synthetic stock/ETF option spreads on Base with unsigned transaction handoff."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #05080b;
+        --bg-2: #071015;
+        --panel: #0b151b;
+        --panel-2: #0d1b23;
+        --panel-3: #101f29;
+        --line: rgba(130, 210, 235, 0.16);
+        --line-strong: rgba(62, 207, 255, 0.34);
+        --text: #eff8fb;
+        --muted: #9bb0bb;
+        --faint: #657b87;
+        --cyan: #21c9ff;
+        --cyan-2: #61e7ff;
+        --green: #41e77d;
+        --amber: #f4b84a;
+        --red: #ff5e67;
+        --blue: #3f7cff;
+        --ink: #061017;
+        --radius: 8px;
+        --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+      * {
+        box-sizing: border-box;
+      }
 
-  body {
-    background: var(--bg-void);
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-    font-size: 13px;
-    line-height: 1.6;
-    overflow-x: hidden;
-  }
+      html {
+        scroll-behavior: smooth;
+      }
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 60px 60px;
-    pointer-events: none;
-    z-index: 0;
-  }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          linear-gradient(180deg, rgba(8, 22, 28, 0.74), transparent 420px),
+          repeating-linear-gradient(90deg, rgba(112, 208, 232, 0.035) 0 1px, transparent 1px 72px),
+          repeating-linear-gradient(0deg, rgba(112, 208, 232, 0.035) 0 1px, transparent 1px 72px),
+          var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        line-height: 1.5;
+      }
 
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
-    pointer-events: none;
-    z-index: 0;
-  }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
 
-  /* NAV */
-  nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    background: rgba(2, 4, 8, 0.92);
-    border-bottom: 1px solid var(--border);
-    backdrop-filter: blur(12px);
-    padding: 0 40px;
-    height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
+      button {
+        font: inherit;
+      }
 
-  .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text-primary); }
-  .nav-logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse-dot 2s ease-in-out infinite; }
-  @keyframes pulse-dot { 0%,100% { opacity:1; box-shadow:0 0 8px var(--green); } 50% { opacity:.6; box-shadow:0 0 16px var(--green); } }
-  .nav-logo-text { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: var(--cyan); }
-  .nav-logo-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em; }
+      .shell {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+      }
 
-  .nav-links { display: flex; gap: 28px; list-style: none; }
-  .nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.2s; }
-  .nav-links a:hover { color: var(--cyan); }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        border-bottom: 1px solid var(--line);
+        background: rgba(5, 8, 11, 0.88);
+        backdrop-filter: blur(16px);
+      }
 
-  /* SECTIONS */
-  section {
-    position: relative;
-    z-index: 1;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 100px 40px;
-  }
+      .topbar-inner {
+        width: min(1280px, calc(100vw - 32px));
+        min-height: 64px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
 
-  .section-label {
-    font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-    color: var(--cyan-dim); margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
-  }
-  .section-label::before { content: '//'; color: var(--border-bright); }
-  h1, h2, h3 { font-family: var(--font-mono); font-weight: 700; }
-  h2 { font-size: 26px; color: var(--text-primary); margin-bottom: 40px; letter-spacing: -0.02em; }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
 
-  /* HERO */
-  #hero {
-    min-height: 100vh;
-    padding: 130px 10% 100px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    max-width: 100%;
-  }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        color: var(--cyan);
+        font-family: var(--font-mono);
+        box-shadow: inset 0 0 18px rgba(33, 201, 255, 0.08);
+      }
 
-  .hero-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 4px 12px; border: 1px solid var(--border); border-radius: 2px;
-    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
-    color: var(--green-dim); margin-bottom: 32px; background: var(--green-glow); width: fit-content;
-  }
-  .hero-badge .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse-dot 1.5s ease-in-out infinite; }
+      .brand span:last-child {
+        color: var(--cyan);
+      }
 
-  h1.hero-title { font-size: clamp(40px, 6vw, 72px); line-height: 1.05; letter-spacing: -0.03em; color: var(--text-primary); margin-bottom: 16px; }
-  h1.hero-title span.accent { color: var(--cyan); }
+      .topnav {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
 
-  .hero-tagline { font-size: clamp(14px, 2vw, 18px); color: var(--text-secondary); margin-bottom: 40px; max-width: 600px; font-weight: 400; }
+      .topnav a:hover {
+        color: var(--cyan);
+      }
 
-  .hero-stats { display: flex; gap: 40px; margin-bottom: 48px; flex-wrap: wrap; }
-  .stat { display: flex; flex-direction: column; gap: 4px; }
-  .stat-val { font-size: 28px; font-weight: 700; color: var(--cyan); line-height: 1; }
-  .stat-lbl { font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; }
+      .base-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(63, 124, 255, 0.46);
+        border-radius: 6px;
+        padding: 7px 10px;
+        color: #bcd0ff;
+        background: rgba(63, 124, 255, 0.08);
+      }
 
-  .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+      .base-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--blue);
+        box-shadow: 0 0 12px rgba(63, 124, 255, 0.8);
+      }
 
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 20px; border-radius: 2px; font-family: var(--font-mono);
-    font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-decoration: none;
-    text-transform: uppercase; cursor: pointer; border: 1px solid transparent; transition: all 0.2s;
-  }
-  .btn-primary { background: var(--cyan); color: var(--bg-void); border-color: var(--cyan); }
-  .btn-primary:hover { background: transparent; color: var(--cyan); box-shadow: 0 0 20px var(--cyan-glow); }
-  .btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border); }
-  .btn-ghost:hover { color: var(--cyan); border-color: var(--cyan-dim); background: var(--cyan-glow); }
+      .hero {
+        min-height: calc(100vh - 64px);
+        padding: 44px 0 32px;
+        display: grid;
+        align-items: center;
+      }
 
-  .chain-pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 6px 14px; background: rgba(0,82,255,0.1); border: 1px solid rgba(0,82,255,0.3);
-    border-radius: 2px; font-size: 11px; color: #4488ff; font-weight: 600; letter-spacing: 0.08em;
-  }
-  .chain-pill::before { content: '◆'; font-size: 8px; }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(520px, 1.1fr);
+        gap: 36px;
+        align-items: center;
+      }
 
-  .section-divider { border: none; border-top: 1px solid var(--border); max-width: 1100px; margin: 0 auto; opacity: 0.5; }
+      .hero-copy {
+        padding: 18px 0;
+      }
 
-  /* ARCHITECTURE */
-  .arch-diagram {
-    background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
-    padding: 32px 40px; font-size: 12px; overflow-x: auto;
-  }
-  .arch-phase { margin-bottom: 8px; }
-  .arch-phase-label {
-    font-size: 9px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--text-dim); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
-  }
-  .arch-phase-label::before { content: ''; display: inline-block; width: 20px; height: 1px; background: var(--border-bright); }
-  .arch-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; align-items: center; }
-  .arch-node { text-align: center; padding: 12px 8px; }
-  .arch-box {
-    display: inline-block; padding: 8px 14px; border: 1px solid var(--border-bright);
-    border-radius: 2px; color: var(--cyan); font-size: 11px; font-weight: 600;
-    background: var(--cyan-glow); white-space: nowrap; letter-spacing: 0.05em;
-  }
-  .arch-box.green { border-color: rgba(0,255,136,0.35); color: var(--green); background: var(--green-glow); }
-  .arch-box.amber { border-color: rgba(255,184,0,0.35); color: var(--amber); background: rgba(255,184,0,0.06); }
-  .arch-box.dim { border-color: var(--border); color: var(--text-secondary); background: transparent; }
-  .arch-box.key { border-color: rgba(255,184,0,0.5); color: var(--amber); background: rgba(255,184,0,0.06); }
-  .arch-label { display: block; font-size: 9px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 6px; }
-  .arch-arrow { text-align: center; color: var(--border-bright); font-size: 18px; align-self: center; padding-bottom: 18px; }
-  .arch-phase-divider { border: none; border-top: 1px dashed rgba(0,200,255,0.08); margin: 6px 0 14px; }
-  .arch-details {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
-    margin-top: 20px; border-top: 1px solid var(--border); padding-top: 24px;
-  }
-  .arch-detail-item { padding: 12px; border-left: 2px solid var(--border); }
-  .arch-detail-key { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; }
-  .arch-detail-val { font-size: 11px; color: var(--text-code); }
+      h1 {
+        margin: 0;
+        max-width: 680px;
+        font-size: clamp(44px, 6vw, 78px);
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+      }
 
-  /* TOOLS GRID */
-  .tools-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
-  }
-  .tool-card {
-    background: var(--bg-card); padding: 20px; transition: background 0.2s; position: relative;
-  }
-  .tool-card:hover { background: var(--bg-card-hover); }
-  .tool-card::before { content:''; position:absolute; top:0; left:0; width:2px; height:100%; background:transparent; transition:background 0.2s; }
-  .tool-card:hover::before { background: var(--cyan); }
-  .tool-name { font-size: 12px; font-weight: 700; color: var(--cyan); margin-bottom: 6px; letter-spacing: 0.04em; }
-  .tool-name .prefix { color: var(--border-bright); font-weight: 400; }
-  .tool-badge { display:inline-block; padding:1px 6px; font-size:9px; border-radius:1px; margin-left:6px; vertical-align:middle; }
-  .badge-new { background:rgba(0,255,136,0.15); color:var(--green); border:1px solid rgba(0,255,136,0.3); text-transform:uppercase; letter-spacing:0.1em; }
-  .badge-core { background:rgba(0,200,255,0.1); color:var(--cyan-dim); border:1px solid var(--border); text-transform:uppercase; letter-spacing:0.08em; }
-  .tool-desc { font-size: 11px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
-  .tool-io { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px; }
-  .tool-io-block { background: var(--bg-surface); border: 1px solid rgba(0,200,255,0.08); border-radius: 2px; padding: 8px; }
-  .tool-io-label { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; font-size: 9px; margin-bottom: 4px; }
-  .tool-io-val { color: var(--text-code); line-height: 1.6; }
+      h1 .accent {
+        color: var(--green);
+      }
 
-  /* WORKFLOW */
-  .workflow-terminal { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-  .terminal-bar {
-    background: var(--bg-surface); padding: 10px 16px;
-    display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border);
-  }
-  .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
-  .terminal-dot.red { background: #ff5f57; }
-  .terminal-dot.yellow { background: #ffbd2e; }
-  .terminal-dot.green { background: #28ca41; }
-  .terminal-title { font-size: 11px; color: var(--text-dim); margin-left: 8px; letter-spacing: 0.08em; }
-  .terminal-body { padding: 28px 32px; font-size: 12px; line-height: 2; }
+      .hero-subtitle {
+        max-width: 620px;
+        margin: 22px 0 0;
+        color: var(--muted);
+        font-size: clamp(16px, 2vw, 19px);
+      }
 
-  .wf-step { display: grid; grid-template-columns: 28px 1fr; gap: 16px; align-items: start; margin-bottom: 8px; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease, transform 0.4s ease; }
-  .wf-step.visible { opacity: 1; transform: translateY(0); }
-  .wf-num { font-size: 10px; color: var(--text-dim); font-weight: 600; padding-top: 2px; letter-spacing: 0.05em; }
-  .wf-cmd { color: var(--cyan); font-weight: 600; }
-  .wf-arrow { color: var(--border-bright); margin: 0 6px; }
-  .wf-out { color: var(--text-secondary); }
-  .wf-note { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
-  .wf-note .kw { color: var(--amber); }
-  .wf-note .val { color: var(--green); }
-  .wf-indent { margin-left: 44px; margin-bottom: 4px; font-size: 11px; color: var(--text-dim); }
-  .wf-indent .cmd { color: var(--cyan-dim); }
-  .wf-separator { border: none; border-top: 1px dashed var(--border); margin: 16px 0; }
+      .hero-points {
+        display: grid;
+        gap: 8px;
+        margin: 28px 0 0;
+        color: #c7d6dc;
+        font-size: 14px;
+      }
 
-  /* P&L TABLE */
-  .pnl-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
-  table.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .data-table thead tr { background: var(--bg-surface); border-bottom: 1px solid var(--border-bright); }
-  .data-table th { padding: 10px 16px; text-align: left; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
-  .data-table tbody tr { border-bottom: 1px solid var(--grid-line); transition: background 0.15s; }
-  .data-table tbody tr:last-child { border-bottom: none; }
-  .data-table tbody tr:hover { background: var(--bg-card-hover); }
-  .data-table td { padding: 12px 16px; vertical-align: top; }
-  .td-field { color: var(--cyan); font-weight: 600; white-space: nowrap; font-size: 11px; }
-  .td-type { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
-  .td-desc { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
-  .td-desc .note { color: var(--amber); }
+      .hero-points span {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
 
-  .pnl-rule-box {
-    margin-top: 24px; padding: 16px 20px;
-    background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.25); border-radius: 3px;
-    display: flex; align-items: flex-start; gap: 12px; font-size: 12px;
-  }
-  .pnl-rule-icon { color: var(--green); font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-  .pnl-rule-text { color: var(--text-secondary); line-height: 1.6; }
-  .pnl-rule-text strong { color: var(--green); }
+      .hero-points span::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 2px;
+        background: var(--cyan);
+        box-shadow: 0 0 14px rgba(33, 201, 255, 0.8);
+      }
 
-  .bridge-box { margin-top: 16px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px; font-size: 11px; color: var(--text-dim); }
-  .bridge-box code { color: var(--text-code); background: rgba(0,200,255,0.08); padding: 1px 5px; border-radius: 2px; }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 34px;
+      }
 
-  /* SETUP */
-  .setup-steps { display: flex; flex-direction: column; gap: 20px; }
-  .setup-step { display: grid; grid-template-columns: 48px 1fr; gap: 20px; align-items: start; }
-  .step-num {
-    width: 40px; height: 40px; border: 1px solid var(--border-bright); border-radius: 2px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 700; color: var(--cyan); background: var(--cyan-glow); flex-shrink: 0;
-  }
-  .step-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
-  .step-desc { font-size: 11px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.6; }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 46px;
+        padding: 0 20px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+      }
 
-  pre.code-block {
-    background: var(--bg-deep); border: 1px solid var(--border); border-radius: 3px;
-    padding: 16px 20px; font-size: 11px; color: var(--text-code); overflow-x: auto; line-height: 1.7; white-space: pre;
-  }
-  pre.code-block .comment { color: var(--text-dim); }
-  pre.code-block .key { color: var(--cyan); }
-  pre.code-block .str { color: #98d8a0; }
-  pre.code-block .kw { color: var(--amber); }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
 
-  .env-table { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: 3px; overflow: hidden; font-size: 11px; margin-top: 12px; }
-  .env-table th { background: var(--bg-surface); padding: 8px 14px; text-align: left; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-  .env-table td { padding: 10px 14px; border-bottom: 1px solid var(--grid-line); vertical-align: top; }
-  .env-table tr:last-child td { border-bottom: none; }
-  .env-table .var { color: var(--cyan); font-weight: 600; }
-  .env-table .req { color: var(--green); font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; }
-  .env-table .opt { color: var(--text-dim); font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; }
+      .btn-primary {
+        background: var(--cyan);
+        color: var(--ink);
+        box-shadow: 0 16px 46px rgba(33, 201, 255, 0.18);
+      }
 
-  .checklist { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-  .checklist li {
-    display: flex; align-items: flex-start; gap: 10px; font-size: 11px; color: var(--text-secondary);
-    padding: 8px 12px; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 2px;
-  }
-  .checklist li::before { content: '☐'; color: var(--border-bright); flex-shrink: 0; font-size: 13px; margin-top: -1px; }
-  .checklist li span.cmd { color: var(--cyan); }
+      .btn-secondary {
+        border-color: var(--line-strong);
+        color: var(--cyan);
+        background: rgba(33, 201, 255, 0.06);
+      }
 
-  /* INFO CARDS */
-  .info-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px; padding: 20px; transition: border-color 0.2s; }
-  .info-card:hover { border-color: var(--border-bright); }
-  .info-card-icon { font-size: 20px; margin-bottom: 10px; display: block; color: var(--cyan); }
-  .info-card-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
-  .info-card-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.6; }
-  .contract-addr { font-size: 10px; color: var(--cyan-dim); background: var(--bg-surface); border: 1px solid var(--border); padding: 4px 8px; border-radius: 2px; margin-top: 8px; word-break: break-all; letter-spacing: 0.03em; }
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 34px;
+        color: var(--faint);
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
 
-  /* BIAS GRID */
-  .bias-grid {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px;
-    background: var(--border); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 24px;
-  }
-  .bias-cell { background: var(--bg-card); padding: 16px; }
-  .bias-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-dim); margin-bottom: 4px; }
-  .bias-val { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-  .bias-val.bullish { color: var(--green); }
-  .bias-val.bearish { color: var(--red); }
-  .bias-val.nb { color: var(--amber); }
-  .bias-val.nbu { color: #aa88ff; }
-  .bias-strategy { font-size: 11px; color: var(--text-secondary); }
-  .bias-metric { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+      .hero-visual {
+        position: relative;
+      }
 
-  .highlight-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px; padding: 20px 24px; margin-bottom: 28px; }
-  .highlight-box .hl-title { font-size: 11px; font-weight: 700; color: var(--cyan); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-  .highlight-box .hl-body { font-size: 11px; color: var(--text-secondary); line-height: 1.7; }
-  .highlight-box .hl-body code { color: var(--text-code); background: rgba(0,200,255,0.08); padding: 1px 5px; border-radius: 2px; font-size: 10px; }
+      .scan-frame {
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(15, 31, 41, 0.96), rgba(7, 16, 21, 0.98));
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+      }
 
-  /* PAYOFF DIAGRAMS */
-  .payoff-intro { font-size: 12px; color: var(--text-secondary); margin-bottom: 32px; line-height: 1.7; max-width: 680px; }
-  .payoff-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-  .payoff-card { background: var(--bg-card); padding: 20px 20px 16px; position: relative; }
-  .payoff-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-  .payoff-strategy-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
-  .payoff-bias-tag { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 2px; letter-spacing: 0.12em; text-transform: uppercase; flex-shrink: 0; }
-  .payoff-bias-tag.bullish { color: var(--green); background: var(--green-glow); border: 1px solid rgba(0,255,136,0.25); }
-  .payoff-bias-tag.bearish { color: var(--red); background: rgba(255,68,68,0.06); border: 1px solid rgba(255,68,68,0.25); }
-  .payoff-bias-tag.nb { color: var(--amber); background: rgba(255,184,0,0.06); border: 1px solid rgba(255,184,0,0.25); }
-  .payoff-bias-tag.nbu { color: #aa88ff; background: rgba(170,136,255,0.06); border: 1px solid rgba(170,136,255,0.25); }
-  .payoff-canvas { display: block; width: 100%; }
-  .payoff-legend { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
-  .payoff-legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); }
-  .payoff-legend-dot { width: 14px; height: 2px; border-radius: 1px; flex-shrink: 0; }
-  @media (max-width: 768px) { .payoff-grid { grid-template-columns: 1fr; } }
+      .scan-frame img {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+      }
 
-  /* FOOTER */
-  footer {
-    position: relative; z-index: 1; border-top: 1px solid var(--border);
-    padding: 32px 10%; display: flex; justify-content: space-between;
-    align-items: center; flex-wrap: wrap; gap: 16px;
-    font-size: 10px; color: var(--text-dim); letter-spacing: 0.08em;
-  }
-  footer a { color: var(--text-dim); text-decoration: none; }
-  footer a:hover { color: var(--cyan-dim); }
+      .scan-caption {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 16px;
+        align-items: center;
+        padding: 14px 16px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
 
-  /* RESPONSIVE */
-  @media (max-width: 768px) {
-    nav { padding: 0 20px; }
-    .nav-links { display: none; }
-    #hero { padding: 120px 20px 80px; }
-    section { padding-left: 20px; padding-right: 20px; }
-    footer { padding: 24px 20px; }
-    .arch-flow { grid-template-columns: 1fr; }
-    .arch-details { grid-template-columns: 1fr; }
-    .tool-io { grid-template-columns: 1fr; }
-    .bias-grid { grid-template-columns: 1fr; }
-    h1.hero-title { font-size: 36px; }
-    .setup-step { grid-template-columns: 40px 1fr; }
-  }
-</style>
-</head>
-<body>
+      .scan-caption strong {
+        color: var(--green);
+        font-weight: 700;
+      }
 
-<nav>
-  <a href="#hero" class="nav-logo">
-    <div class="nav-logo-dot"></div>
-    <div>
-      <div class="nav-logo-text">CALLPUT LITE MCP</div>
-      <div class="nav-logo-sub">Base Mainnet · Chain 8453</div>
-    </div>
-  </a>
-  <ul class="nav-links">
-    <li><a href="#architecture">Architecture</a></li>
-    <li><a href="#workflow">Workflow</a></li>
-    <li><a href="#payoff">Payoff</a></li>
-    <li><a href="#setup">Setup</a></li>
-    <li><a href="https://callput.app" target="_blank">callput.app ↗</a></li>
-  </ul>
-</nav>
+      .market-strip {
+        margin-top: 20px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(11, 21, 27, 0.72);
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        padding: 18px;
+      }
 
-<!-- HERO -->
-<section id="hero">
-  <div class="hero-badge">
-    <span class="live-dot"></span>
-    Live on Base Mainnet
-  </div>
-  <h1 class="hero-title">
-    Spread trading<br>for <span class="accent">AI agents</span><br>on Base.
-  </h1>
-  <p class="hero-tagline">
-    10 MCP tools. Spread-only execution. On-chain P&L tracking.<br>No chart reading required.
-  </p>
-  <div class="hero-stats">
-    <div class="stat"><span class="stat-val">10</span><span class="stat-lbl">MCP Tools</span></div>
-    <div class="stat"><span class="stat-val">4</span><span class="stat-lbl">Spread Types</span></div>
-    <div class="stat"><span class="stat-val">2</span><span class="stat-lbl">Assets: BTC / ETH</span></div>
-    <div class="stat"><span class="stat-val">USDC</span><span class="stat-lbl">Settlement</span></div>
-  </div>
-  <div class="hero-cta">
-    <a href="https://callput.app" target="_blank" class="btn btn-primary">callput.app ↗</a>
-    <a href="https://github.com/ayggdrasil/optiontradingagent" target="_blank" class="btn btn-ghost">GitHub ↗</a>
-    <a href="https://x.com/CallPutApp" target="_blank" class="btn btn-ghost">X @CallPutApp</a>
-    <a href="https://t.me/Callput_Official" target="_blank" class="btn btn-ghost">Telegram</a>
-    <a href="https://discord.com/invite/thbePJKdmc" target="_blank" class="btn btn-ghost">Discord</a>
-    <span class="chain-pill">Base · 8453</span>
-  </div>
-</section>
+      .market-list {
+        display: grid;
+        grid-template-columns: repeat(11, minmax(0, 1fr));
+        gap: 8px;
+      }
 
-<hr class="section-divider">
+      .symbol-chip {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px 8px;
+        background: rgba(255, 255, 255, 0.025);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        text-align: center;
+        color: #d5e4e9;
+      }
 
-<!-- ARCHITECTURE -->
-<section id="architecture">
-  <div class="section-label">Architecture</div>
-  <h2>How It Works</h2>
-  <div class="arch-diagram">
+      .symbol-chip.live {
+        border-color: rgba(65, 231, 125, 0.38);
+        color: var(--green);
+        background: rgba(65, 231, 125, 0.055);
+      }
 
-    <!-- Phase 01: Query -->
-    <div class="arch-phase">
-      <div class="arch-phase-label">01 · Query</div>
-      <div class="arch-flow">
-        <div class="arch-node">
-          <div class="arch-box">AI Agent</div>
-          <span class="arch-label">OpenClaw / Bankr / Custom</span>
+      .market-kpi {
+        min-width: 156px;
+        border-left: 1px solid var(--line);
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+        font-family: var(--font-mono);
+      }
+
+      .market-kpi strong {
+        display: block;
+        color: var(--cyan);
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      .market-kpi span {
+        color: var(--faint);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      section {
+        padding: 78px 0;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      h2 {
+        margin: 0;
+        max-width: 720px;
+        font-size: clamp(28px, 4vw, 46px);
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+
+      .section-copy {
+        max-width: 430px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: rgba(11, 21, 27, 0.78);
+      }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        overflow: hidden;
+      }
+
+      .workflow-step {
+        min-height: 178px;
+        padding: 18px;
+        border-right: 1px solid var(--line);
+        display: grid;
+        align-content: start;
+        gap: 12px;
+      }
+
+      .workflow-step:last-child {
+        border-right: none;
+      }
+
+      .step-num {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(65, 231, 125, 0.14);
+        color: var(--green);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .workflow-step h3,
+      .tool-card h3,
+      .security-card h3 {
+        margin: 0;
+        font-size: 15px;
+        letter-spacing: -0.01em;
+      }
+
+      .workflow-step p,
+      .tool-card p,
+      .security-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .tool-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1px;
+        overflow: hidden;
+        background: var(--line);
+      }
+
+      .tool-card {
+        min-height: 158px;
+        padding: 18px;
+        background: var(--panel);
+        display: grid;
+        align-content: start;
+        gap: 10px;
+      }
+
+      .tool-card code {
+        color: var(--cyan);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        word-break: break-word;
+      }
+
+      .tool-card strong {
+        color: var(--green);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .security-grid {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 18px;
+      }
+
+      .security-card {
+        padding: 22px;
+      }
+
+      .boundary {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .boundary-box {
+        min-height: 128px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .boundary-box.trusted {
+        border-color: rgba(65, 231, 125, 0.45);
+      }
+
+      .boundary-title {
+        color: var(--cyan);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .boundary-text {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .arrow {
+        color: var(--faint);
+        font-family: var(--font-mono);
+      }
+
+      .code-block {
+        margin: 0;
+        overflow: auto;
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        background: #061017;
+        padding: 18px;
+        color: #d8edf2;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 1.7;
+      }
+
+      .code-block .key {
+        color: var(--cyan);
+      }
+
+      .code-block .str {
+        color: var(--green);
+      }
+
+      .code-block .comment {
+        color: var(--faint);
+      }
+
+      .payoff-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+
+      .payoff-card {
+        padding: 16px;
+      }
+
+      .payoff-card h3 {
+        margin: 0 0 12px;
+        font-size: 14px;
+      }
+
+      .payoff-card canvas {
+        width: 100%;
+        height: 150px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #071017;
+      }
+
+      .setup-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .setup-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 12px;
+      }
+
+      .setup-list li {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.025);
+        color: var(--muted);
+      }
+
+      .setup-list strong {
+        display: block;
+        color: var(--text);
+        margin-bottom: 3px;
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 26px 0;
+        color: var(--faint);
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
+
+      .footer-inner {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 1080px) {
+        .hero-grid,
+        .security-grid,
+        .setup-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-grid {
+          gap: 26px;
+        }
+
+        .market-list {
+          grid-template-columns: repeat(6, 1fr);
+        }
+
+        .workflow,
+        .tool-grid,
+        .payoff-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .workflow-step:nth-child(2n),
+        .workflow-step:last-child {
+          border-right: none;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .topbar-inner {
+          min-height: auto;
+          padding: 14px 0;
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .topnav {
+          width: 100%;
+          overflow-x: auto;
+          gap: 16px;
+          padding-bottom: 2px;
+        }
+
+        .hero {
+          min-height: auto;
+          padding: 34px 0 24px;
+        }
+
+        .hero-actions,
+        .section-head,
+        .market-strip,
+        .footer-inner {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .market-strip {
+          display: flex;
+        }
+
+        .market-list,
+        .workflow,
+        .tool-grid,
+        .payoff-grid,
+        .boundary {
+          grid-template-columns: 1fr;
+        }
+
+        .market-kpi {
+          border-left: none;
+          border-top: 1px solid var(--line);
+          padding-left: 0;
+          padding-top: 16px;
+        }
+
+        .workflow-step {
+          min-height: auto;
+          border-right: none;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .workflow-step:last-child {
+          border-bottom: none;
+        }
+
+        .arrow {
+          display: none;
+        }
+
+        .scan-caption {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top" aria-label="Callput Lite MCP home">
+          <span class="brand-mark">&gt;_</span>
+          <span>Callput <span>Lite</span> MCP</span>
+        </a>
+        <nav class="topnav" aria-label="Primary navigation">
+          <a href="#markets">Markets</a>
+          <a href="#workflow">Workflow</a>
+          <a href="#tools">Tools</a>
+          <a href="#security">Security</a>
+          <a href="#setup">Setup</a>
+          <span class="base-pill"><span class="base-dot"></span>Base 8453</span>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero shell" aria-labelledby="hero-title">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <h1 id="hero-title">Crypto + Stock Option Spreads for <span class="accent">AI Agents</span></h1>
+            <p class="hero-subtitle">
+              Callput Lite MCP lets external agents scan, build, and manage spread-only options on Base
+              across crypto and synthetic stock/ETF markets. The MCP returns unsigned transactions; your
+              agent runtime signs and broadcasts externally.
+            </p>
+            <div class="hero-points" aria-label="Key product promises">
+              <span>Live market scan across 11 feed symbols</span>
+              <span>Spread-only construction with capped risk</span>
+              <span>Portfolio lifecycle, request keys, close, settle, and P&amp;L</span>
+              <span>No private key handling inside the MCP or frontend</span>
+            </div>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#setup">Open setup</a>
+              <a class="btn btn-secondary" href="#tools">View 10 MCP tools</a>
+            </div>
+            <div class="hero-meta">
+              <span>Package: callput-lite-mcp-skill</span>
+              <span>Server: callput-lite-agent-mcp</span>
+            </div>
+          </div>
+
+          <div class="hero-visual" aria-label="Callput market scan visual">
+            <figure class="scan-frame">
+              <img
+                src="./assets/callput-market-scan.png"
+                alt="Dark operator screen showing ranked crypto and stock option spread opportunities"
+              />
+              <figcaption class="scan-caption">
+                <span><strong>Live market scan</strong> ranks spread candidates by bias, IV, cost, and expiry.</span>
+                <span>Agent signs externally</span>
+              </figcaption>
+            </figure>
+          </div>
         </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box green">MCP Server</div>
-          <span class="arch-label">stdio JSON-RPC</span>
+
+        <div id="markets" class="market-strip" aria-label="Supported markets on Base">
+          <div class="market-list">
+            <span class="symbol-chip live">BTC</span>
+            <span class="symbol-chip live">ETH</span>
+            <span class="symbol-chip live">TSLA</span>
+            <span class="symbol-chip">QQQ</span>
+            <span class="symbol-chip">SPY</span>
+            <span class="symbol-chip live">EWY</span>
+            <span class="symbol-chip live">NVDA</span>
+            <span class="symbol-chip live">COIN</span>
+            <span class="symbol-chip">CRCL</span>
+            <span class="symbol-chip">SAMSUNG</span>
+            <span class="symbol-chip">HYNIX</span>
+          </div>
+          <div class="market-kpi">
+            <div><strong>11</strong><span>feed symbols</span></div>
+            <div><strong>8</strong><span>configured option-token contracts</span></div>
+          </div>
         </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box amber">Market Data S3</div>
-          <span class="arch-label">5s TTL cache</span>
+      </section>
+
+      <section id="workflow" class="shell" aria-labelledby="workflow-title">
+        <div class="section-head">
+          <h2 id="workflow-title">The agent workflow is narrow by design.</h2>
+          <p class="section-copy">
+            The page gives operators a readable control map. The trading runtime remains the agent plus MCP
+            server, with explicit request-key and position lifecycle steps.
+          </p>
         </div>
-        <div class="arch-arrow" style="visibility:hidden">→</div>
-        <div class="arch-node" style="visibility:hidden"></div>
-      </div>
-    </div>
-
-    <hr class="arch-phase-divider">
-
-    <!-- Phase 02: Execution -->
-    <div class="arch-phase">
-      <div class="arch-phase-label">02 · Execution</div>
-      <div class="arch-flow">
-        <div class="arch-node">
-          <div class="arch-box green">MCP Server</div>
-          <span class="arch-label">builds unsigned_tx</span>
+        <div class="panel workflow">
+          <article class="workflow-step">
+            <span class="step-num">1</span>
+            <h3>Scan</h3>
+            <p>Run <code>callput_scan_spreads</code> for BTC, ETH, TSLA, NVDA, COIN, or any supported feed symbol.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="step-num">2</span>
+            <h3>Select</h3>
+            <p>Pick a ranked candidate by bias, expiry, strike width, IV, and max loss or credit profile.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="step-num">3</span>
+            <h3>Build</h3>
+            <p>Use <code>callput_execute_spread</code> to produce unsigned tx calldata plus USDC approval state.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="step-num">4</span>
+            <h3>Sign</h3>
+            <p>The external agent signs approval and order transactions with its own wallet boundary.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="step-num">5</span>
+            <h3>Track</h3>
+            <p>Parse and persist <code>request_key</code>, then poll keeper status until executed or cancelled.</p>
+          </article>
+          <article class="workflow-step">
+            <span class="step-num">6</span>
+            <h3>Manage</h3>
+            <p>Review P&amp;L, close before expiry when needed, and settle expired positions after final price.</p>
+          </article>
         </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box key">Agent Signs</div>
-          <span class="arch-label">agent's own key ★</span>
+      </section>
+
+      <section id="tools" class="shell" aria-labelledby="tools-title">
+        <div class="section-head">
+          <h2 id="tools-title">10 MCP tools, mapped to one operator action each.</h2>
+          <p class="section-copy">
+            Stock-option support uses the same spread lifecycle as crypto. Tool inputs accept canonical symbols
+            and aliases, and leg IDs may be decimal or 0x hex strings.
+          </p>
         </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box dim">Base RPC</div>
-          <span class="arch-label">mainnet.base.org</span>
+        <div class="panel tool-grid">
+          <article class="tool-card">
+            <strong>Primary entry</strong>
+            <h3><code>callput_scan_spreads</code></h3>
+            <p>Rank ready-to-execute spread candidates for a symbol and market bias.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Advanced chain</strong>
+            <h3><code>callput_get_option_chains</code></h3>
+            <p>Inspect expiries, strikes, IV, bid/ask, instrument, and option IDs.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Unsigned tx</strong>
+            <h3><code>callput_execute_spread</code></h3>
+            <p>Build transaction payloads and approval instructions for an external signer.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Receipt bridge</strong>
+            <h3><code>callput_get_request_key_from_tx</code></h3>
+            <p>Extract request keys from broadcast tx receipts for tracking and P&amp;L.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Keeper state</strong>
+            <h3><code>callput_check_request_status</code></h3>
+            <p>Poll open or close requests until pending, executed, or cancelled is known.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Portfolio</strong>
+            <h3><code>callput_portfolio_summary</code></h3>
+            <p>Read USDC balance, open positions, urgent exits, and bid-based P&amp;L.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Recovery</strong>
+            <h3><code>callput_list_positions_by_wallet</code></h3>
+            <p>Recover request keys from on-chain events if the agent lost session state.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Exit</strong>
+            <h3><code>callput_close_position</code></h3>
+            <p>Build unsigned close transactions for pre-expiry position management.</p>
+          </article>
+          <article class="tool-card">
+            <strong>Expiry</strong>
+            <h3><code>callput_settle_position</code></h3>
+            <p>Build unsigned settle transactions for expired positions.</p>
+          </article>
+          <article class="tool-card">
+            <strong>History</strong>
+            <h3><code>callput_get_settled_pnl</code></h3>
+            <p>Query realized payout history and settlement metadata from Base events.</p>
+          </article>
         </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box">PositionManager</div>
-          <span class="arch-label">on-chain contract</span>
+      </section>
+
+      <section id="security" class="shell" aria-labelledby="security-title">
+        <div class="section-head">
+          <h2 id="security-title">The security boundary is visible on every flow.</h2>
+          <p class="section-copy">
+            This package is for external agents that already own wallet policy. The MCP never requests or stores
+            signing secrets, and the frontend is an operator guide, not a wallet.
+          </p>
         </div>
-      </div>
-    </div>
-
-    <hr class="arch-phase-divider">
-
-    <!-- Phase 03: Settle & P&L -->
-    <div class="arch-phase">
-      <div class="arch-phase-label">03 · Settle &amp; P&amp;L</div>
-      <div class="arch-flow">
-        <div class="arch-node">
-          <div class="arch-box green">Keeper Relay</div>
-          <span class="arch-label">async fill · ~30s</span>
-        </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box dim">ERC-1155 Token</div>
-          <span class="arch-label">position receipt</span>
-        </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box">portfolio_summary</div>
-          <span class="arch-label">unrealized P&amp;L</span>
-        </div>
-        <div class="arch-arrow">→</div>
-        <div class="arch-node">
-          <div class="arch-box amber">USDC Settlement</div>
-          <span class="arch-label">get_settled_pnl</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="arch-details">
-      <div class="arch-detail-item">
-        <div class="arch-detail-key">Agent Interface</div>
-        <div class="arch-detail-val">stdio JSON-RPC · MCP SDK</div>
-      </div>
-      <div class="arch-detail-item">
-        <div class="arch-detail-key">PositionManager</div>
-        <div class="arch-detail-val" style="word-break:break-all;font-size:10px">0x83B04701B227B045CBBAF921377137fF595a54af</div>
-      </div>
-      <div class="arch-detail-item">
-        <div class="arch-detail-key">Position Tokens</div>
-        <div class="arch-detail-val">ERC-1155 · USDC Settlement</div>
-      </div>
-      <div class="arch-detail-item">
-        <div class="arch-detail-key">Key Security</div>
-        <div class="arch-detail-val">MCP never holds private key — agent signs externally</div>
-      </div>
-      <div class="arch-detail-item">
-        <div class="arch-detail-key">Chain</div>
-        <div class="arch-detail-val">Base Mainnet · Chain ID 8453</div>
-      </div>
-      <div class="arch-detail-item">
-        <div class="arch-detail-key">Supported Assets</div>
-        <div class="arch-detail-val">BTC · ETH</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- TOOLS — now embedded inside #setup, this section removed -->
-<section id="tools" style="display:none">
-  <div class="section-label">Tools</div>
-  <h2>All 10 MCP Tools</h2>
-  <div class="tools-grid">
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>scan_spreads <span class="tool-badge badge-core">primary entry</span></div>
-      <div class="tool-desc">Bias-driven market scan. Returns ≤5 pre-ranked spread candidates, ATM-anchored. Includes <code style="color:var(--cyan-dim);font-size:10px">atm_iv</code> for buy vs sell decisions.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset: BTC|ETH<br>bias: bullish|bearish<br>&nbsp;&nbsp;neutral-bearish<br>&nbsp;&nbsp;neutral-bullish<br>max_results?</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">candidates[]<br>spread_cost/credit<br>cost/credit_pct_of_max<br>atm_iv<br>days_to_expiry</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>execute_spread</div>
-      <div class="tool-desc">Build unsigned spread tx. Returns <code style="color:var(--cyan-dim);font-size:10px">unsigned_tx</code> + <code style="color:var(--cyan-dim);font-size:10px">usdc_approval</code>. Agent signs and broadcasts. No private key in MCP.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">strategy<br>from_address ★<br>long_leg_id<br>short_leg_id<br>size</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>usdc_approval<br>&nbsp;&nbsp;approve_tx?<br>quote</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>get_request_key_from_tx <span class="tool-badge badge-new">new</span></div>
-      <div class="tool-desc">Parse <code style="color:var(--cyan-dim);font-size:10px">GenerateRequestKey</code> event from tx receipt after broadcast. Returns <code style="color:var(--cyan-dim);font-size:10px">request_key</code> — persist for P&L.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">tx_hash</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">request_key ★<br>is_open: bool</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>portfolio_summary</div>
-      <div class="tool-desc">Active positions with mark value and bid-based P&L. Pass <code style="color:var(--cyan-dim);font-size:10px">request_keys</code> to unlock all 7 P&L fields.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>request_keys[]</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">usdc_balance<br>positions[]<br>unrealized_pnl<br>close_pnl_est<br>urgent_count</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>list_positions_by_wallet</div>
-      <div class="tool-desc">Recover all request_keys from on-chain <code style="color:var(--cyan-dim);font-size:10px">GenerateRequestKey</code> events. Use after session loss. Default lookback ~50k blocks (~1 day on Base).</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>from_block?</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">open_request_keys[]<br>close_request_keys[]<br>total_count</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>check_request_status</div>
-      <div class="tool-desc">Poll keeper status after broadcast. Call every 30s until <code style="color:var(--cyan-dim);font-size:10px">executed</code> or <code style="color:var(--cyan-dim);font-size:10px">cancelled</code>. May be dropped if still pending after ~3 min.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">request_key<br>is_open: bool</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">status:<br>&nbsp;&nbsp;pending<br>&nbsp;&nbsp;executed<br>&nbsp;&nbsp;cancelled</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>close_position</div>
-      <div class="tool-desc">Build unsigned close tx. Use when <code style="color:var(--cyan-dim);font-size:10px">days_to_expiry &lt; 1</code> or profit target hit. Agent signs and broadcasts.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>from_address ★<br>option_token_id<br>size</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>close<br>next_steps[]</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>settle_position</div>
-      <div class="tool-desc">Build unsigned settle tx for expired positions. Agent signs and broadcasts. Follow up with <code style="color:var(--cyan-dim);font-size:10px">get_settled_pnl</code>.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>option_token_id</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>settle</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>get_settled_pnl</div>
-      <div class="tool-desc">Query <code style="color:var(--cyan-dim);font-size:10px">SettlePosition</code> events for realized payout history. Subtract <code style="color:var(--cyan-dim);font-size:10px">entry_cost_usd</code> for net realized P&L.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>from_block?</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">settlements[]<br>amount_out_usd<br>settle_price<br>tx_hash<br>total_out_usd</div></div>
-      </div>
-    </div>
-
-    <div class="tool-card">
-      <div class="tool-name"><span class="prefix">callput_</span>get_option_chains</div>
-      <div class="tool-desc">Raw chain data with per-option IV. Use <code style="color:var(--cyan-dim);font-size:10px">scan_spreads</code> first — chains for advanced leg selection only.</div>
-      <div class="tool-io">
-        <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">asset<br>option_type?<br>expiry?<br>max_expiries<br>max_strikes</div></div>
-        <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">chains by expiry<br>[strike, mark,<br>&nbsp;bid, ask, id,<br>&nbsp;instrument, iv]</div></div>
-      </div>
-    </div>
-
-  </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- WORKFLOW -->
-<section id="workflow">
-  <div class="section-label">Agent Workflow</div>
-  <h2>Step-by-Step (Agent's Perspective)</h2>
-
-  <div class="bias-grid">
-    <div class="bias-cell">
-      <div class="bias-label">Bias</div>
-      <div class="bias-val bullish">bullish</div>
-      <div class="bias-strategy">→ BuyCallSpread</div>
-      <div class="bias-metric">Ranked by cost_pct_of_max ↓</div>
-    </div>
-    <div class="bias-cell">
-      <div class="bias-label">Bias</div>
-      <div class="bias-val bearish">bearish</div>
-      <div class="bias-strategy">→ BuyPutSpread</div>
-      <div class="bias-metric">Ranked by cost_pct_of_max ↓</div>
-    </div>
-    <div class="bias-cell">
-      <div class="bias-label">Bias</div>
-      <div class="bias-val nb">neutral-bearish</div>
-      <div class="bias-strategy">→ SellCallSpread · collect premium</div>
-      <div class="bias-metric">Ranked by credit_pct_of_max ↑ · High IV favored</div>
-    </div>
-    <div class="bias-cell">
-      <div class="bias-label">Bias</div>
-      <div class="bias-val nbu">neutral-bullish</div>
-      <div class="bias-strategy">→ SellPutSpread · collect premium</div>
-      <div class="bias-metric">Ranked by credit_pct_of_max ↑ · High IV favored</div>
-    </div>
-  </div>
-
-  <div class="workflow-terminal" id="wf-terminal">
-    <div class="terminal-bar">
-      <span class="terminal-dot red"></span>
-      <span class="terminal-dot yellow"></span>
-      <span class="terminal-dot green"></span>
-      <span class="terminal-title">agent-session.log — callput-lite-mcp</span>
-    </div>
-    <div class="terminal-body">
-
-      <div class="wf-step">
-        <div class="wf-num">01</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_portfolio_summary({ address })</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">usdc_balance · urgent_count · open positions</span>
-          <div class="wf-note">Skip if <span class="kw">usdc_balance</span> &lt; 2× spread cost · Handle <span class="kw">urgent_count</span> &gt; 0 first</div>
-        </div>
-      </div>
-      <div class="wf-indent">
-        <span>↳ [if request_keys lost]</span>
-        <span class="cmd"> callput_list_positions_by_wallet({ address })</span>
-        <span> → recover open_request_keys[] from on-chain events</span>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">02</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_scan_spreads({ underlying_asset: "ETH", bias: "bullish" })</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">ranked candidates + atm_iv</span>
-          <div class="wf-note">Check <span class="kw">atm_iv</span>: ETH &gt; 80% or BTC &gt; 70% → favor <span class="val">sell spreads</span></div>
-          <div class="wf-note">Skip if <span class="kw">cost_pct_of_max</span> &gt; 40% or <span class="kw">days_to_expiry</span> &lt; 0.25</div>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">03</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_execute_spread({ ...rank1, from_address, size: 1 })</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">unsigned_tx · usdc_approval</span>
-          <div class="wf-note">If <span class="kw">usdc_approval.sufficient == false</span> → sign + broadcast <span class="val">approve_tx</span> first</div>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">04</div>
-        <div class="wf-content">
-          <span class="wf-out">agent signs + broadcasts</span> <span class="wf-cmd">unsigned_tx</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">tx_hash</span>
-          <div class="wf-note"><span class="kw">★</span> Agent's own key — MCP never holds private key</div>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">05</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_get_request_key_from_tx({ tx_hash })</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">request_key ★</span>
-          <div class="wf-note"><span class="kw">★ REQUIRED</span> — persist for P&amp;L tracking via portfolio_summary</div>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">06</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_check_request_status({ request_key, is_open: true })</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">poll every 30s · max 6 attempts</span>
-          <div class="wf-note">Status: <span class="val">pending</span> → <span class="val">executed</span> | <span class="kw">cancelled</span></div>
-        </div>
-      </div>
-
-      <hr class="wf-separator">
-
-      <div class="wf-step">
-        <div class="wf-num">07</div>
-        <div class="wf-content">
-          <span class="wf-cmd">callput_portfolio_summary({ address, request_keys })</span>
-          <span class="wf-arrow">→</span>
-          <span class="wf-out">mark P&amp;L + bid-based close estimate</span>
-          <div class="wf-note">Consider closing when <span class="kw">close_pnl_est_pct</span> &gt; <span class="val">50%</span></div>
-        </div>
-      </div>
-      <div class="wf-indent">
-        <span>↳ [on expiry]</span>
-        <span class="cmd"> callput_settle_position()</span>
-        <span> → </span>
-        <span class="cmd">callput_get_settled_pnl()</span>
-        <span> → realized P&L history</span>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<hr class="section-divider" style="display:none">
-
-<!-- P&L — now embedded inside #setup, this section removed -->
-<section id="pnl" style="display:none">
-  <div class="section-label">P&L Tracking</div>
-  <h2>Position P&L Fields</h2>
-
-  <div class="highlight-box">
-    <div class="hl-title">How request_key → P&L is bridged</div>
-    <div class="hl-body">
-      Pass saved <code>request_keys[]</code> to <code>callput_portfolio_summary</code>.
-      Internally: <code>openPositionRequests(key).optionTokenId</code> maps each key to the ERC-1155 token.
-      <code>amountIn</code> (index [5]) is the on-chain cost basis. All 7 P&L fields below are computed automatically.
-    </div>
-  </div>
-
-  <div class="pnl-table-wrap">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Field</th>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="td-field">entry_cost_usd</td>
-          <td class="td-type">USD</td>
-          <td class="td-desc">On-chain cost basis from <code style="color:var(--text-code);font-size:10px">openPositionRequests(key).amountIn</code>. Authoritative — never estimated.</td>
-        </tr>
-        <tr>
-          <td class="td-field">current_value_usd</td>
-          <td class="td-type">USD</td>
-          <td class="td-desc">Current mark-price spread value (mid fair value). Theoretical — not what you'd receive on close.</td>
-        </tr>
-        <tr>
-          <td class="td-field">unrealized_pnl_usd</td>
-          <td class="td-type">USD</td>
-          <td class="td-desc"><code style="color:var(--text-code);font-size:10px">current_value_usd − entry_cost_usd</code>. Mark-based. Can be misleading in wide bid/ask markets.</td>
-        </tr>
-        <tr>
-          <td class="td-field">unrealized_pnl_pct</td>
-          <td class="td-type">%</td>
-          <td class="td-desc">Unrealized P&L as % of entry cost. Mark-based.</td>
-        </tr>
-        <tr>
-          <td class="td-field">close_bid_value_usd</td>
-          <td class="td-type">USD</td>
-          <td class="td-desc">Bid-based close estimate: what the keeper would fill if you closed now. <span class="note">Can be negative for deeply underwater positions.</span></td>
-        </tr>
-        <tr>
-          <td class="td-field">close_pnl_est_usd</td>
-          <td class="td-type">USD</td>
-          <td class="td-desc"><code style="color:var(--text-code);font-size:10px">close_bid_value_usd − entry_cost_usd</code>. <span class="note">Use this for all exit decisions — it's the realistic P&L.</span></td>
-        </tr>
-        <tr>
-          <td class="td-field">close_pnl_est_pct</td>
-          <td class="td-type">%</td>
-          <td class="td-desc">Close P&L as % of entry cost. <span class="note">Profit-taking rule: consider closing when &gt; 50%.</span></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="pnl-rule-box">
-    <span class="pnl-rule-icon">◈</span>
-    <div class="pnl-rule-text">
-      <strong>Profit-taking rule</strong>: Consider closing when <strong>close_pnl_est_pct &gt; 50</strong>.
-      Always use <strong>close_pnl_est_usd</strong> (bid-based), not <strong>unrealized_pnl_usd</strong> (mark-based), for exit decisions.
-      Use <code style="color:var(--text-code);font-size:10px">callput_close_position()</code> pre-expiry ·
-      <code style="color:var(--text-code);font-size:10px">callput_settle_position()</code> post-expiry.
-    </div>
-  </div>
-
-  <div class="bridge-box">
-    <strong style="color:var(--text-secondary)">Realized P&L (post-settlement):</strong>
-    Call <code>callput_get_settled_pnl()</code> to get <code>amount_out_usd</code> per position from on-chain <code>SettlePosition</code> events.
-    Net realized P&L = <code>amount_out_usd − entry_cost_usd</code>.
-    Default lookback: ~50k blocks (~1 day on Base). Set <code>from_block</code> for older positions.
-  </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- PAYOFF DIAGRAMS -->
-<section id="payoff">
-  <div class="section-label">Strategy Mechanics</div>
-  <h2>Spread Payoff at Expiry</h2>
-  <p class="payoff-intro">
-    All 4 strategies have <strong style="color:var(--cyan)">capped profit and capped loss</strong>.
-    <strong style="color:var(--green)">Buy spreads</strong> pay premium upfront for directional exposure — max loss is the premium paid, max profit is the spread width minus premium.
-    <strong style="color:var(--amber)">Sell spreads</strong> collect premium as collateral credit — max profit is the credit received, max loss is the spread width minus credit.
-    The <span style="color:var(--amber)">B/E</span> marker shows the breakeven price at expiry.
-  </p>
-  <div class="payoff-grid">
-
-    <div class="payoff-card">
-      <div class="payoff-header">
-        <span class="payoff-bias-tag bullish">bullish</span>
-        <span class="payoff-strategy-name">BuyCallSpread</span>
-      </div>
-      <canvas id="chart-bcs" class="payoff-canvas"></canvas>
-      <div class="payoff-legend">
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = spread width − premium</span>
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = premium paid</span>
-      </div>
-    </div>
-
-    <div class="payoff-card">
-      <div class="payoff-header">
-        <span class="payoff-bias-tag bearish">bearish</span>
-        <span class="payoff-strategy-name">BuyPutSpread</span>
-      </div>
-      <canvas id="chart-bps" class="payoff-canvas"></canvas>
-      <div class="payoff-legend">
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = spread width − premium</span>
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = premium paid</span>
-      </div>
-    </div>
-
-    <div class="payoff-card">
-      <div class="payoff-header">
-        <span class="payoff-bias-tag nb">neutral-bearish</span>
-        <span class="payoff-strategy-name">SellCallSpread</span>
-      </div>
-      <canvas id="chart-scs" class="payoff-canvas"></canvas>
-      <div class="payoff-legend">
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = credit received</span>
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = spread width − credit</span>
-      </div>
-    </div>
-
-    <div class="payoff-card">
-      <div class="payoff-header">
-        <span class="payoff-bias-tag nbu">neutral-bullish</span>
-        <span class="payoff-strategy-name">SellPutSpread</span>
-      </div>
-      <canvas id="chart-sps" class="payoff-canvas"></canvas>
-      <div class="payoff-legend">
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--green)"></span>Max profit = credit received</span>
-        <span class="payoff-legend-item"><span class="payoff-legend-dot" style="background:var(--red)"></span>Max loss = spread width − credit</span>
-      </div>
-    </div>
-
-  </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- SETUP -->
-<section id="setup">
-  <div class="section-label">Agent Owner Setup</div>
-  <h2>Operator Setup Guide</h2>
-  <div class="setup-steps">
-
-    <div class="setup-step">
-      <div class="step-num">01</div>
-      <div class="step-content">
-        <div class="step-title">Clone &amp; Build</div>
-        <pre class="code-block"><span class="comment"># Clone the repository</span>
-git clone https://github.com/ayggdrasil/callput-option-agent callput-option-agent
-cd callput-lite-mcp-skill-standalone
-
-npm install
-npm run build
-
-<span class="comment"># Verify — stdio MCP server, connect via MCP client</span>
-node build/index.js --help</pre>
-      </div>
-    </div>
-
-    <div class="setup-step">
-      <div class="step-num">02</div>
-      <div class="step-content">
-        <div class="step-title">MCP Server Configuration</div>
-        <div class="step-desc">Add to your MCP config: <code style="color:var(--text-code)">~/.config/mcp/config.json</code>, Claude Desktop <code style="color:var(--text-code)">claude_desktop_config.json</code>, or OpenClaw/Bankr server config.</div>
-        <pre class="code-block">{
+        <div class="security-grid">
+          <div class="panel security-card">
+            <div class="boundary">
+              <div class="boundary-box">
+                <div class="boundary-title">AI agent</div>
+                <div class="boundary-text">Chooses symbol, bias, size, and lifecycle action.</div>
+              </div>
+              <div class="arrow">-&gt;</div>
+              <div class="boundary-box">
+                <div class="boundary-title">MCP server</div>
+                <div class="boundary-text">Reads market data, builds calldata, returns unsigned tx objects.</div>
+              </div>
+              <div class="arrow">-&gt;</div>
+              <div class="boundary-box trusted">
+                <div class="boundary-title">External signer</div>
+                <div class="boundary-text">Approves, signs, broadcasts, and enforces wallet policy.</div>
+              </div>
+            </div>
+          </div>
+          <pre class="code-block"><span class="comment"># MCP config: no private key in this server</span>
+{
   <span class="key">"mcpServers"</span>: {
-    <span class="key">"callput"</span>: {
+    <span class="key">"callput-lite-agent-mcp"</span>: {
       <span class="key">"command"</span>: <span class="str">"node"</span>,
-      <span class="key">"args"</span>: [<span class="str">"/absolute/path/to/callput-option-agent/build/index.js"</span>],
+      <span class="key">"args"</span>: [<span class="str">"/absolute/path/build/index.js"</span>],
       <span class="key">"env"</span>: {
         <span class="key">"RPC_URL"</span>: <span class="str">"https://mainnet.base.org"</span>
       }
     }
   }
 }</pre>
-        <div class="step-desc" style="margin-top:8px;color:var(--green-dim)">No private key required — MCP only builds unsigned transactions. The agent signs with its own key.</div>
-        <table class="env-table">
-          <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr>
-              <td class="var">RPC_URL</td>
-              <td><span class="opt">optional</span></td>
-              <td style="color:var(--text-dim)">mainnet.base.org</td>
-              <td style="color:var(--text-secondary)">Base Mainnet RPC endpoint (read-only).</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="setup-step">
-      <div class="step-num">03</div>
-      <div class="step-content">
-        <div class="step-title">Inject Agent System Prompt</div>
-        <div class="step-desc">Inject <code style="color:var(--text-code)">SKILL.md</code> as the agent's system prompt or skill document. Contains all trading rules, unsigned-tx flow, and IV-based strategy selection.</div>
-        <pre class="code-block"><span class="comment"># Key rules:</span>
-<span class="kw">Rule 01</span>: Spread-only — no single-leg execution
-<span class="kw">Rule 06</span>: MCP never holds private key — agent signs externally
-<span class="kw">Rule 07</span>: If usdc_approval.sufficient == false → send approve_tx first
-<span class="kw">Rule 08</span>: Persist every request_key from get_request_key_from_tx
-<span class="kw">Rule 09</span>: If request_keys lost → use list_positions_by_wallet
-<span class="kw">Rule 10</span>: High IV (ETH &gt;80%, BTC &gt;70%) → favor sell spreads</pre>
-      </div>
-    </div>
-
-    <div class="setup-step">
-      <div class="step-num">04</div>
-      <div class="step-content">
-        <div class="step-title">Register SKILL.md (Optional, Recommended)</div>
-        <div class="step-desc">If your agent runtime supports skill/persona documents, register <code style="color:var(--text-code)">SKILL.md</code> as the agent skill. Provides fast-path workflow, strike selection guidance, complete P&L tracking pattern, and bias-to-strategy mapping.</div>
-      </div>
-    </div>
-
-    <div class="setup-step">
-      <div class="step-num">05</div>
-      <div class="step-content">
-        <div class="step-title">First Session Checklist</div>
-        <ul class="checklist">
-          <li><span class="cmd">callput_portfolio_summary({ address: "0x..." })</span> — check balance and open positions</li>
-          <li><span class="cmd">callput_scan_spreads({ underlying_asset: "ETH", bias: "bullish" })</span> — get ranked candidates + atm_iv</li>
-          <li><span class="cmd">callput_execute_spread({ ...rank1, from_address: "0x...", size: 1 })</span> — get unsigned_tx + usdc_approval</li>
-          <li>[if usdc_approval.sufficient == false] sign + broadcast approve_tx first</li>
-          <li>sign + broadcast unsigned_tx → get tx_hash</li>
-          <li><span class="cmd">callput_get_request_key_from_tx({ tx_hash })</span> — parse + persist request_key</li>
-          <li><span class="cmd">callput_check_request_status({ request_key, is_open: true })</span> — poll every 30s until executed</li>
-        </ul>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- MCP Tools Reference -->
-  <div style="margin-top:56px">
-    <div class="section-label" style="margin-bottom:8px">MCP Tool Reference</div>
-    <h3 style="font-size:20px;color:var(--text-primary);margin-bottom:24px;letter-spacing:-0.02em">All 10 MCP Tools</h3>
-    <div class="tools-grid">
-
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>scan_spreads <span class="tool-badge badge-core">primary entry</span></div>
-        <div class="tool-desc">Bias-driven market scan. Returns ≤5 pre-ranked spread candidates, ATM-anchored. Includes <code style="color:var(--cyan-dim);font-size:10px">atm_iv</code> for buy vs sell decisions.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset: BTC|ETH<br>bias: bullish|bearish<br>&nbsp;&nbsp;neutral-bearish<br>&nbsp;&nbsp;neutral-bullish<br>max_results?</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">candidates[]<br>spread_cost/credit<br>cost/credit_pct_of_max<br>atm_iv<br>days_to_expiry</div></div>
         </div>
-      </div>
+      </section>
 
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>execute_spread</div>
-        <div class="tool-desc">Build unsigned spread tx. Returns <code style="color:var(--cyan-dim);font-size:10px">unsigned_tx</code> + <code style="color:var(--cyan-dim);font-size:10px">usdc_approval</code>. Agent signs and broadcasts. No private key in MCP.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">strategy<br>from_address ★<br>long_leg_id<br>short_leg_id<br>size</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>usdc_approval<br>&nbsp;&nbsp;approve_tx?<br>quote</div></div>
+      <section class="shell" aria-labelledby="payoff-title">
+        <div class="section-head">
+          <h2 id="payoff-title">Four spread strategies, one capped-risk mental model.</h2>
+          <p class="section-copy">
+            Crypto and synthetic stock options share the same spread mechanics: buy spreads pay premium for
+            directional exposure; sell spreads collect credit with defined max loss.
+          </p>
         </div>
-      </div>
-
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>get_request_key_from_tx <span class="tool-badge badge-new">new</span></div>
-        <div class="tool-desc">Parse <code style="color:var(--cyan-dim);font-size:10px">GenerateRequestKey</code> event from tx receipt after broadcast. Returns <code style="color:var(--cyan-dim);font-size:10px">request_key</code> — persist for P&L.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">tx_hash</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">request_key ★<br>is_open: bool</div></div>
+        <div class="payoff-grid">
+          <article class="panel payoff-card">
+            <h3>BuyCallSpread</h3>
+            <canvas id="bcs" width="360" height="190" aria-label="Buy call spread payoff chart"></canvas>
+          </article>
+          <article class="panel payoff-card">
+            <h3>BuyPutSpread</h3>
+            <canvas id="bps" width="360" height="190" aria-label="Buy put spread payoff chart"></canvas>
+          </article>
+          <article class="panel payoff-card">
+            <h3>SellCallSpread</h3>
+            <canvas id="scs" width="360" height="190" aria-label="Sell call spread payoff chart"></canvas>
+          </article>
+          <article class="panel payoff-card">
+            <h3>SellPutSpread</h3>
+            <canvas id="sps" width="360" height="190" aria-label="Sell put spread payoff chart"></canvas>
+          </article>
         </div>
-      </div>
+      </section>
 
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>portfolio_summary</div>
-        <div class="tool-desc">Active positions with mark value and bid-based P&L. Pass <code style="color:var(--cyan-dim);font-size:10px">request_keys</code> to unlock all 7 P&L fields.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>request_keys[]</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">usdc_balance<br>positions[]<br>unrealized_pnl<br>close_pnl_est<br>urgent_count</div></div>
+      <section id="setup" class="shell" aria-labelledby="setup-title">
+        <div class="section-head">
+          <h2 id="setup-title">Setup is still a terminal-first package.</h2>
+          <p class="section-copy">
+            The frontpage explains the runtime. Operators install the package, register the skill, and connect the
+            MCP server to OpenClaw, Bankr, or another compatible agent host.
+          </p>
         </div>
-      </div>
+        <div class="setup-grid">
+          <pre class="code-block"><span class="comment"># Build and verify</span>
+npm install
+npm run build
+npm run verify
+npm run verify:mcp
 
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>list_positions_by_wallet</div>
-        <div class="tool-desc">Recover all request_keys from on-chain <code style="color:var(--cyan-dim);font-size:10px">GenerateRequestKey</code> events. Use after session loss. Default lookback ~50k blocks (~1 day on Base).</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>from_block?</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">open_request_keys[]<br>close_request_keys[]<br>total_count</div></div>
+<span class="comment"># Start stdio MCP server</span>
+node build/index.js</pre>
+          <ul class="setup-list">
+            <li>
+              <strong>Supported symbols</strong>
+              BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, CRCL, SAMSUNG, HYNIX. Live tradability is feed-driven.
+            </li>
+            <li>
+              <strong>Configured option-token contracts</strong>
+              BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, and COIN are wired in the package registry.
+            </li>
+            <li>
+              <strong>External signing</strong>
+              `CALLPUT_PRIVATE_KEY` is not read by the MCP server. Configure signing only in the agent runtime.
+            </li>
+          </ul>
         </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell footer-inner">
+        <span>Callput Lite MCP - Base Mainnet - Chain 8453</span>
+        <span><a href="https://callput.app">callput.app</a> / <a href="https://github.com/ayggdrasil/optiontradingagent">GitHub</a></span>
       </div>
+    </footer>
 
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>check_request_status</div>
-        <div class="tool-desc">Poll keeper status after broadcast. Call every 30s until <code style="color:var(--cyan-dim);font-size:10px">executed</code> or <code style="color:var(--cyan-dim);font-size:10px">cancelled</code>. May be dropped if still pending after ~3 min.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">request_key<br>is_open: bool</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">status:<br>&nbsp;&nbsp;pending<br>&nbsp;&nbsp;executed<br>&nbsp;&nbsp;cancelled</div></div>
-        </div>
-      </div>
+    <script>
+      const charts = {
+        bcs: [0, 0, 18, 34, 34],
+        bps: [34, 34, 18, 0, 0],
+        scs: [34, 34, 18, -16, -16],
+        sps: [-16, -16, 18, 34, 34]
+      };
 
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>close_position</div>
-        <div class="tool-desc">Build unsigned close tx. Use when <code style="color:var(--cyan-dim);font-size:10px">days_to_expiry &lt; 1</code> or profit target hit. Agent signs and broadcasts.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>from_address ★<br>option_token_id<br>size</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>close<br>next_steps[]</div></div>
-        </div>
-      </div>
+      function drawPayoff(id, values) {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const w = canvas.width;
+        const h = canvas.height;
+        const pad = 34;
+        ctx.clearRect(0, 0, w, h);
+        ctx.strokeStyle = "rgba(130,210,235,.18)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i += 1) {
+          const y = pad + (i * (h - pad * 2)) / 3;
+          ctx.beginPath();
+          ctx.moveTo(pad, y);
+          ctx.lineTo(w - pad, y);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = "rgba(155,176,187,.5)";
+        ctx.beginPath();
+        ctx.moveTo(pad, h / 2);
+        ctx.lineTo(w - pad, h / 2);
+        ctx.stroke();
 
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>settle_position</div>
-        <div class="tool-desc">Build unsigned settle tx for expired positions. Agent signs and broadcasts. Follow up with <code style="color:var(--cyan-dim);font-size:10px">get_settled_pnl</code>.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">underlying_asset<br>option_token_id</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">unsigned_tx<br>settle</div></div>
-        </div>
-      </div>
-
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>get_settled_pnl</div>
-        <div class="tool-desc">Query <code style="color:var(--cyan-dim);font-size:10px">SettlePosition</code> events for realized payout history. Subtract <code style="color:var(--cyan-dim);font-size:10px">entry_cost_usd</code> for net realized P&L.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">address ★<br>from_block?</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">settlements[]<br>amount_out_usd<br>settle_price<br>tx_hash<br>total_out_usd</div></div>
-        </div>
-      </div>
-
-      <div class="tool-card">
-        <div class="tool-name"><span class="prefix">callput_</span>get_option_chains</div>
-        <div class="tool-desc">Raw chain data with per-option IV. Use <code style="color:var(--cyan-dim);font-size:10px">scan_spreads</code> first — chains for advanced leg selection only.</div>
-        <div class="tool-io">
-          <div class="tool-io-block"><div class="tool-io-label">Inputs</div><div class="tool-io-val">asset<br>option_type?<br>expiry?<br>max_expiries<br>max_strikes</div></div>
-          <div class="tool-io-block"><div class="tool-io-label">Outputs</div><div class="tool-io-val">chains by expiry<br>[strike, mark,<br>&nbsp;bid, ask, id,<br>&nbsp;instrument, iv]</div></div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Position P&L Fields -->
-  <div style="margin-top:48px">
-    <div class="section-label" style="margin-bottom:8px">P&amp;L Tracking</div>
-    <h3 style="font-size:20px;color:var(--text-primary);margin-bottom:20px;letter-spacing:-0.02em">Position P&amp;L Fields</h3>
-
-    <div class="highlight-box">
-      <div class="hl-title">How request_key → P&amp;L is bridged</div>
-      <div class="hl-body">
-        Pass saved <code>request_keys[]</code> to <code>callput_portfolio_summary</code>.
-        Internally: <code>openPositionRequests(key).optionTokenId</code> maps each key to the ERC-1155 token.
-        <code>amountIn</code> (index [5]) is the on-chain cost basis. All 7 P&L fields below are computed automatically.
-      </div>
-    </div>
-
-    <div class="pnl-table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Type</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="td-field">entry_cost_usd</td>
-            <td class="td-type">USD</td>
-            <td class="td-desc">On-chain cost basis from <code style="color:var(--text-code);font-size:10px">openPositionRequests(key).amountIn</code>. Authoritative — never estimated.</td>
-          </tr>
-          <tr>
-            <td class="td-field">current_value_usd</td>
-            <td class="td-type">USD</td>
-            <td class="td-desc">Current mark-price spread value (mid fair value). Theoretical — not what you'd receive on close.</td>
-          </tr>
-          <tr>
-            <td class="td-field">unrealized_pnl_usd</td>
-            <td class="td-type">USD</td>
-            <td class="td-desc"><code style="color:var(--text-code);font-size:10px">current_value_usd − entry_cost_usd</code>. Mark-based. Can be misleading in wide bid/ask markets.</td>
-          </tr>
-          <tr>
-            <td class="td-field">unrealized_pnl_pct</td>
-            <td class="td-type">%</td>
-            <td class="td-desc">Unrealized P&L as % of entry cost. Mark-based.</td>
-          </tr>
-          <tr>
-            <td class="td-field">close_bid_value_usd</td>
-            <td class="td-type">USD</td>
-            <td class="td-desc">Bid-based close estimate: what the keeper would fill if you closed now. <span class="note">Can be negative for deeply underwater positions.</span></td>
-          </tr>
-          <tr>
-            <td class="td-field">close_pnl_est_usd</td>
-            <td class="td-type">USD</td>
-            <td class="td-desc"><code style="color:var(--text-code);font-size:10px">close_bid_value_usd − entry_cost_usd</code>. <span class="note">Use this for all exit decisions — it's the realistic P&L.</span></td>
-          </tr>
-          <tr>
-            <td class="td-field">close_pnl_est_pct</td>
-            <td class="td-type">%</td>
-            <td class="td-desc">Close P&L as % of entry cost. <span class="note">Profit-taking rule: consider closing when &gt; 50%.</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="pnl-rule-box">
-      <span class="pnl-rule-icon">◈</span>
-      <div class="pnl-rule-text">
-        <strong>Profit-taking rule</strong>: Consider closing when <strong>close_pnl_est_pct &gt; 50</strong>.
-        Always use <strong>close_pnl_est_usd</strong> (bid-based), not <strong>unrealized_pnl_usd</strong> (mark-based), for exit decisions.
-        Use <code style="color:var(--text-code);font-size:10px">callput_close_position()</code> pre-expiry ·
-        <code style="color:var(--text-code);font-size:10px">callput_settle_position()</code> post-expiry.
-      </div>
-    </div>
-
-    <div class="bridge-box">
-      <strong style="color:var(--text-secondary)">Realized P&L (post-settlement):</strong>
-      Call <code>callput_get_settled_pnl()</code> to get <code>amount_out_usd</code> per position from on-chain <code>SettlePosition</code> events.
-      Net realized P&L = <code>amount_out_usd − entry_cost_usd</code>.
-      Default lookback: ~50k blocks (~1 day on Base). Set <code>from_block</code> for older positions.
-    </div>
-  </div>
-
-</section>
-
-<hr class="section-divider">
-
-<!-- ABOUT -->
-<section id="about">
-  <div class="section-label">Protocol</div>
-  <h2>About Callput.app</h2>
-  <div class="info-cards">
-    <div class="info-card">
-      <span class="info-card-icon">◈</span>
-      <div class="info-card-title">Spread-Only Options</div>
-      <div class="info-card-desc">Callput is a spread-only options protocol on Base. No single-leg exposure. USDC settlement only. Positions are ERC-1155 tokens.</div>
-    </div>
-    <div class="info-card">
-      <span class="info-card-icon">⬡</span>
-      <div class="info-card-title">Keeper-Based Execution</div>
-      <div class="info-card-desc">Orders are filled asynchronously by a keeper relay. Poll <code style="color:var(--text-code);font-size:10px">check_request_status</code> after broadcast. Keeper fills within ~30s typically.</div>
-    </div>
-    <div class="info-card">
-      <span class="info-card-icon">◇</span>
-      <div class="info-card-title">On-Chain Contracts</div>
-      <div class="info-card-desc">PositionManager + SettleManager on Base Mainnet.
-        <div class="contract-addr">PositionManager:<br>0x83B04701B227B045CBBAF921377137fF595a54af</div>
-      </div>
-    </div>
-    <div class="info-card">
-      <span class="info-card-icon">▲</span>
-      <div class="info-card-title">Supported Assets</div>
-      <div class="info-card-desc">BTC and ETH only. 4 spread strategies: BuyCallSpread, SellCallSpread, BuyPutSpread, SellPutSpread. All collateral and settlement in USDC.</div>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:32px">
-    <a href="https://callput.app" target="_blank" class="btn btn-primary">callput.app ↗</a>
-    <a href="https://x.com/CallPutApp" target="_blank" class="btn btn-ghost">X @CallPutApp</a>
-    <a href="https://t.me/Callput_Official" target="_blank" class="btn btn-ghost">Telegram</a>
-    <a href="https://discord.com/invite/thbePJKdmc" target="_blank" class="btn btn-ghost">Discord</a>
-    <a href="https://github.com/ayggdrasil/optiontradingagent" target="_blank" class="btn btn-ghost">GitHub ↗</a>
-  </div>
-</section>
-
-<footer>
-  <div>
-    <span style="color:var(--cyan-dim);font-weight:700">CALLPUT LITE MCP</span>
-    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Base Mainnet · Chain 8453
-  </div>
-  <div style="display:flex;gap:20px;align-items:center">
-    <a href="https://callput.app" target="_blank">callput.app</a>
-    <a href="https://github.com/ayggdrasil/optiontradingagent" target="_blank">GitHub</a>
-    <a href="https://x.com/CallPutApp" target="_blank">@CallPutApp</a>
-    <a href="https://t.me/Callput_Official" target="_blank">Telegram</a>
-  </div>
-</footer>
-
-<script>
-  // Scroll-triggered fade-in for cards and steps
-  const fadeTargets = document.querySelectorAll('.tool-card, .setup-step, .info-card');
-  const fadeObs = new IntersectionObserver((entries) => {
-    entries.forEach((el, i) => {
-      if (el.isIntersecting) {
-        el.target.style.opacity = '1';
-        el.target.style.transform = 'translateY(0)';
-        fadeObs.unobserve(el.target);
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const scale = (v) => h - pad - ((v - min) / (max - min || 1)) * (h - pad * 2);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#41e77d";
+        ctx.beginPath();
+        values.forEach((v, i) => {
+          const x = pad + (i * (w - pad * 2)) / (values.length - 1);
+          const y = scale(v);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.fillStyle = "#9bb0bb";
+        ctx.font = "12px JetBrains Mono, monospace";
+        ctx.fillText("Underlying price", w - 150, h - 12);
+        ctx.fillStyle = "#41e77d";
+        ctx.fillText("P/L", 12, 22);
       }
-    });
-  }, { threshold: 0.05 });
 
-  fadeTargets.forEach((el, i) => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(16px)';
-    el.style.transition = `opacity 0.4s ease ${(i % 6) * 0.06}s, transform 0.4s ease ${(i % 6) * 0.06}s`;
-    fadeObs.observe(el);
-  });
-
-  // Workflow terminal step animations
-  const wfSteps = document.querySelectorAll('.wf-step');
-  const wfObs = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting) {
-      wfSteps.forEach((el, i) => {
-        setTimeout(() => el.classList.add('visible'), i * 120);
-      });
-      wfObs.disconnect();
-    }
-  }, { threshold: 0.1 });
-
-  const terminal = document.getElementById('wf-terminal');
-  if (terminal) wfObs.observe(terminal);
-
-  // ─── Payoff diagram drawing ───────────────────────────────────────────────
-  function drawPayoffChart(canvasId, payoffFn, opts) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const card = canvas.parentElement;
-    const Wp = card.clientWidth - 40; // subtract 20px padding × 2
-    const Hp = 190;
-    canvas.width  = Math.round(Wp * dpr);
-    canvas.height = Math.round(Hp * dpr);
-    canvas.style.width  = Wp + 'px';
-    canvas.style.height = Hp + 'px';
-
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-
-    const pad = { t: 28, r: 18, b: 36, l: 46 };
-    const cw = Wp - pad.l - pad.r;
-    const ch = Hp - pad.t - pad.b;
-
-    const { xMin, xMax, yMin, yMax, k1, k2, be, lineColor } = opts;
-    const tx = v => pad.l + ((v - xMin) / (xMax - xMin)) * cw;
-    const ty = v => pad.t + ((yMax - v) / (yMax - yMin)) * ch;
-
-    // Background
-    ctx.fillStyle = '#060d14';
-    ctx.fillRect(0, 0, Wp, Hp);
-
-    // Subtle horizontal grid
-    ctx.strokeStyle = 'rgba(0,200,255,0.05)';
-    ctx.lineWidth = 1;
-    [yMin * 0.6, yMax * 0.6].forEach(y => {
-      ctx.beginPath(); ctx.moveTo(pad.l, ty(y)); ctx.lineTo(Wp - pad.r, ty(y)); ctx.stroke();
-    });
-
-    // Zero line
-    ctx.strokeStyle = 'rgba(160,200,230,0.22)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 5]);
-    ctx.beginPath(); ctx.moveTo(pad.l, ty(0)); ctx.lineTo(Wp - pad.r, ty(0)); ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Strike vertical lines (K1, K2)
-    [k1, k2].forEach(k => {
-      ctx.strokeStyle = 'rgba(0,200,255,0.16)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 4]);
-      ctx.beginPath(); ctx.moveTo(tx(k), pad.t); ctx.lineTo(tx(k), Hp - pad.b); ctx.stroke();
-      ctx.setLineDash([]);
-    });
-
-    // Generate payoff points
-    const N = 400;
-    const pts = [];
-    for (let i = 0; i <= N; i++) {
-      const x = xMin + (i / N) * (xMax - xMin);
-      pts.push([x, payoffFn(x)]);
-    }
-
-    // Profit fill (above zero)
-    ctx.beginPath();
-    ctx.moveTo(tx(pts[0][0]), ty(0));
-    for (const [x, y] of pts) ctx.lineTo(tx(x), ty(Math.max(0, y)));
-    ctx.lineTo(tx(pts[pts.length - 1][0]), ty(0));
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(0,255,136,0.10)';
-    ctx.fill();
-
-    // Loss fill (below zero)
-    ctx.beginPath();
-    ctx.moveTo(tx(pts[0][0]), ty(0));
-    for (const [x, y] of pts) ctx.lineTo(tx(x), ty(Math.min(0, y)));
-    ctx.lineTo(tx(pts[pts.length - 1][0]), ty(0));
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(255,68,68,0.10)';
-    ctx.fill();
-
-    // Payoff line
-    ctx.beginPath();
-    pts.forEach(([x, y], i) => {
-      i === 0 ? ctx.moveTo(tx(x), ty(y)) : ctx.lineTo(tx(x), ty(y));
-    });
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 2;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-
-    // Axes
-    ctx.strokeStyle = 'rgba(100,150,190,0.28)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, Hp - pad.b);
-    ctx.lineTo(Wp - pad.r, Hp - pad.b);
-    ctx.stroke();
-
-    // Y-axis: zero label
-    ctx.font = `9px 'JetBrains Mono', monospace`;
-    ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(100,150,190,0.6)';
-    ctx.fillText('0', pad.l - 6, ty(0) + 3);
-
-    // Y-axis: +MAX and −MAX lines + labels
-    const maxY = Math.max(...pts.map(p => p[1]));
-    const minY = Math.min(...pts.map(p => p[1]));
-
-    ctx.strokeStyle = 'rgba(0,255,136,0.18)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 4]);
-    ctx.beginPath(); ctx.moveTo(pad.l, ty(maxY)); ctx.lineTo(Wp - pad.r, ty(maxY)); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(0,255,136,0.7)';
-    ctx.fillText('+MAX', pad.l - 6, ty(maxY) + 3);
-
-    ctx.strokeStyle = 'rgba(255,68,68,0.18)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 4]);
-    ctx.beginPath(); ctx.moveTo(pad.l, ty(minY)); ctx.lineTo(Wp - pad.r, ty(minY)); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(255,68,68,0.7)';
-    ctx.fillText('−MAX', pad.l - 6, ty(minY) + 3);
-
-    // Strike labels (K₁, K₂)
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,200,255,0.5)';
-    ctx.font = `9px 'JetBrains Mono', monospace`;
-    ctx.fillText('K₁', tx(k1), Hp - pad.b + 14);
-    ctx.fillText('K₂', tx(k2), Hp - pad.b + 14);
-
-    // Breakeven dashed line + dot + label
-    if (be !== null && be >= xMin && be <= xMax) {
-      ctx.strokeStyle = 'rgba(255,184,0,0.5)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([2, 3]);
-      ctx.beginPath(); ctx.moveTo(tx(be), pad.t + 4); ctx.lineTo(tx(be), Hp - pad.b); ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.beginPath();
-      ctx.arc(tx(be), ty(0), 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffb800';
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,184,0,0.75)';
-      ctx.font = `8px 'JetBrains Mono', monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillText('B/E', tx(be), Hp - pad.b + 14);
-    }
-
-    // X-axis caption
-    ctx.fillStyle = 'rgba(100,150,190,0.28)';
-    ctx.font = `8px 'JetBrains Mono', monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('Underlying price at expiry →', Wp / 2, Hp - 2);
-  }
-
-  // Chart parameters (normalized 0–100 price axis)
-  // K1=32, K2=68 → 36-unit spread width; premium/credit=10
-  const _K1 = 32, _K2 = 68, _PREM = 10;
-  const _SW = _K2 - _K1;           // 36 = spread width
-  const _MAX_BUY  = _SW - _PREM;   // 26 = max profit for buy spreads
-  const _MAX_SELL = _SW - _PREM;   // 26 = max loss  for sell spreads
-  const _xMin = 4, _xMax = 96, _buf = 6;
-
-  function drawAll() {
-    // BuyCallSpread: profit if price > K1+PREM at expiry
-    drawPayoffChart('chart-bcs',
-      x => x <= _K1 ? -_PREM : x >= _K2 ? _MAX_BUY : x - _K1 - _PREM,
-      { xMin: _xMin, xMax: _xMax, yMin: -_PREM - _buf, yMax: _MAX_BUY + _buf,
-        k1: _K1, k2: _K2, be: _K1 + _PREM, lineColor: '#00c8ff' }
-    );
-    // BuyPutSpread: profit if price < K2-PREM at expiry
-    drawPayoffChart('chart-bps',
-      x => x >= _K2 ? -_PREM : x <= _K1 ? _MAX_BUY : _K2 - x - _PREM,
-      { xMin: _xMin, xMax: _xMax, yMin: -_PREM - _buf, yMax: _MAX_BUY + _buf,
-        k1: _K1, k2: _K2, be: _K2 - _PREM, lineColor: '#00c8ff' }
-    );
-    // SellCallSpread: profit if price < K1+PREM at expiry (collect credit)
-    drawPayoffChart('chart-scs',
-      x => x <= _K1 ? _PREM : x >= _K2 ? -_MAX_SELL : _PREM - (x - _K1),
-      { xMin: _xMin, xMax: _xMax, yMin: -_MAX_SELL - _buf, yMax: _PREM + _buf,
-        k1: _K1, k2: _K2, be: _K1 + _PREM, lineColor: '#ffb800' }
-    );
-    // SellPutSpread: profit if price > K2-PREM at expiry (collect credit)
-    drawPayoffChart('chart-sps',
-      x => x >= _K2 ? _PREM : x <= _K1 ? -_MAX_SELL : _PREM - (_K2 - x),
-      { xMin: _xMin, xMax: _xMax, yMin: -_MAX_SELL - _buf, yMax: _PREM + _buf,
-        k1: _K1, k2: _K2, be: _K2 - _PREM, lineColor: '#ffb800' }
-    );
-  }
-
-  // Draw after layout; redraw on resize
-  requestAnimationFrame(drawAll);
-  window.addEventListener('resize', () => requestAnimationFrame(drawAll));
-</script>
-</body>
+      Object.entries(charts).forEach(([id, values]) => drawPayoff(id, values));
+    </script>
+  </body>
 </html>

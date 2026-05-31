@@ -1,13 +1,23 @@
 ---
 name: callput-lite-trader
-description: Spread-only Callput trading skill for external agents on Base. Unsigned-tx pattern — MCP builds calldata, agent signs and broadcasts with its own key.
+description: Spread-only Callput trading skill for external agents on Base. Supports BTC/ETH plus synthetic stock/ETF options. Unsigned-tx pattern — MCP builds calldata, agent signs and broadcasts with its own key.
 license: MIT
 ---
 
 # Callput Lite Trader Skill
 
 ## Goal
-Trade Callput spreads autonomously. MCP builds unsigned transactions; the agent signs and broadcasts using its own wallet.
+Trade Callput crypto and synthetic stock/ETF spreads autonomously. MCP builds unsigned transactions; the agent signs and broadcasts using its own wallet.
+
+---
+
+## Supported Underlyings
+
+- Crypto: `BTC`, `ETH`
+- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Configured option-token contracts: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
+- Live tradability is determined by `callput_scan_spreads`; skip a symbol if no candidates are returned.
+- Stock options are synthetic on-chain options, not broker-listed options, shares, ETFs, or tokenized stock ownership.
 
 ---
 
@@ -35,14 +45,14 @@ Trade Callput spreads autonomously. MCP builds unsigned transactions; the agent 
 
 1. Spread-only. No single-leg execution ever.
 2. Always check `callput_portfolio_summary` before opening a new position.
-3. Use `callput_scan_spreads` as the primary market entry point.
+3. Use `callput_scan_spreads` as the primary market entry point for crypto or stock/ETF symbols.
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
 6. MCP never holds or requires a private key — agent signs externally.
 7. If `usdc_approval.sufficient == false`, send approve_tx before the main tx.
 8. **Save every `request_key` from `get_request_key_from_tx`** — required for P&L.
 9. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them.
-10. Check `atm_iv` from scan output: high IV (>80% ETH, >70% BTC) favors sell spreads.
+10. Check `atm_iv` from scan output: high IV favors sell spreads. Use ETH/BTC thresholds only for ETH/BTC; evaluate stock IV relative to that symbol's regime.
 
 ---
 
@@ -70,6 +80,7 @@ Sell spreads post `strikeDiff × size` USDC as collateral. Best used in high-IV 
 Manual guidance (if using raw chains):
 - ETH: target spread width of 100–200 USDC strike range
 - BTC: target spread width of 1000–3000 USDC strike range
+- Stocks/ETFs: start with scan-ranked adjacent widths; typical strikes are much tighter than BTC/ETH
 - Avoid spreads with `cost_pct_of_max > 40%` (overpaying for max payout)
 
 ---
@@ -81,6 +92,7 @@ Skip and wait if any of these are true:
 - `cost_pct_of_max > 40%` (poor risk/reward)
 - `days_to_expiry < 0.25` (< 6 hours) — too close to expiry
 - `urgent_count > 0` — manage expiring positions first
+- `scan_spreads` returns no candidates for the requested stock/ETF symbol
 
 ---
 
@@ -133,13 +145,13 @@ callput_portfolio_summary({ address, request_keys: agent_state.request_keys })
 | `callput_settle_position` | Build unsigned settle tx for expired positions |
 | `callput_list_positions_by_wallet` | Recover request_keys from on-chain events (after session loss) |
 | `callput_get_settled_pnl` | Realized payout history from SettlePosition events |
-| `callput_get_option_chains` | Raw chain data + IV (use scan_spreads first) |
+| `callput_get_option_chains` | Raw crypto/stock chain data + IV (use scan_spreads first) |
 
 ---
 
 ## One-line command examples
 
-- `Scan ETH bearish and build the rank 1 spread tx.`
+- `Scan TSLA bullish and build the rank 1 spread tx.`
 - `Check my portfolio summary and P&L for address 0x...`
 - `Close all positions expiring within 24 hours.`
-- `Settle all expired ETH/BTC positions.`
+- `Settle all expired ETH/BTC/TSLA/NVDA positions.`

@@ -8,7 +8,13 @@ Copy-paste setup guide for connecting `callput-lite-agent-mcp` to OpenClaw (or a
 
 - Node.js 18+
 - A USDC-funded wallet on **Base Mainnet** (chain 8453)
-- The wallet's private key (stays in your MCP env — never leaves the server)
+- An external signer in your agent runtime. The MCP server returns unsigned transactions and does not read private keys.
+
+---
+
+## Supported Underlyings
+
+Crypto: `BTC`, `ETH`. Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`. Configured option-token contracts currently cover `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, and `COIN`; live tradability still depends on the market feed. Stock options are synthetic on-chain options, not broker-listed options or tokenized shares.
 
 ---
 
@@ -39,7 +45,6 @@ Add this block to your MCP config file (`~/.config/mcp/config.json`, Claude Desk
       "command": "node",
       "args": ["/absolute/path/to/callput-lite-mcp-skill-standalone/build/index.js"],
       "env": {
-        "CALLPUT_PRIVATE_KEY": "0xYOUR_PRIVATE_KEY_HERE",
         "RPC_URL": "https://mainnet.base.org"
       }
     }
@@ -47,20 +52,19 @@ Add this block to your MCP config file (`~/.config/mcp/config.json`, Claude Desk
 }
 ```
 
-> **Important**: Replace `/absolute/path/to/...` with the real path. `CALLPUT_PRIVATE_KEY` is only used for live execution — dry-run mode works without it.
+> **Important**: Replace `/absolute/path/to/...` with the real path. Private keys belong in the external signer/runtime, not in this MCP server config.
 
 ### Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `CALLPUT_PRIVATE_KEY` | Yes (live mode) | — | Wallet private key (hex, with `0x`) |
 | `RPC_URL` | No | `https://mainnet.base.org` | Base Mainnet RPC endpoint |
 
 ---
 
 ## Step 3 — Agent System Prompt
 
-Inject the contents of `EXTERNAL_AGENT_PROMPT.md` as your agent's system prompt (or prepend it to the conversation context). This file encodes all 14 safety rules and the full trading workflow the agent must follow.
+Inject the contents of `EXTERNAL_AGENT_PROMPT.md` as your agent's system prompt (or prepend it to the conversation context). This file encodes the safety rules and the full trading workflow the agent must follow.
 
 **Copy-paste block** (inline into your agent config):
 
@@ -68,30 +72,30 @@ Inject the contents of `EXTERNAL_AGENT_PROMPT.md` as your agent's system prompt 
 You are a spread-only Callput trading agent on Base.
 
 ## Safety rules (non-negotiable)
-1. Always call callput_scan_spreads to find candidates (replaces validate_spread).
+1. Always call callput_scan_spreads to find candidates across crypto or supported stock/ETF symbols.
 2. Never trade single-leg options.
-3. Keep dry_run=true unless the user has explicitly authorized real execution in this session.
+3. Build unsigned transactions first; only sign and broadcast after explicit user authorization in this session.
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
 6. After broadcast, poll callput_check_request_status until executed or cancelled.
 7. Use callput_close_position for pre-expiry exits only.
 8. Use callput_settle_position for expired positions only.
-9. Never expose CALLPUT_PRIVATE_KEY in any output, log, or message.
+9. Never expose private keys, signer secrets, or wallet credentials in any output, log, or message.
 
 ## Trading frequency rules
 10. Call callput_portfolio_summary before every new position — skip if usdc_balance < 2× estimated spread cost.
 11. Skip buy spreads where cost_pct_of_max > 40% — poor risk/reward.
 12. Never open positions with days_to_expiry < 0.25 (< 6 hours).
 13. If urgent_count > 0 in portfolio summary, manage expiring positions before opening new ones.
-14. Save every request_key from execute_spread into your session state — required for P&L tracking.
+14. Save every request_key from get_request_key_from_tx into your session state — required for P&L tracking.
 15. If request_keys are lost, call callput_list_positions_by_wallet to recover from on-chain events.
-16. Check atm_iv in scan output: high IV (>80% ETH, >70% BTC) favors neutral-bearish/neutral-bullish sell spreads.
+16. Check atm_iv in scan output: high IV favors neutral-bearish/neutral-bullish sell spreads. Do not apply ETH/BTC IV thresholds blindly to stock symbols.
 
 ## bias options
 bullish → BuyCallSpread | bearish → BuyPutSpread | neutral-bearish → SellCallSpread | neutral-bullish → SellPutSpread
 
 ## Workflow
-portfolio_summary [→ list_positions_by_wallet if keys lost] → scan_spreads (with atm_iv) → execute_spread (dry_run) → execute_spread (live) → check_request_status → save request_key → portfolio_summary + request_keys → [on expiry: settle_position → get_settled_pnl]
+portfolio_summary [→ list_positions_by_wallet if keys lost] → scan_spreads (with atm_iv) → execute_spread (build unsigned_tx) → external sign/broadcast → check_request_status → save request_key → portfolio_summary + request_keys → [on expiry: settle_position → get_settled_pnl]
 ```
 
 Or reference `EXTERNAL_AGENT_PROMPT.md` directly if your agent runtime supports file injection.
@@ -117,20 +121,23 @@ Run these commands in order at the start of every agent session:
    → callput_portfolio_summary({ address: "0x...", request_keys: [] })
    → Check: usdc_balance, urgent_count, open positions
 
-2. "Scan ETH bullish spreads."
+2. "Scan ETH or TSLA bullish spreads."
    → callput_scan_spreads({ underlying_asset: "ETH", bias: "bullish" })
+   → callput_scan_spreads({ underlying_asset: "TSLA", bias: "bullish" })
    → Review: candidates, cost_pct_of_max, days_to_expiry, atm_iv
 
-3. "Dry-run rank 1 spread with size 1."
+3. "Build the unsigned tx for rank 1 spread with size 1."
    → callput_execute_spread({ strategy: "BuyCallSpread", from_address: "0x...", long_leg_id: "...", short_leg_id: "...", size: 1 })
-   → Inspect: unsigned_tx payload, estimated_cost_usd, usdc_approval
+   → Inspect: unsigned_tx payload, quote.amount_in_usdc, usdc_approval
 
-5. [Only after explicit user authorization:]
+4. [Only after explicit user authorization:]
    "I authorize live execution. Execute the rank 1 ETH bullish spread with size 1."
-   → callput_execute_spread({ ...rank1, size: 1, dry_run: false })
+   → callput_execute_spread({ ...rank1, size: 1 })
+   → external signer broadcasts unsigned_tx
+   → callput_get_request_key_from_tx({ tx_hash: "0x..." })
    → Save: request_key immediately
 
-6. "Poll status until executed."
+5. "Poll status until executed."
    → callput_check_request_status({ request_key: "0x...", is_open: true })
    → Repeat every 30s, max 6 attempts
 ```
@@ -174,13 +181,13 @@ callput_portfolio_summary({ request_keys: ["0xabc...", "0xdef..."] })
 | Intent | Command |
 |---|---|
 | Session start | `"Bootstrap the agent, check rules, then run a portfolio summary."` |
-| Market scan | `"Scan ETH bearish spreads and show me the top 3 candidates."` |
-| Dry run | `"Execute rank 1 BTC bullish spread with size 1 — dry run only."` |
-| Live execution | `"I authorize live execution. Execute rank 1 ETH bearish spread with size 1."` |
+| Market scan | `"Scan TSLA bullish spreads and show me the top 3 candidates."` |
+| Build unsigned tx | `"Build the unsigned tx for rank 1 NVDA bullish spread with size 1."` |
+| Live execution | `"I authorize live execution. Sign and submit rank 1 ETH or TSLA bearish spread with size 1."` |
 | Portfolio + P&L | `"Check my full portfolio summary and show current P&L on all positions."` |
 | Profit taking | `"Show close_pnl_est_pct for all positions and close any above 50%."` |
 | Pre-expiry exit | `"Close all positions expiring within 24 hours."` |
-| Settlement | `"Settle all expired ETH and BTC positions."` |
+| Settlement | `"Settle all expired ETH, BTC, TSLA, and NVDA positions."` |
 
 ---
 
@@ -226,8 +233,7 @@ callput_execute_spread({
   strategy: "SellCallSpread",
   long_leg_id: "...",
   short_leg_id: "...",
-  size: 1,
-  dry_run: true
+  size: 1
 })
 ```
 
@@ -239,7 +245,6 @@ Note: Sell spreads post `strikeDiff × size` USDC as collateral. `amountIn = str
 
 | Problem | Fix |
 |---|---|
-| `execute_spread failed: CALLPUT_PRIVATE_KEY not set` | Add key to MCP env config |
 | `scan_spreads failed: no candidates` | Try a different expiry or check market hours |
 | `check_request_status` returns `pending` indefinitely | Wait up to 3 min; if still pending after 6 polls, the order may have been dropped — check the keeper status |
 | Position shows no P&L fields | You forgot to pass `request_keys` to `portfolio_summary` |

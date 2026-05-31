@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node build/index.js",
     "dev": "ts-node src/index.ts",
-    "verify": "npm run build && node build/smoke_test.js",
+    "verify": "npm run build && node build/smoke_test.js && node build/stock_support_test.js",
     "verify:mcp": "npm run build && node build/mcp_smoke.js"
   },
   "dependencies": {

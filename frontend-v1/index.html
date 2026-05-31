@@ -3,65 +3,85 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Callput Lite Frontend V1</title>
+    <title>Callput Lite Operator Console</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="ambient ambient-a"></div>
-    <div class="ambient ambient-b"></div>
-
     <header class="topbar">
-      <div class="brand">Callput Lite</div>
-      <nav class="topnav">
+      <a class="brand" href="../index.html">
+        <span class="brand-mark">&gt;_</span>
+        <span>Callput Lite</span>
+      </a>
+      <nav class="topnav" aria-label="Operator console navigation">
+        <a href="#markets">Markets</a>
         <a href="#flows">Flows</a>
-        <a href="#contracts">Contracts</a>
-        <a href="#architecture">Architecture</a>
-        <a href="#faq">FAQ</a>
+        <a href="#contracts">Tools</a>
+        <a href="#security">Security</a>
       </nav>
     </header>
 
     <main class="wrap">
       <section class="hero">
-        <p class="kicker">Frontend V1</p>
-        <h1>Operator Console for OpenClaw Agent Owners</h1>
-        <p class="subtitle">
-          This UI is guidance-only. Agents own key management and execute trades through Skill + MCP.
-        </p>
-        <div class="chips">
-          <span>V1 Scope Locked</span>
-          <span>No Key Handling in Frontend</span>
-          <span>Mobile + Desktop Ready</span>
+        <div class="hero-copy">
+          <h1>Operator Console for Crypto + Stock Option Agents</h1>
+          <p>
+            A static control-map for OpenClaw, Bankr, and compatible runtimes using
+            <code>callput-lite-agent-mcp</code>. The page explains what to run; the agent signs and submits.
+          </p>
+          <div class="chips">
+            <span>Unsigned transactions</span>
+            <span>Spread-only risk</span>
+            <span>Stock/ETF feed enabled</span>
+            <span>No frontend key handling</span>
+          </div>
         </div>
+        <div class="scan-card" aria-label="Market scan preview">
+          <div class="scan-head">
+            <span>Live market scan</span>
+            <strong>Base 8453</strong>
+          </div>
+          <div class="symbol-tabs" id="symbolTabs"></div>
+          <div class="scan-table" id="scanTable"></div>
+        </div>
+      </section>
+
+      <section id="markets" class="panel">
+        <div class="panel-head">
+          <h2>Supported Markets</h2>
+          <p>Live tradability depends on the Callput feed. The MCP can still normalize configured symbols and aliases.</p>
+        </div>
+        <div class="market-grid" id="marketGrid"></div>
       </section>
 
       <section id="flows" class="panel">
         <div class="panel-head">
-          <h2>User Flows (V1)</h2>
-          <small>Market analysis template is deferred to V2.</small>
+          <h2>Agent Flows</h2>
+          <p>Each flow maps to one or more MCP calls. Signing remains outside the MCP boundary.</p>
         </div>
         <div class="grid grid-4">
-          <article class="card flow-card">
-            <h3>Flow A</h3>
-            <p class="title">Direction Setup</p>
-            <p>Pick directional bias and strategy side for spread intent.</p>
+          <article class="flow-card">
+            <span>Flow A</span>
+            <h3>Market Scan</h3>
+            <p>Choose symbol and bias, then rank spread candidates with IV and expiry context.</p>
           </article>
-          <article class="card flow-card">
-            <h3>Flow B</h3>
-            <p class="title">Option Lookup</p>
-            <p>Read option chains and select target expiry/strikes.</p>
+          <article class="flow-card">
+            <span>Flow B</span>
+            <h3>Build Transaction</h3>
+            <p>Generate unsigned calldata plus USDC approval details for an external signer.</p>
           </article>
-          <article class="card flow-card">
-            <h3>Flow C</h3>
-            <p class="title">Execution</p>
-            <p>Validate spread, run dry-run first, then real execution by agent.</p>
+          <article class="flow-card">
+            <span>Flow C</span>
+            <h3>Track Request</h3>
+            <p>Persist the request key and poll keeper status until the request reaches terminal state.</p>
           </article>
-          <article class="card flow-card">
-            <h3>Flow D</h3>
-            <p class="title">Position Adjustment</p>
-            <p>Track request status, close pre-expiry, settle post-expiry.</p>
+          <article class="flow-card">
+            <span>Flow D</span>
+            <h3>Manage Position</h3>
+            <p>Read P&amp;L, close before expiry when needed, and settle after expiry.</p>
           </article>
         </div>
       </section>
@@ -69,53 +89,35 @@
       <section id="contracts" class="panel">
         <div class="panel-head">
           <h2>MCP Tool-to-UI Contract</h2>
-          <small>1 tool maps to 1 action card.</small>
+          <p>One tool maps to one operator action block. No hidden schema transformations.</p>
         </div>
         <div class="contract-list" id="contractList"></div>
       </section>
 
-      <section id="architecture" class="panel">
+      <section id="security" class="panel">
         <div class="panel-head">
-          <h2>Runtime Architecture</h2>
-          <small>Frontend explains, agent executes.</small>
+          <h2>Security Boundary</h2>
+          <p>The frontend and MCP explain and build. The agent runtime signs.</p>
         </div>
-        <div class="arch-grid">
-          <div class="arch-node">Frontend UI</div>
-          <div class="arch-arrow">-></div>
-          <div class="arch-node">Agent Runtime (Key Owner)</div>
-          <div class="arch-arrow">-></div>
-          <div class="arch-node">Skill + MCP</div>
-          <div class="arch-arrow">-></div>
-          <div class="arch-node">Callput.app on Base</div>
+        <div class="boundary-grid">
+          <div class="boundary-node">
+            <strong>Agent</strong>
+            <span>Chooses symbol, bias, size, and lifecycle action.</span>
+          </div>
+          <div class="boundary-arrow">-&gt;</div>
+          <div class="boundary-node">
+            <strong>MCP</strong>
+            <span>Reads market data and returns unsigned transaction payloads.</span>
+          </div>
+          <div class="boundary-arrow">-&gt;</div>
+          <div class="boundary-node trusted">
+            <strong>Signer</strong>
+            <span>Approves, signs, broadcasts, and applies wallet policy.</span>
+          </div>
         </div>
         <div class="warning">
-          <strong>Security Boundary</strong>
-          <p>The frontend does not request, store, or process <code>CALLPUT_PRIVATE_KEY</code>.</p>
-        </div>
-      </section>
-
-      <section id="faq" class="panel">
-        <div class="panel-head">
-          <h2>FAQ</h2>
-          <small>Common operator questions</small>
-        </div>
-        <div class="faq-list">
-          <details open>
-            <summary>Does this frontend execute transactions directly?</summary>
-            <p>No. Agent runtimes execute through Skill + MCP. Frontend is guidance-only.</p>
-          </details>
-          <details>
-            <summary>Where should private keys be managed?</summary>
-            <p>Inside each external agent runtime environment. Never in frontend state.</p>
-          </details>
-          <details>
-            <summary>Can I skip spread validation?</summary>
-            <p>No. Validation is mandatory before any execution flow.</p>
-          </details>
-          <details>
-            <summary>Is market analysis available in this version?</summary>
-            <p>Not as a template in V1. It is planned for V2.</p>
-          </details>
+          <strong>Never put private keys in frontend state.</strong>
+          <p><code>CALLPUT_PRIVATE_KEY</code> is not read by this MCP server. Configure secrets only in the external agent runtime.</p>
         </div>
       </section>
 
@@ -123,11 +125,11 @@
         <div class="panel-head">
           <h2>Operator Prompt Snippet</h2>
         </div>
-        <pre class="prompt"><code>Run V1 flow: direction setup -> option lookup -> spread validation -> execute (dry-run first) -> request status polling -> position adjustment.</code></pre>
+        <pre class="prompt"><code>Scan TSLA and ETH spreads, pick one valid candidate, build unsigned_tx, ask for explicit authorization, sign externally, broadcast, parse request_key, then poll request status.</code></pre>
       </section>
     </main>
 
-    <footer class="footer">Callput Lite Frontend V1</footer>
+    <footer class="footer">Callput Lite Operator Console - stock-option aware</footer>
 
     <script src="./app.js" defer></script>
   </body>

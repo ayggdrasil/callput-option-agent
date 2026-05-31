@@ -4,8 +4,7 @@
       "command": "node",
       "args": ["<repo_root>/build/index.js"],
       "env": {
-        "RPC_URL": "https://mainnet.base.org",
-        "CALLPUT_PRIVATE_KEY": "0xREPLACE_WITH_RUNTIME_KEY"
+        "RPC_URL": "https://mainnet.base.org"
       }
     }
   }
