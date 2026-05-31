@@ -1,7 +1,8 @@
 import { ethers } from "ethers";
 import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI, validateChainId } from "./config.js";
 
-export type UnderlyingAsset = "BTC" | "ETH";
+export type UnderlyingAsset = keyof typeof CONFIG.UNDERLYINGS;
+const UNDERLYING_ASSETS = Object.keys(CONFIG.UNDERLYINGS) as UnderlyingAsset[];
 export type OptionSide = "Call" | "Put";
 export type SpreadStrategy = "BuyCallSpread" | "SellCallSpread" | "BuyPutSpread" | "SellPutSpread";
 
@@ -57,7 +58,7 @@ type MarketOption = {
 type MarketDataPayload = {
   lastUpdatedAt?: number;
   data?: {
-    market?: Record<UnderlyingAsset, {
+    market?: Record<string, {
       expiries?: string[];
       options?: Record<string, { call?: any[]; put?: any[] }>;
     }>;
@@ -75,10 +76,32 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 let marketCache: { tsMs: number; options: MarketOption[]; spot: Record<UnderlyingAsset, number> } | null = null;
 
+const ASSET_ALIASES: Record<string, UnderlyingAsset> = {
+  WBTC: "BTC",
+  XBT: "BTC",
+  WETH: "ETH",
+  TESLA: "TSLA",
+  NVIDIA: "NVDA",
+  COINBASE: "COIN",
+  NASDAQ100: "QQQ",
+  NASDAQ: "QQQ",
+  SANDP500: "SPY",
+  SP500: "SPY",
+  SNP500: "SPY",
+  KOREA: "EWY"
+};
+
+function isUnderlyingAsset(value: string): value is UnderlyingAsset {
+  return Object.prototype.hasOwnProperty.call(CONFIG.UNDERLYINGS, value);
+}
+
 export function normalizeAsset(asset: string): UnderlyingAsset | null {
-  const s = asset.trim().toUpperCase();
-  if (s === "BTC" || s === "WBTC") return "BTC";
-  if (s === "ETH" || s === "WETH") return "ETH";
+  const upper = asset.trim().toUpperCase();
+  const compact = upper.replace(/[\s._&-]+/g, "");
+  const aliased = ASSET_ALIASES[upper] ?? ASSET_ALIASES[compact];
+  if (aliased) return aliased;
+  if (isUnderlyingAsset(upper)) return upper;
+  if (isUnderlyingAsset(compact)) return compact;
   return null;
 }
 
@@ -131,7 +154,7 @@ export function decodeSpreadTokenId(tokenIdInput: string): {
   const pairStrike = pairEncoded > 0 ? Math.floor(pairEncoded / 8) : 0;
   const optionType: OptionSide = (nakedEncoded % 8 & 4) !== 0 ? "Call" : "Put";
 
-  const underlying: UnderlyingAsset | null = assetIndex === 1 ? "BTC" : assetIndex === 2 ? "ETH" : null;
+  const underlying = mapAssetIndexToUnderlying(assetIndex);
   return {
     underlying,
     expirySec,
@@ -182,12 +205,14 @@ export async function getMarketSnapshot(force = false): Promise<{ options: Marke
   }
 
   const options: MarketOption[] = [];
-  const spot: Record<UnderlyingAsset, number> = {
-    BTC: Number(payload.data?.spotIndices?.BTC ?? 0),
-    ETH: Number(payload.data?.spotIndices?.ETH ?? 0)
-  };
+  const spot = Object.fromEntries(
+    UNDERLYING_ASSETS.map((asset) => [
+      asset,
+      Number(payload.data?.spotIndices?.[asset] ?? payload.data?.spotIndices?.[asset.toLowerCase()] ?? 0)
+    ])
+  ) as Record<UnderlyingAsset, number>;
 
-  for (const asset of ["BTC", "ETH"] as const) {
+  for (const asset of UNDERLYING_ASSETS) {
     const assetData = market[asset];
     const optionByExpiry = assetData?.options ?? {};
     for (const [expirySecStr, byType] of Object.entries(optionByExpiry)) {
@@ -202,12 +227,12 @@ export async function getMarketSnapshot(force = false): Promise<{ options: Marke
           const strike = Number(row.strikePrice ?? 0);
           const optionId = String(row.optionId ?? "");
           const isAvailable = Boolean(row.isOptionAvailable);
-          const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIV ?? row.sigma ?? 0);
+          const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIv ?? row.markIV ?? row.sigma ?? 0);
           const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
           if (!optionId || !Number.isFinite(strike) || !Number.isFinite(mark)) continue;
 
           options.push({
-            instrument: buildInstrument(asset, expiryCode, strike, optionType),
+            instrument: String(row.instrument ?? buildInstrument(asset, expiryCode, strike, optionType)),
             optionId,
             strikePrice: strike,
             markPrice: mark,
@@ -285,9 +310,13 @@ export async function getOptionChains(params: {
 }
 
 function mapAssetIndexToUnderlying(index: number): UnderlyingAsset | null {
-  if (index === 1) return "BTC";
-  if (index === 2) return "ETH";
-  return null;
+  return UNDERLYING_ASSETS.find((asset) => CONFIG.UNDERLYINGS[asset].index === index) ?? null;
+}
+
+function minSpreadValueForAsset(asset: UnderlyingAsset): number {
+  if (asset === "BTC") return 60;
+  if (asset === "ETH") return 3;
+  return 0.01;
 }
 
 async function findOptionById(optionId: string): Promise<MarketOption | null> {
@@ -333,7 +362,7 @@ export async function validateSpread(strategy: SpreadStrategy, longLegId: string
   }
 
   const spreadCost = long.markPrice - short.markPrice;
-  const minSpread = underlying === "BTC" ? 60 : 3;
+  const minSpread = minSpreadValueForAsset(underlying);
   if (spreadCost < minSpread) {
     throw new Error(`Spread cost too low: ${spreadCost.toFixed(2)} < ${minSpread}`);
   }
@@ -386,19 +415,26 @@ async function getExecutionFee(contract: ethers.Contract): Promise<bigint> {
   }
 }
 
+function toDecimalString(value: number, decimals: number): string {
+  return value.toLocaleString("en-US", {
+    useGrouping: false,
+    maximumFractionDigits: decimals
+  });
+}
+
 function toSizeRaw(size: number, asset: UnderlyingAsset): bigint {
   if (!Number.isFinite(size) || size <= 0) throw new Error("size must be > 0");
-  const decimals = CONFIG.ASSETS[asset].decimals;
-  const scaled = Math.floor(size * 10 ** decimals);
-  if (scaled <= 0) throw new Error("size too small after decimal scaling");
-  return BigInt(scaled);
+  const decimals = CONFIG.UNDERLYINGS[asset].decimals;
+  const parsed = ethers.parseUnits(toDecimalString(size, decimals), decimals);
+  if (parsed <= 0n) throw new Error("size too small after decimal scaling");
+  return parsed;
 }
 
 function toUsdcRaw(value: number): bigint {
   if (!Number.isFinite(value) || value <= 0) throw new Error("amount_in must be > 0");
-  const scaled = Math.floor(value * 10 ** CONFIG.ASSETS.USDC.decimals);
-  if (scaled <= 0) throw new Error("USDC amount too small after decimal scaling");
-  return BigInt(scaled);
+  const parsed = ethers.parseUnits(toDecimalString(value, CONFIG.ASSETS.USDC.decimals), CONFIG.ASSETS.USDC.decimals);
+  if (parsed <= 0n) throw new Error("USDC amount too small after decimal scaling");
+  return parsed;
 }
 
 async function checkAllowance(
@@ -498,16 +534,17 @@ export async function executeSpread(params: {
 }) {
   if (!ethers.isAddress(params.fromAddress)) throw new Error(`Invalid fromAddress: ${params.fromAddress}`);
 
-  // Validate option IDs are numeric strings before converting to BigInt
-  if (!params.longLegId.match(/^\d+$/)) throw new Error(`Invalid option ID format (long leg): ${params.longLegId}`);
-  if (!params.shortLegId.match(/^\d+$/)) throw new Error(`Invalid option ID format (short leg): ${params.shortLegId}`);
+  // Validate option IDs are decimal or 0x-prefixed hex strings before converting to BigInt.
+  const optionIdPattern = /^(0x[0-9a-fA-F]+|\d+)$/;
+  if (!optionIdPattern.test(params.longLegId)) throw new Error(`Invalid option ID format (long leg): ${params.longLegId}`);
+  if (!optionIdPattern.test(params.shortLegId)) throw new Error(`Invalid option ID format (short leg): ${params.shortLegId}`);
 
   const validation = await validateSpread(params.strategy, params.longLegId, params.shortLegId);
   const details: any = validation.details;
 
   const isBuy = params.strategy.startsWith("Buy");
   const asset = details.asset as UnderlyingAsset;
-  const underlyingDecimals = CONFIG.ASSETS[asset].decimals;
+  const underlyingDecimals = CONFIG.UNDERLYINGS[asset].decimals;
 
   const spreadCost = Number(details.spread_cost);
   const strikeDiff = Number(details.strike_diff);
@@ -528,7 +565,7 @@ export async function executeSpread(params: {
     ethers.ZeroHash
   ];
 
-  const underlyingIndex = CONFIG.ASSETS[asset].index;
+  const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
   const path = [CONFIG.CONTRACTS.USDC];
   const length = 2;
 
@@ -590,7 +627,7 @@ export async function closePosition(params: {
 
   const sizeRaw = toSizeRaw(params.size, asset);
   const path = [CONFIG.CONTRACTS.USDC];
-  const underlyingIndex = CONFIG.ASSETS[asset].index;
+  const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
 
   const iface = new ethers.Interface(POSITION_MANAGER_ABI);
   const data = iface.encodeFunctionData("createClosePosition", [
@@ -636,7 +673,7 @@ export async function settlePosition(params: {
 }) {
   const asset = normalizeAsset(params.underlyingAsset);
   if (!asset) throw new Error(`Unsupported asset: ${params.underlyingAsset}`);
-  const underlyingIndex = CONFIG.ASSETS[asset].index;
+  const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
   const path = [CONFIG.CONTRACTS.USDC];
 
   const iface = new ethers.Interface(SETTLE_MANAGER_ABI);
@@ -676,8 +713,9 @@ export async function getPositions(address: string) {
   const snapshot = await getMarketSnapshot();
 
   const out: any[] = [];
-  for (const asset of ["BTC", "ETH"] as const) {
-    const tokenAddress = asset === "BTC" ? CONFIG.CONTRACTS.OPTIONS_TOKEN_BTC : CONFIG.CONTRACTS.OPTIONS_TOKEN_ETH;
+  for (const asset of UNDERLYING_ASSETS) {
+    const tokenAddress = CONFIG.UNDERLYINGS[asset].optionsToken;
+    if (!tokenAddress) continue;
     const token = new ethers.Contract(tokenAddress, OPTIONS_TOKEN_ABI, provider);
     const tokenIds: bigint[] = (await token.tokensByAccount(account)) as bigint[];
     if (!tokenIds.length) continue;
@@ -691,7 +729,7 @@ export async function getPositions(address: string) {
 
       const decoded = decodeSpreadTokenId(tokenIds[i].toString());
       const signed = decoded.isLong ? bal : -bal;
-      const size = Number(signed) / 10 ** CONFIG.ASSETS[asset].decimals;
+      const size = Number(signed) / 10 ** CONFIG.UNDERLYINGS[asset].decimals;
       const matched = snapshot.options.find((o) =>
         o.underlying === asset &&
         o.expirySec === decoded.expirySec &&
@@ -787,13 +825,11 @@ export async function getSettledPnl(params: {
     const ev = log as ethers.EventLog;
     // Extract event args safely
     const underlyingAssetIndex = Number((ev.args as any).underlyingAssetIndex || 0);
-    const underlying: UnderlyingAsset | string =
-      underlyingAssetIndex === 1 ? "BTC" :
-      underlyingAssetIndex === 2 ? "ETH" :
-      `UNKNOWN(${underlyingAssetIndex})`;
+    const mappedUnderlying = mapAssetIndexToUnderlying(underlyingAssetIndex);
+    const underlying: UnderlyingAsset | string = mappedUnderlying ?? `UNKNOWN(${underlyingAssetIndex})`;
     const expirySec = Number((ev.args as any).expiry || 0);
     const optionTokenId = String((ev.args as any).optionTokenId || "0");
-    const assetDecimals = underlyingAssetIndex === 1 ? CONFIG.ASSETS.BTC.decimals : CONFIG.ASSETS.ETH.decimals;
+    const assetDecimals = mappedUnderlying ? CONFIG.UNDERLYINGS[mappedUnderlying].decimals : 18;
     const size = Number((ev.args as any).size || 0) / 10 ** assetDecimals;
     const amountOutUsd = Number((ev.args as any).amountOut || 0) / 10 ** CONFIG.ASSETS.USDC.decimals;
     const settlePrice = Number((ev.args as any).settlePrice || 0);
@@ -839,7 +875,7 @@ export async function scanSpreads(params: {
   const snapshot = await getMarketSnapshot();
   const spot = snapshot.spot[underlying];
   const now = Date.now() / 1000;
-  const minSpreadValue = underlying === "BTC" ? 60 : 3;
+  const minSpreadValue = minSpreadValueForAsset(underlying);
 
   // bias → strategy + option type + buy/sell direction
   const isBuy = params.bias === "bullish" || params.bias === "bearish";

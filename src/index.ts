@@ -56,7 +56,7 @@ server.registerTool(
   "callput_scan_spreads",
   {
     description:
-      "Primary market scan. Returns up to max_results pre-ranked, ready-to-execute spread candidates. ATM-anchored with narrow/medium/wide widths. Includes ATM implied volatility (atm_iv) for buy-vs-sell strategy decisions. bias: bullish=BuyCallSpread, bearish=BuyPutSpread, neutral-bearish=SellCallSpread (collect premium), neutral-bullish=SellPutSpread (collect premium). High IV favors sell spreads. Pass long_leg_id + short_leg_id directly to execute_spread.",
+      "Primary market scan for crypto and supported stock/ETF underlyings (BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, CRCL, SAMSUNG, HYNIX; availability depends on live feed). Returns up to max_results pre-ranked, ready-to-execute spread candidates. ATM-anchored with narrow/medium/wide widths. Includes ATM implied volatility (atm_iv) for buy-vs-sell strategy decisions. bias: bullish=BuyCallSpread, bearish=BuyPutSpread, neutral-bearish=SellCallSpread (collect premium), neutral-bullish=SellPutSpread (collect premium). High IV favors sell spreads. Pass long_leg_id + short_leg_id directly to execute_spread; leg IDs may be decimal or 0x hex strings.",
     inputSchema: z.object({
       underlying_asset: z.string(),
       bias: z.enum(["bullish", "bearish", "neutral-bearish", "neutral-bullish"]),
@@ -82,7 +82,7 @@ server.registerTool(
   "callput_execute_spread",
   {
     description:
-      "Build an unsigned spread transaction. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. Also returns usdc_approval: if sufficient=false, sign and send approve_tx first. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
+      "Build an unsigned spread transaction for crypto or supported stock/ETF options. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. Also returns usdc_approval: if sufficient=false, sign and send approve_tx first. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
     inputSchema: z.object({
       strategy: z.enum(["BuyCallSpread", "SellCallSpread", "BuyPutSpread", "SellPutSpread"]),
       from_address: z.string(),
@@ -178,7 +178,7 @@ server.registerTool(
   "callput_close_position",
   {
     description:
-      "Build an unsigned close-position transaction. Returns unsigned_tx for the agent to sign and broadcast. Use when days_to_expiry < 1 or close_pnl_est_pct > 50.",
+      "Build an unsigned close-position transaction for crypto or supported stock/ETF positions. Returns unsigned_tx for the agent to sign and broadcast. Use when days_to_expiry < 1 or close_pnl_est_pct > 50.",
     inputSchema: z.object({
       underlying_asset: z.string(),
       from_address: z.string(),
@@ -277,7 +277,7 @@ server.registerTool(
 server.registerTool(
   "callput_get_option_chains",
   {
-    description: "Fetch raw tradable options from Callput market feed. Prefer callput_scan_spreads for normal use; use this only when you need raw chain data or IV inspection.",
+    description: "Fetch raw tradable crypto and stock/ETF options from the Callput market feed. Prefer callput_scan_spreads for normal use; use this only when you need raw chain data, supported-symbol discovery, or IV inspection.",
     inputSchema: z.object({
       underlying_asset: z.string(),
       option_type: z.enum(["Call", "Put"]).optional(),

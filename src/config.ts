@@ -22,11 +22,45 @@ export const CONFIG = {
     WBTC: "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c",
     WETH: "0x4200000000000000000000000000000000000006",
     OPTIONS_TOKEN_BTC: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444",
-    OPTIONS_TOKEN_ETH: "0x648DE615abD9339F5C85ed00cfD946C69BF858fA"
+    OPTIONS_TOKEN_ETH: "0x648DE615abD9339F5C85ed00cfD946C69BF858fA",
+    TSLA: "0xb0a617bCa4c67f7A57d96b3b9f70d00f66Da9D71",
+    OPTIONS_TOKEN_TSLA: "0xA6Bf25B9cB1BD079c9640aA9C798130d668600d9",
+    QQQ: "0x1e2A220B0c054580dD0E0dfE69a7694D9d1D2037",
+    OPTIONS_TOKEN_QQQ: "0x3886905F9990943631c252ebe01F53FA964f49Fa",
+    SPY: "0xBCE136f8d8EE722A6C910a3d4598bcab1F9404A3",
+    OPTIONS_TOKEN_SPY: "0x8257c5570240346DD00ddF952d750d71DEF25A3e",
+    EWY: "0x5100b47F48aAf1b31f9Af29c8E9D27823385a131",
+    OPTIONS_TOKEN_EWY: "0x68D167810e044641cc44178063a185BeA0F6EFf0",
+    NVDA: "0xcA00BFE890A30AF19c516eb042A63C14A394bE69",
+    OPTIONS_TOKEN_NVDA: "0x4f7A323E1067286962553269bA98386a5b44b118",
+    COIN: "0x7e6f70E84262254C519B77AE399E0015b7567504",
+    OPTIONS_TOKEN_COIN: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641"
+  },
+  UNDERLYINGS: {
+    BTC: { index: 1, decimals: 8, marketType: "CRYPTO", optionsToken: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444" },
+    ETH: { index: 2, decimals: 18, marketType: "CRYPTO", optionsToken: "0x648DE615abD9339F5C85ed00cfD946C69BF858fA" },
+    TSLA: { index: 3, decimals: 18, marketType: "STOCK", optionsToken: "0xA6Bf25B9cB1BD079c9640aA9C798130d668600d9" },
+    QQQ: { index: 4, decimals: 18, marketType: "STOCK", optionsToken: "0x3886905F9990943631c252ebe01F53FA964f49Fa" },
+    SPY: { index: 5, decimals: 18, marketType: "STOCK", optionsToken: "0x8257c5570240346DD00ddF952d750d71DEF25A3e" },
+    EWY: { index: 6, decimals: 18, marketType: "STOCK", optionsToken: "0x68D167810e044641cc44178063a185BeA0F6EFf0" },
+    NVDA: { index: 7, decimals: 18, marketType: "STOCK", optionsToken: "0x4f7A323E1067286962553269bA98386a5b44b118" },
+    COIN: { index: 8, decimals: 18, marketType: "STOCK", optionsToken: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641" },
+    CRCL: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: null },
+    SAMSUNG: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: null },
+    HYNIX: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: null }
   },
   ASSETS: {
     BTC: { index: 1, decimals: 8 },
     ETH: { index: 2, decimals: 18 },
+    TSLA: { index: 3, decimals: 18 },
+    QQQ: { index: 4, decimals: 18 },
+    SPY: { index: 5, decimals: 18 },
+    EWY: { index: 6, decimals: 18 },
+    NVDA: { index: 7, decimals: 18 },
+    COIN: { index: 8, decimals: 18 },
+    CRCL: { index: 9, decimals: 18 },
+    SAMSUNG: { index: 10, decimals: 18 },
+    HYNIX: { index: 11, decimals: 18 },
     USDC: { decimals: 6 }
   }
 } as const;

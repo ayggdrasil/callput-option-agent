@@ -1,6 +1,10 @@
 # MCP Setup (Callput Lite)
 
-This server is for external agents that should trade Callput with minimal setup.
+This server is for external agents that should trade Callput crypto and synthetic stock/ETF options with minimal setup.
+
+## Supported underlyings
+
+Crypto: `BTC`, `ETH`. Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`. Live availability is feed-driven; no candidates means the symbol is not currently tradable.
 
 ## Build
 
@@ -20,8 +24,7 @@ npm run verify
       "command": "node",
       "args": ["<repo_root>/build/index.js"],
       "env": {
-        "RPC_URL": "https://mainnet.base.org",
-        "CALLPUT_PRIVATE_KEY": "0x..."
+        "RPC_URL": "https://mainnet.base.org"
       }
     }
   }
@@ -30,5 +33,6 @@ npm run verify
 
 ## Verify in client
 - Call `callput_portfolio_summary` with your address
-- Call `callput_scan_spreads` with asset="ETH" and bias="bullish"
-- Call `callput_get_option_chains` for ETH (optional, raw chain inspection)
+- Call `callput_scan_spreads` with `underlying_asset="ETH"` and `bias="bullish"`
+- Call `callput_scan_spreads` with `underlying_asset="TSLA"` and `bias="bullish"` to verify stock-option feed support when available
+- Call `callput_get_option_chains` for `ETH`, `TSLA`, `NVDA`, or `COIN` as optional raw chain inspection

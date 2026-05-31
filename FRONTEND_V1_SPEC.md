@@ -1,23 +1,21 @@
-# Frontend V1 Spec (OpenClaw Agent Owner Focus)
+# Frontend V1 Spec (Stock-Aware Agent Owner Focus)
 
 ## 1) Product Scope
 - Version: V1
 - Primary user: OpenClaw agent owners operating agents that trade via this repository.
-- V1 objective: Give operators a clear control surface for direction setup, option discovery, and execution/position adjustment guidance.
+- V1 objective: Give operators a clear control surface for crypto and synthetic stock/ETF spread scanning, unsigned transaction construction, request tracking, and position adjustment guidance.
 
 ## 2) User Flows (V1)
-- Flow A: Direction Setup
+- Flow A: Market Scan
 - Flow B: Option Lookup
-- Flow C: Execution and Position Adjustment
+- Flow C: Unsigned Transaction Build
 - Flow D: Operational Checks (request status + position review/close/settle)
-
-Note:
-- Market analysis template is intentionally excluded in V1 and deferred to V2.
 
 ## 3) MCP API Contract Principle
 - Each MCP tool is mapped to exactly one UI action block.
 - UI does not mutate tool schema.
 - Input and output shape are displayed explicitly before execution.
+- Tool examples must show crypto plus stock/ETF symbols where useful.
 
 ## 4) Gateway Boundary
 - Frontend only guides usage of Skill and MCP.
@@ -33,7 +31,7 @@ Note:
 
 ## 6) Data Layer
 - Agent-owned.
-- Frontend only visualizes metadata/templates and expected request/response contracts.
+- Frontend only visualizes metadata, market/flow templates, and expected request/response contracts.
 
 ## 7) Design System
 - Visual direction inspired by Claude-style calm neutral workspace.

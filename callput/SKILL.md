@@ -1,6 +1,6 @@
 ---
 name: callput-lite-trader
-description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; agent signs via Bankr /agent/sign and broadcasts via /agent/submit. Supports ETH/BTC spreads with full position lifecycle.
+description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; agent signs via Bankr /agent/sign and broadcasts via /agent/submit. Supports BTC/ETH plus synthetic stock/ETF spreads with full position lifecycle.
 version: 1.0.0
 homepage: https://callput.app
 license: MIT
@@ -12,7 +12,7 @@ mcp:
 
 # Callput Lite Trader
 
-Trade Callput spreads autonomously on Base using the MCP. The MCP builds unsigned transactions; Bankr agent handles signing and broadcasting.
+Trade Callput crypto and synthetic stock/ETF spreads autonomously on Base using the MCP. The MCP builds unsigned transactions; Bankr agent handles signing and broadcasting.
 
 ---
 
@@ -53,6 +53,16 @@ GET https://api.bankr.bot/callput/get_request_key_from_tx?tx_hash=0x...
 
 ---
 
+## Supported Underlyings
+
+- Crypto: `BTC`, `ETH`
+- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Configured option-token contracts: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
+- Live tradability is determined by `callput_scan_spreads`; skip a symbol if no candidates are returned.
+- Stock options are synthetic on-chain options, not broker-listed options, shares, ETFs, or tokenized stock ownership.
+
+---
+
 ## Preferred Flow
 
 ```
@@ -77,14 +87,14 @@ GET https://api.bankr.bot/callput/get_request_key_from_tx?tx_hash=0x...
 
 1. Spread-only. No single-leg execution ever.
 2. Always check `callput_portfolio_summary` before opening a new position.
-3. Use `callput_scan_spreads` as the primary market entry point.
+3. Use `callput_scan_spreads` as the primary market entry point for crypto or stock/ETF symbols.
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
-6. **MCP never holds CALLPUT_PRIVATE_KEY — Bankr /agent/sign handles signing.**
+6. **MCP never holds private keys — Bankr /agent/sign or the external runtime handles signing.**
 7. If `usdc_approval.sufficient == false`, send approve_tx before the main tx.
 8. **Save every `request_key` from `get_request_key_from_tx`** — required for P&L.
 9. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them.
-10. Check `atm_iv` from scan output: high IV (>80% ETH, >70% BTC) favors sell spreads.
+10. Check `atm_iv` from scan output: high IV favors sell spreads. Use ETH/BTC thresholds only for ETH/BTC; evaluate stock IV relative to that symbol's regime.
 
 ---
 
@@ -112,6 +122,7 @@ Sell spreads post `strikeDiff × size` USDC as collateral. Best used in high-IV 
 Manual guidance (if using raw chains):
 - ETH: target spread width of 100–200 USDC strike range
 - BTC: target spread width of 1000–3000 USDC strike range
+- Stocks/ETFs: start with scan-ranked adjacent widths; typical strikes are much tighter than BTC/ETH
 - Avoid spreads with `cost_pct_of_max > 40%`
 
 ---
@@ -123,6 +134,7 @@ Skip and wait if any of these are true:
 - `cost_pct_of_max > 40%` (poor risk/reward)
 - `days_to_expiry < 0.25` (< 6 hours)
 - `urgent_count > 0` — manage expiring positions first
+- `scan_spreads` returns no candidates for the requested stock/ETF symbol
 
 ---
 
@@ -175,14 +187,14 @@ callput_portfolio_summary({ address, request_keys: agent_state.request_keys })
 | `callput_settle_position` | Build unsigned settle tx for expired positions |
 | `callput_list_positions_by_wallet` | Recover request_keys from on-chain events |
 | `callput_get_settled_pnl` | Realized payout history from SettlePosition events |
-| `callput_get_option_chains` | Raw chain data + IV (use scan_spreads first) |
+| `callput_get_option_chains` | Raw crypto/stock chain data + IV (use scan_spreads first) |
 
 ---
 
 ## One-Line Command Examples
 
-- `Scan ETH bullish spreads and build rank 1 via Bankr.`
+- `Scan TSLA bullish spreads and build rank 1 via Bankr.`
 - `Check portfolio P&L for address 0x... with saved request_keys.`
 - `Close all positions expiring within 24 hours.`
 - `Settle expired positions and report realized P&L.`
-- `Execute a neutral-bearish BTC call spread with Bankr signing.`
+- `Execute a neutral-bearish NVDA or BTC call spread with Bankr signing.`
