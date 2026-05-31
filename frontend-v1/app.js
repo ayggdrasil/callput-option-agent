@@ -167,27 +167,31 @@ function drawPayoff(id, seriesList) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
-  const pad = 34;
-  const zeroY = h / 2;
+  const isMultiSeries = seriesList.length > 1;
+  const sidePad = isMultiSeries ? 42 : 34;
+  const topPad = isMultiSeries ? 58 : 34;
+  const bottomPad = isMultiSeries ? 46 : 34;
+  const plotHeight = h - topPad - bottomPad;
+  const zeroY = topPad + plotHeight / 2;
   const allValues = seriesList.flatMap((series) => series.values);
   const maxAbs = Math.max(...allValues.map((value) => Math.abs(value)), 1);
-  const scale = (value) => zeroY - (value / maxAbs) * (h / 2 - pad);
+  const scale = (value) => zeroY - (value / maxAbs) * (plotHeight / 2 - 6);
 
   ctx.clearRect(0, 0, w, h);
   ctx.strokeStyle = "rgba(130, 210, 235, 0.18)";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i += 1) {
-    const y = pad + (i * (h - pad * 2)) / 3;
+    const y = topPad + (i * plotHeight) / 3;
     ctx.beginPath();
-    ctx.moveTo(pad, y);
-    ctx.lineTo(w - pad, y);
+    ctx.moveTo(sidePad, y);
+    ctx.lineTo(w - sidePad, y);
     ctx.stroke();
   }
 
   ctx.strokeStyle = "rgba(155, 176, 187, 0.5)";
   ctx.beginPath();
-  ctx.moveTo(pad, zeroY);
-  ctx.lineTo(w - pad, zeroY);
+  ctx.moveTo(sidePad, zeroY);
+  ctx.lineTo(w - sidePad, zeroY);
   ctx.stroke();
 
   seriesList.forEach((series, seriesIndex) => {
@@ -198,35 +202,48 @@ function drawPayoff(id, seriesList) {
     ctx.setLineDash(series.dash || []);
     ctx.beginPath();
     series.values.forEach((value, index) => {
-      const x = pad + (index * (w - pad * 2)) / (series.values.length - 1);
+      const x = sidePad + (index * (w - sidePad * 2)) / (series.values.length - 1);
       const y = scale(value);
       if (index === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-
-    if (seriesList.length > 1) {
-      const labelX = w - 86;
-      const labelY = 20 + seriesIndex * 18;
-      ctx.setLineDash(series.dash || []);
-      ctx.beginPath();
-      ctx.moveTo(labelX, labelY - 4);
-      ctx.lineTo(labelX + 18, labelY - 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = series.color;
-      ctx.font = "12px JetBrains Mono, monospace";
-      ctx.fillText(series.label, labelX + 24, labelY);
-    }
   });
   ctx.setLineDash([]);
 
+  if (isMultiSeries) {
+    const legendX = w - 128;
+    const legendY = 12;
+    const legendW = 92;
+    const legendH = 38;
+    ctx.fillStyle = "rgba(7, 16, 23, 0.9)";
+    ctx.fillRect(legendX, legendY, legendW, legendH);
+    ctx.strokeStyle = "rgba(130, 210, 235, 0.22)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(legendX, legendY, legendW, legendH);
+
+    seriesList.forEach((series, seriesIndex) => {
+      const labelY = legendY + 15 + seriesIndex * 17;
+      ctx.strokeStyle = series.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash(series.dash || []);
+      ctx.beginPath();
+      ctx.moveTo(legendX + 10, labelY - 4);
+      ctx.lineTo(legendX + 30, labelY - 4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = series.color;
+      ctx.font = "11px JetBrains Mono, monospace";
+      ctx.fillText(series.label, legendX + 38, labelY);
+    });
+  }
+
   ctx.fillStyle = "#9bafba";
-  ctx.font = "12px JetBrains Mono, monospace";
-  ctx.fillText("Loss", pad, h - 12);
-  ctx.fillText("Spot ->", w - 94, h - 12);
+  ctx.font = isMultiSeries ? "11px JetBrains Mono, monospace" : "12px JetBrains Mono, monospace";
+  ctx.fillText("Loss", sidePad, h - 14);
+  ctx.fillText("Spot ->", w - sidePad - 56, h - 14);
   ctx.fillStyle = "#41e77d";
-  ctx.fillText("Profit", pad, 22);
+  ctx.fillText("Profit", sidePad, isMultiSeries ? 25 : 22);
 }
 
 Object.entries(payoffCharts).forEach(([id, values]) => drawPayoff(id, values));

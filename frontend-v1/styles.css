@@ -568,6 +568,11 @@ pre {
   background: #071017;
 }
 
+.composition-card canvas {
+  height: 168px;
+  margin-top: 16px;
+}
+
 .composition-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 10px;
@@ -774,5 +779,9 @@ pre {
 
   .variant-list em {
     grid-column: 2;
+  }
+
+  .composition-card canvas {
+    height: 156px;
   }
 }
