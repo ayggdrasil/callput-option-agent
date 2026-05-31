@@ -33,6 +33,10 @@ body {
   font-family: var(--font-sans);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -151,6 +155,26 @@ pre {
   background: rgba(255, 255, 255, 0.03);
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.hero-meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hero-meta strong {
+  color: var(--green);
+  font-weight: 600;
 }
 
 .hero-actions {
@@ -340,8 +364,42 @@ pre {
   color: var(--green);
 }
 
+.market-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.market-summary div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  min-width: 0;
+}
+
+.market-summary strong {
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 22px;
+}
+
+.market-summary span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .grid-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.grid-6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .flow-card {
@@ -607,10 +665,12 @@ pre {
 @media (max-width: 1040px) {
   .hero,
   .grid-4,
+  .grid-6,
   .contract-list,
   .setup-grid,
   .strategy-grid,
-  .composition-grid {
+  .composition-grid,
+  .market-summary {
     grid-template-columns: 1fr;
   }
 
