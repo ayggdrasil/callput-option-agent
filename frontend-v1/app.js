@@ -141,16 +141,26 @@ for (const item of contractItems) {
 const spotPoints = [30, 35, 40, 45, 50, 55, 60, 65, 70];
 const callPayoff = (spot, strike) => Math.max(0, spot - strike);
 const putPayoff = (spot, strike) => Math.max(0, strike - spot);
+const buyButterfly = spotPoints.map((spot) => callPayoff(spot, 40) - 2 * callPayoff(spot, 50) + callPayoff(spot, 60) - 2);
+const sellButterfly = buyButterfly.map((value) => -value);
+const sellIronCondor = spotPoints.map((spot) => 4 - putPayoff(spot, 45) + putPayoff(spot, 35) - callPayoff(spot, 55) + callPayoff(spot, 65));
+const buyIronCondor = sellIronCondor.map((value) => -value);
 const payoffCharts = {
-  "chart-bcs": spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3),
-  "chart-bps": spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3),
-  "chart-scs": spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)),
-  "chart-sps": spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)),
-  "chart-bfly": spotPoints.map((spot) => callPayoff(spot, 40) - 2 * callPayoff(spot, 50) + callPayoff(spot, 60) - 2),
-  "chart-icondor": spotPoints.map((spot) => 4 - putPayoff(spot, 45) + putPayoff(spot, 35) - callPayoff(spot, 55) + callPayoff(spot, 65)),
+  "chart-bcs": [{ label: "Buy", values: spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3), color: "#41e77d" }],
+  "chart-bps": [{ label: "Buy", values: spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3), color: "#41e77d" }],
+  "chart-scs": [{ label: "Sell", values: spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)), color: "#41e77d" }],
+  "chart-sps": [{ label: "Sell", values: spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)), color: "#41e77d" }],
+  "chart-bfly": [
+    { label: "Buy", values: buyButterfly, color: "#41e77d" },
+    { label: "Sell", values: sellButterfly, color: "#f4b84a", dash: [7, 5] },
+  ],
+  "chart-icondor": [
+    { label: "Buy", values: buyIronCondor, color: "#41e77d" },
+    { label: "Sell", values: sellIronCondor, color: "#f4b84a", dash: [7, 5] },
+  ],
 };
 
-function drawPayoff(id, values) {
+function drawPayoff(id, seriesList) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
 
@@ -159,7 +169,8 @@ function drawPayoff(id, values) {
   const h = canvas.height;
   const pad = 34;
   const zeroY = h / 2;
-  const maxAbs = Math.max(...values.map((value) => Math.abs(value)), 1);
+  const allValues = seriesList.flatMap((series) => series.values);
+  const maxAbs = Math.max(...allValues.map((value) => Math.abs(value)), 1);
   const scale = (value) => zeroY - (value / maxAbs) * (h / 2 - pad);
 
   ctx.clearRect(0, 0, w, h);
@@ -179,18 +190,36 @@ function drawPayoff(id, values) {
   ctx.lineTo(w - pad, zeroY);
   ctx.stroke();
 
-  ctx.lineWidth = 3;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "#41e77d";
-  ctx.beginPath();
-  values.forEach((value, index) => {
-    const x = pad + (index * (w - pad * 2)) / (values.length - 1);
-    const y = scale(value);
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  seriesList.forEach((series, seriesIndex) => {
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = series.color;
+    ctx.setLineDash(series.dash || []);
+    ctx.beginPath();
+    series.values.forEach((value, index) => {
+      const x = pad + (index * (w - pad * 2)) / (series.values.length - 1);
+      const y = scale(value);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    if (seriesList.length > 1) {
+      const labelX = w - 86;
+      const labelY = 20 + seriesIndex * 18;
+      ctx.setLineDash(series.dash || []);
+      ctx.beginPath();
+      ctx.moveTo(labelX, labelY - 4);
+      ctx.lineTo(labelX + 18, labelY - 4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = series.color;
+      ctx.font = "12px JetBrains Mono, monospace";
+      ctx.fillText(series.label, labelX + 24, labelY);
+    }
   });
-  ctx.stroke();
+  ctx.setLineDash([]);
 
   ctx.fillStyle = "#9bafba";
   ctx.font = "12px JetBrains Mono, monospace";
