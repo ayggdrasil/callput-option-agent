@@ -120,31 +120,37 @@ npm run verify:mcp</code></pre>
             <span>Debit call</span>
             <h3>BuyCallSpread</h3>
             <p>Bullish call spread: buy the lower call, sell the higher call, pay premium for upside exposure.</p>
-          </article>
-          <article class="strategy-card">
-            <span>Credit call</span>
-            <h3>SellCallSpread</h3>
-            <p>Neutral-bearish call spread: sell the lower call, buy the higher call, collect credit with capped loss.</p>
+            <canvas id="chart-bcs" width="360" height="190" aria-label="BuyCallSpread payoff chart"></canvas>
           </article>
           <article class="strategy-card">
             <span>Debit put</span>
             <h3>BuyPutSpread</h3>
             <p>Bearish put spread: buy the higher put, sell the lower put, pay premium for downside exposure.</p>
+            <canvas id="chart-bps" width="360" height="190" aria-label="BuyPutSpread payoff chart"></canvas>
+          </article>
+          <article class="strategy-card">
+            <span>Credit call</span>
+            <h3>SellCallSpread</h3>
+            <p>Neutral-bearish call spread: sell the lower call, buy the higher call, collect credit with capped loss.</p>
+            <canvas id="chart-scs" width="360" height="190" aria-label="SellCallSpread payoff chart"></canvas>
           </article>
           <article class="strategy-card">
             <span>Credit put</span>
             <h3>SellPutSpread</h3>
             <p>Neutral-bullish put spread: sell the higher put, buy the lower put, collect credit with defined risk.</p>
+            <canvas id="chart-sps" width="360" height="190" aria-label="SellPutSpread payoff chart"></canvas>
           </article>
         </div>
         <div class="composition-grid">
           <article class="composition-card">
             <strong>Butterfly</strong>
             <p>Compose one buy spread and one sell spread around the same middle strike. The agent coordinates multiple unsigned transactions and tracks each request key.</p>
+            <canvas id="chart-bfly" width="360" height="190" aria-label="Butterfly payoff chart"></canvas>
           </article>
           <article class="composition-card">
             <strong>Iron Condor</strong>
             <p>Compose a sell call spread and a sell put spread around a target range. Each wing remains capped-risk; execution is managed as separate spread orders.</p>
+            <canvas id="chart-icondor" width="360" height="190" aria-label="Iron Condor payoff chart"></canvas>
           </article>
         </div>
       </section>
