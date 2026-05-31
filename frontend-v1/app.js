@@ -137,3 +137,67 @@ for (const item of contractItems) {
   `;
   contractList.appendChild(el);
 }
+
+const spotPoints = [30, 35, 40, 45, 50, 55, 60, 65, 70];
+const callPayoff = (spot, strike) => Math.max(0, spot - strike);
+const putPayoff = (spot, strike) => Math.max(0, strike - spot);
+const payoffCharts = {
+  "chart-bcs": spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3),
+  "chart-bps": spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3),
+  "chart-scs": spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)),
+  "chart-sps": spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)),
+  "chart-bfly": spotPoints.map((spot) => callPayoff(spot, 40) - 2 * callPayoff(spot, 50) + callPayoff(spot, 60) - 2),
+  "chart-icondor": spotPoints.map((spot) => 4 - putPayoff(spot, 45) + putPayoff(spot, 35) - callPayoff(spot, 55) + callPayoff(spot, 65)),
+};
+
+function drawPayoff(id, values) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  const pad = 34;
+  const zeroY = h / 2;
+  const maxAbs = Math.max(...values.map((value) => Math.abs(value)), 1);
+  const scale = (value) => zeroY - (value / maxAbs) * (h / 2 - pad);
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(130, 210, 235, 0.18)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i += 1) {
+    const y = pad + (i * (h - pad * 2)) / 3;
+    ctx.beginPath();
+    ctx.moveTo(pad, y);
+    ctx.lineTo(w - pad, y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(155, 176, 187, 0.5)";
+  ctx.beginPath();
+  ctx.moveTo(pad, zeroY);
+  ctx.lineTo(w - pad, zeroY);
+  ctx.stroke();
+
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#41e77d";
+  ctx.beginPath();
+  values.forEach((value, index) => {
+    const x = pad + (index * (w - pad * 2)) / (values.length - 1);
+    const y = scale(value);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = "#9bafba";
+  ctx.font = "12px JetBrains Mono, monospace";
+  ctx.fillText("Loss", pad, h - 12);
+  ctx.fillText("Spot ->", w - 94, h - 12);
+  ctx.fillStyle = "#41e77d";
+  ctx.fillText("Profit", pad, 22);
+}
+
+Object.entries(payoffCharts).forEach(([id, values]) => drawPayoff(id, values));

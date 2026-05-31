@@ -499,6 +499,17 @@ pre {
   line-height: 1.55;
 }
 
+.strategy-card canvas,
+.composition-card canvas {
+  display: block;
+  width: 100%;
+  height: 132px;
+  margin-top: 14px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: #071017;
+}
+
 .composition-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 10px;
