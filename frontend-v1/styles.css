@@ -153,6 +153,34 @@ pre {
   font-size: 12px;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid var(--stroke-strong);
+  border-radius: 6px;
+  padding: 0 14px;
+  color: var(--cyan);
+  background: rgba(33, 201, 255, 0.06);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.button.primary {
+  border-color: rgba(65, 231, 125, 0.54);
+  color: #061017;
+  background: var(--green);
+}
+
 .scan-card {
   border: 1px solid var(--stroke-strong);
   border-radius: var(--radius);
@@ -277,7 +305,8 @@ pre {
 .market-card,
 .flow-card,
 .contract-item,
-.boundary-node {
+.boundary-node,
+.setup-step {
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.03);
@@ -372,6 +401,63 @@ pre {
   font-size: 13px;
 }
 
+.setup-panel {
+  scroll-margin-top: 84px;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.setup-step {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.setup-step > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(65, 231, 125, 0.44);
+  border-radius: 6px;
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.setup-step h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.setup-step .prompt {
+  min-height: 168px;
+  font-size: 11px;
+}
+
+.link-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.link-strip a {
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  padding: 9px 11px;
+  color: var(--cyan);
+  background: rgba(33, 201, 255, 0.05);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
 .boundary-grid {
   display: grid;
   grid-template-columns: 1fr auto 1fr auto 1fr;
@@ -434,17 +520,25 @@ pre {
 }
 
 .footer {
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 18px;
   color: var(--faint);
   font-family: var(--font-mono);
   font-size: 12px;
 }
 
+.footer a {
+  color: var(--cyan);
+}
+
 @media (max-width: 1040px) {
   .hero,
   .grid-4,
-  .contract-list {
+  .contract-list,
+  .setup-grid {
     grid-template-columns: 1fr;
   }
 
