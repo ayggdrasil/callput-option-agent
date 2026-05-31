@@ -19,6 +19,7 @@
       <nav class="topnav" aria-label="Operator console navigation">
         <a href="#start">Start</a>
         <a href="#markets">Markets</a>
+        <a href="#strategies">Strategies</a>
         <a href="#flows">Flows</a>
         <a href="#contracts">Tools</a>
         <a href="#security">Security</a>
@@ -107,6 +108,45 @@ npm run verify:mcp</code></pre>
           <p>Live tradability depends on the Callput feed. The MCP can still normalize configured symbols and aliases.</p>
         </div>
         <div class="market-grid" id="marketGrid"></div>
+      </section>
+
+      <section id="strategies" class="panel strategy-panel">
+        <div class="panel-head">
+          <h2>Supported Spread Strategies</h2>
+          <p>Callput Lite builds capped-risk vertical spreads first. Agents can compose larger structures from those same legs.</p>
+        </div>
+        <div class="strategy-grid">
+          <article class="strategy-card">
+            <span>Debit call</span>
+            <h3>BuyCallSpread</h3>
+            <p>Bullish call spread: buy the lower call, sell the higher call, pay premium for upside exposure.</p>
+          </article>
+          <article class="strategy-card">
+            <span>Credit call</span>
+            <h3>SellCallSpread</h3>
+            <p>Neutral-bearish call spread: sell the lower call, buy the higher call, collect credit with capped loss.</p>
+          </article>
+          <article class="strategy-card">
+            <span>Debit put</span>
+            <h3>BuyPutSpread</h3>
+            <p>Bearish put spread: buy the higher put, sell the lower put, pay premium for downside exposure.</p>
+          </article>
+          <article class="strategy-card">
+            <span>Credit put</span>
+            <h3>SellPutSpread</h3>
+            <p>Neutral-bullish put spread: sell the higher put, buy the lower put, collect credit with defined risk.</p>
+          </article>
+        </div>
+        <div class="composition-grid">
+          <article class="composition-card">
+            <strong>Butterfly</strong>
+            <p>Compose one buy spread and one sell spread around the same middle strike. The agent coordinates multiple unsigned transactions and tracks each request key.</p>
+          </article>
+          <article class="composition-card">
+            <strong>Iron Condor</strong>
+            <p>Compose a sell call spread and a sell put spread around a target range. Each wing remains capped-risk; execution is managed as separate spread orders.</p>
+          </article>
+        </div>
       </section>
 
       <section id="flows" class="panel">
