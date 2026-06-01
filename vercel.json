@@ -4,11 +4,34 @@
     {
       "src": "index.html",
       "use": "@vercel/static"
+    },
+    {
+      "src": "frontend-v1/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/frontend-v1/frontend-v1/(.*)",
+      "status": 308,
+      "headers": {
+        "Location": "/frontend-v1/"
+      }
+    },
+    {
+      "src": "/frontend-v1",
+      "dest": "/frontend-v1/index.html"
+    },
+    {
+      "src": "/frontend-v1/",
+      "dest": "/frontend-v1/index.html"
+    },
+    {
+      "src": "/frontend-v1/(.*)",
+      "dest": "/frontend-v1/$1"
+    },
+    {
+      "src": "/",
       "dest": "/index.html"
     }
   ]

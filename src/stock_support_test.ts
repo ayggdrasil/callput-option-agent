@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { resolveRpcUrl } from "./config.js";
 import { getMarketSnapshot, getOptionChains, normalizeAsset, scanSpreads, validateSpread } from "./core.js";
 
@@ -29,6 +31,42 @@ const tslaOptionIds = {
   call445: "0x0003006a2300900000000001bd00000000000000000000000000000000000000",
   call450: "0x0003006a2300900000000001c200000000000000000000000000000000000000"
 };
+
+type VercelBuild = {
+  src?: unknown;
+  use?: unknown;
+};
+
+type VercelRoute = {
+  src?: unknown;
+  dest?: unknown;
+};
+
+type VercelConfig = {
+  builds?: VercelBuild[];
+  routes?: VercelRoute[];
+};
+
+function readProjectFile(filePath: string) {
+  return fs.readFileSync(path.join(process.cwd(), filePath), "utf8");
+}
+
+function assertFrontendDeployConfig() {
+  const rootHtml = readProjectFile("index.html");
+  assert.match(rootHtml, /url=\/frontend-v1\//);
+  assert.match(rootHtml, /new URL\("\/frontend-v1\/", window\.location\.origin\)/);
+  assert.equal(new URL("/frontend-v1/", "https://example.com/frontend-v1/").pathname, "/frontend-v1/");
+
+  const vercelConfig = JSON.parse(readProjectFile("vercel.json")) as VercelConfig;
+  assert.ok(
+    vercelConfig.builds?.some((build) => build.src === "frontend-v1/**" && build.use === "@vercel/static"),
+    "frontend-v1 static files must be included in the Vercel deployment"
+  );
+  assert.ok(
+    !vercelConfig.routes?.some((route) => route.src === "/(.*)" && route.dest === "/index.html"),
+    "Vercel must not catch all frontend-v1 requests with the root redirect page"
+  );
+}
 
 (globalThis as any).fetch = async () => ({
   ok: true,
@@ -64,6 +102,7 @@ async function main() {
   assert.equal(resolveRpcUrl({ RPC_URL: "https://rpc.example" }), "https://rpc.example");
   assert.equal(resolveRpcUrl({ BASE_RPC_URL: "https://base-rpc.example" }), "https://base-rpc.example");
   assert.equal(resolveRpcUrl({}), "https://mainnet.base.org");
+  assertFrontendDeployConfig();
 
   assert.equal(normalizeAsset("tsla"), "TSLA");
   assert.equal(normalizeAsset("Tesla"), "TSLA");
