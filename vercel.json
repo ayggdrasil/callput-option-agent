@@ -32,7 +32,7 @@
     },
     {
       "src": "/",
-      "dest": "/index.html"
+      "dest": "/frontend-v1/index.html"
     }
   ]
 }

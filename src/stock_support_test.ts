@@ -53,14 +53,20 @@ function readProjectFile(filePath: string) {
 
 function assertFrontendDeployConfig() {
   const rootHtml = readProjectFile("index.html");
-  assert.match(rootHtml, /url=\/frontend-v1\//);
-  assert.match(rootHtml, /new URL\("\/frontend-v1\/", window\.location\.origin\)/);
-  assert.equal(new URL("/frontend-v1/", "https://example.com/frontend-v1/").pathname, "/frontend-v1/");
+  assert.doesNotMatch(rootHtml, /new URL\("\.\/frontend-v1\/", window\.location\.href\)/);
+
+  const frontendHtml = readProjectFile("frontend-v1/index.html");
+  assert.match(frontendHtml, /href="\/frontend-v1\/styles\.css"/);
+  assert.match(frontendHtml, /src="\/frontend-v1\/app\.js"/);
 
   const vercelConfig = JSON.parse(readProjectFile("vercel.json")) as VercelConfig;
   assert.ok(
     vercelConfig.builds?.some((build) => build.src === "frontend-v1/**" && build.use === "@vercel/static"),
     "frontend-v1 static files must be included in the Vercel deployment"
+  );
+  assert.ok(
+    vercelConfig.routes?.some((route) => route.src === "/" && route.dest === "/frontend-v1/index.html"),
+    "The public root must serve the operator console directly"
   );
   assert.ok(
     !vercelConfig.routes?.some((route) => route.src === "/(.*)" && route.dest === "/index.html"),
