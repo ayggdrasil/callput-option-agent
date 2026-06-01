@@ -392,7 +392,7 @@ export async function validateSpread(strategy: SpreadStrategy, longLegId: string
 }
 
 function getProvider() {
-  return new ethers.JsonRpcProvider(process.env.RPC_URL || CONFIG.RPC_URL);
+  return new ethers.JsonRpcProvider(CONFIG.RPC_URL);
 }
 
 async function getValidatedProvider(): Promise<ethers.JsonRpcProvider> {

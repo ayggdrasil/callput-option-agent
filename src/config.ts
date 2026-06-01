@@ -1,5 +1,9 @@
 let _chainValidated = false;
 
+export function resolveRpcUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env.RPC_URL || env.BASE_RPC_URL || "https://mainnet.base.org";
+}
+
 export async function validateChainId(provider: any): Promise<void> {
   if (_chainValidated) return;
   const network = await provider.getNetwork();
@@ -10,7 +14,7 @@ export async function validateChainId(provider: any): Promise<void> {
 }
 
 export const CONFIG = {
-  RPC_URL: process.env.RPC_URL || "https://mainnet.base.org",
+  RPC_URL: resolveRpcUrl(),
   CHAIN_ID: 8453,
   EXECUTION_FEE_FALLBACK: 60_000_000_000_000n,
   MARKET_DATA_URL: "https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json",

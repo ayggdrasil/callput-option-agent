@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolveRpcUrl } from "./config.js";
 import { getMarketSnapshot, getOptionChains, normalizeAsset, scanSpreads, validateSpread } from "./core.js";
 
 const EXPIRY = 1780678800;
@@ -60,6 +61,10 @@ const tslaOptionIds = {
 });
 
 async function main() {
+  assert.equal(resolveRpcUrl({ RPC_URL: "https://rpc.example" }), "https://rpc.example");
+  assert.equal(resolveRpcUrl({ BASE_RPC_URL: "https://base-rpc.example" }), "https://base-rpc.example");
+  assert.equal(resolveRpcUrl({}), "https://mainnet.base.org");
+
   assert.equal(normalizeAsset("tsla"), "TSLA");
   assert.equal(normalizeAsset("Tesla"), "TSLA");
 

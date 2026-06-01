@@ -84,7 +84,13 @@
     </main>
     <script>
       const target = new URL("./frontend-v1/", window.location.href);
-      target.hash = window.location.hash;
+      const legacyHashMap = {
+        "#top": "#start",
+        "#setup": "#start",
+        "#workflow": "#flows",
+        "#tools": "#contracts"
+      };
+      target.hash = legacyHashMap[window.location.hash] || window.location.hash;
       window.location.replace(target.href);
     </script>
   </body>
