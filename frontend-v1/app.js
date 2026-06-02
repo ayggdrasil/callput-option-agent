@@ -66,7 +66,7 @@ const contractItems = [
   {
     tool: "callput_close_position",
     component: "PreExpiryCloseCard",
-    io: "Input: symbol + option_token_id + size | Output: unsigned close tx",
+    io: "Input: symbol + address + option_token_id + size | Output: unsigned close tx",
     trigger: "Profit target or near expiry",
   },
   {
