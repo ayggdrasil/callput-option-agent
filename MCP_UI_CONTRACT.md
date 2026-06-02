@@ -52,8 +52,8 @@ This document defines one UI component per MCP tool.
 
 ### 7. `callput_settle_position`
 - Component: `PostExpirySettleCard`
-- Inputs: `underlying_asset`, `option_token_id`
-- Outputs: `unsigned_tx`, settlement estimate
+- Inputs: `underlying_asset`, `from_address`, `option_token_id`
+- Outputs: `unsigned_tx`, settle metadata
 - Trigger: after expiry date
 
 ### 8. `callput_list_positions_by_wallet`

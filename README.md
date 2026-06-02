@@ -78,11 +78,11 @@ npm run verify:mcp
 Open the static UI:
 
 ```bash
-cd <repo_root>/frontend-v1
+cd <repo_root>
 python3 -m http.server 4173
 ```
 
-Then visit `http://localhost:4173`.
+Then visit `http://localhost:4173` or `http://localhost:4173/frontend-v1/`.
 
 V1 flow in UI:
 1. Direction setup

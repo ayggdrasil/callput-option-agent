@@ -441,7 +441,7 @@ async function checkAllowance(
   fromAddress: string,
   amountIn: bigint
 ): Promise<{ sufficient: boolean; current_allowance: string; required: string; approve_tx?: { to: string; data: string; value: string; chain_id: number } }> {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   const usdc = new ethers.Contract(CONFIG.CONTRACTS.USDC, ERC20_ABI, provider);
   const allowance = (await usdc.allowance(fromAddress, CONFIG.CONTRACTS.ROUTER)) as bigint;
   if (allowance >= amountIn) {
@@ -477,7 +477,7 @@ function extractRequestKey(receipt: ethers.TransactionReceipt): { request_key: s
 }
 
 export async function getRequestKeyFromTx(txHash: string): Promise<{ request_key: string; is_open: boolean } | { error: string }> {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   const receipt = await provider.getTransactionReceipt(txHash);
   if (!receipt) return { error: `Transaction receipt not found for ${txHash}` };
   const result = extractRequestKey(receipt as ethers.TransactionReceipt);
@@ -486,7 +486,7 @@ export async function getRequestKeyFromTx(txHash: string): Promise<{ request_key
 }
 
 export async function checkRequestStatus(requestKey: string, isOpen: boolean) {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
 
   const req: any = isOpen
@@ -583,7 +583,7 @@ export async function executeSpread(params: {
     ethers.ZeroAddress
   ]);
 
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   const pmRead = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
   const executionFee = await getExecutionFee(pmRead);
   const allowanceInfo = await checkAllowance(params.fromAddress, amountIn);
@@ -640,7 +640,7 @@ export async function closePosition(params: {
     false
   ]);
 
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   const pmRead = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
   const executionFee = await getExecutionFee(pmRead);
 
@@ -673,6 +673,7 @@ export async function settlePosition(params: {
 }) {
   const asset = normalizeAsset(params.underlyingAsset);
   if (!asset) throw new Error(`Unsupported asset: ${params.underlyingAsset}`);
+  await getValidatedProvider();
   const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
   const path = [CONFIG.CONTRACTS.USDC];
 
@@ -706,7 +707,7 @@ export async function settlePosition(params: {
 }
 
 export async function getPositions(address: string) {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
   const account = ethers.getAddress(address);
 
@@ -764,7 +765,7 @@ export async function listPositionsByWallet(params: {
   address: string;
   fromBlock?: number;
 }) {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   if (!ethers.isAddress(params.address)) throw new Error(`Invalid address: ${params.address}`);
   const account = ethers.getAddress(params.address);
 
@@ -807,7 +808,7 @@ export async function getSettledPnl(params: {
   address: string;
   fromBlock?: number;
 }) {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
   if (!ethers.isAddress(params.address)) throw new Error(`Invalid address: ${params.address}`);
   const account = ethers.getAddress(params.address);
 
@@ -1023,7 +1024,7 @@ export async function getPortfolioSummary(params: {
   address: string;
   requestKeys?: string[];
 }) {
-  const provider = getProvider();
+  const provider = await getValidatedProvider();
 
   if (!ethers.isAddress(params.address)) throw new Error(`Invalid address: ${params.address}`);
   const account = ethers.getAddress(params.address);

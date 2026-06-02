@@ -97,7 +97,9 @@ npm run verify:mcp</code></pre>
       }
     }
   }
-}</code></pre>
+}
+
+The MCP verifies RPC_URL is Base chain 8453 before on-chain reads or transaction builds.</code></pre>
           </article>
           <article class="setup-step">
             <span>3</span>
@@ -237,7 +239,7 @@ npm run verify:mcp</code></pre>
           <div class="boundary-arrow">-&gt;</div>
           <div class="boundary-node">
             <strong>MCP</strong>
-            <span>Reads market data and returns unsigned transaction payloads.</span>
+            <span>Reads market data, verifies Base RPC, and returns unsigned transaction payloads.</span>
           </div>
           <div class="boundary-arrow">-&gt;</div>
           <div class="boundary-node trusted">
@@ -247,7 +249,7 @@ npm run verify:mcp</code></pre>
         </div>
         <div class="warning">
           <strong>Never put private keys in frontend state.</strong>
-          <p><code>CALLPUT_PRIVATE_KEY</code> is not read by this MCP server. Configure secrets only in the external agent runtime.</p>
+          <p><code>CALLPUT_PRIVATE_KEY</code> is not read by this MCP server. Configure secrets only in the external agent runtime. Open, close, and settle payloads include <code>from</code> for signer policy checks.</p>
         </div>
       </section>
 

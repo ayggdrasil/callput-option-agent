@@ -72,7 +72,7 @@ const contractItems = [
   {
     tool: "callput_settle_position",
     component: "PostExpirySettleCard",
-    io: "Input: symbol + option_token_id | Output: unsigned settle tx",
+    io: "Input: symbol + address + option_token_id | Output: unsigned settle tx",
     trigger: "After expiry",
   },
   {

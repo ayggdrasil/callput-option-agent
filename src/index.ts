@@ -206,9 +206,10 @@ server.registerTool(
   "callput_settle_position",
   {
     description:
-      "Build an unsigned settle transaction for an expired position. Returns unsigned_tx for the agent to sign and broadcast.",
+      "Build an unsigned settle transaction for an expired position. Returns unsigned_tx (including from) for the agent to sign and broadcast.",
     inputSchema: z.object({
       underlying_asset: z.string(),
+      from_address: z.string(),
       option_token_id: z.string()
     })
   },
@@ -216,6 +217,7 @@ server.registerTool(
     try {
       const out = await settlePosition({
         underlyingAsset: args.underlying_asset,
+        fromAddress: args.from_address,
         optionTokenId: args.option_token_id
       });
       return ok(out as Record<string, unknown>);

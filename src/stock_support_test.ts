@@ -52,6 +52,17 @@ function readProjectFile(filePath: string) {
 }
 
 function assertFrontendDeployConfig() {
+  const coreSource = readProjectFile("src/core.ts");
+  assert.equal(
+    coreSource.match(/const provider = getProvider\(\)/g)?.length,
+    1,
+    "direct getProvider use must stay isolated to getValidatedProvider"
+  );
+  assert.match(coreSource, /export async function settlePosition[\s\S]*await getValidatedProvider\(\)/);
+
+  const mcpSource = readProjectFile("src/index.ts");
+  assert.match(mcpSource, /callput_settle_position[\s\S]*from_address: z\.string\(\)/);
+
   const rootHtml = readProjectFile("index.html");
   assert.doesNotMatch(rootHtml, /new URL\("\.\/frontend-v1\/", window\.location\.href\)/);
 
@@ -72,6 +83,16 @@ function assertFrontendDeployConfig() {
     !vercelConfig.routes?.some((route) => route.src === "/(.*)" && route.dest === "/index.html"),
     "Vercel must not catch all frontend-v1 requests with the root redirect page"
   );
+
+  const readme = readProjectFile("README.md");
+  assert.match(readme, /cd <repo_root>\npython3 -m http\.server 4173/);
+
+  const uiContract = readProjectFile("MCP_UI_CONTRACT.md");
+  assert.match(uiContract, /callput_settle_position[\s\S]*`underlying_asset`, `from_address`, `option_token_id`/);
+
+  const toolReference = readProjectFile("callput/references/TOOL_REFERENCE.md");
+  assert.doesNotMatch(toolReference, /close_estimate/);
+  assert.doesNotMatch(toolReference, /settlement: \{/);
 }
 
 (globalThis as any).fetch = async () => ({
