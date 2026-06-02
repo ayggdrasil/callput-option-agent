@@ -87,6 +87,7 @@ const marketGrid = document.getElementById("marketGrid");
 const symbolTabs = document.getElementById("symbolTabs");
 const scanTable = document.getElementById("scanTable");
 const contractList = document.getElementById("contractList");
+const defaultSymbol = "TSLA";
 
 for (const market of markets) {
   const card = document.createElement("article");
@@ -95,34 +96,63 @@ for (const market of markets) {
   marketGrid.appendChild(card);
 
   const tab = document.createElement("button");
-  tab.className = `symbol-tab${market.symbol === "TSLA" ? " active" : ""}`;
+  tab.className = `symbol-tab${market.symbol === defaultSymbol ? " active" : ""}`;
   tab.type = "button";
   tab.textContent = market.symbol;
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".symbol-tab").forEach((item) => item.classList.remove("active"));
-    tab.classList.add("active");
-  });
+  tab.dataset.symbol = market.symbol;
+  tab.setAttribute("aria-pressed", String(market.symbol === defaultSymbol));
+  tab.addEventListener("click", () => setActiveSymbol(market.symbol));
   symbolTabs.appendChild(tab);
 }
 
-scanTable.innerHTML = `
-  <div class="scan-row header">
-    <span>Rank</span><span>Symbol</span><span>Best spread</span><span>Expiry</span><span>Signal</span>
-  </div>
-`;
-
-for (const row of scanRows) {
-  const item = document.createElement("div");
-  item.className = "scan-row";
-  item.innerHTML = `
-    <span>${row.rank}</span>
-    <span>${row.symbol}</span>
-    <span>${row.spread}</span>
-    <span>${row.expiry}</span>
-    <span class="gain">${row.metric}</span>
-  `;
-  scanTable.appendChild(item);
+function setActiveSymbol(symbol) {
+  document.querySelectorAll(".symbol-tab").forEach((item) => {
+    const isActive = item.dataset.symbol === symbol;
+    item.classList.toggle("active", isActive);
+    item.setAttribute("aria-pressed", String(isActive));
+  });
+  renderScanTable(symbol);
 }
+
+function renderScanTable(symbol) {
+  const market = markets.find((item) => item.symbol === symbol);
+  const rows = scanRows.filter((row) => row.symbol === symbol);
+
+  scanTable.innerHTML = `
+    <div class="scan-row header">
+      <span>Rank</span><span>Symbol</span><span>Best spread</span><span>Expiry</span><span>Signal</span>
+    </div>
+  `;
+
+  if (rows.length === 0) {
+    const item = document.createElement("div");
+    item.className = "scan-row scan-row-empty";
+    item.innerHTML = `
+      <span>-</span>
+      <span>${symbol}</span>
+      <span>${market?.live ? "Feed supported; scan live candidates" : "Configured alias; confirm live feed before trading"}</span>
+      <span>${market?.type ?? "feed"}</span>
+      <span class="gain">${market?.live ? "Ready" : "Check"}</span>
+    `;
+    scanTable.appendChild(item);
+    return;
+  }
+
+  rows.forEach((row, index) => {
+    const item = document.createElement("div");
+    item.className = "scan-row";
+    item.innerHTML = `
+      <span>${index + 1}</span>
+      <span>${row.symbol}</span>
+      <span>${row.spread}</span>
+      <span>${row.expiry}</span>
+      <span class="gain">${row.metric}</span>
+    `;
+    scanTable.appendChild(item);
+  });
+}
+
+renderScanTable(defaultSymbol);
 
 for (const item of contractItems) {
   const el = document.createElement("article");

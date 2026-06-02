@@ -291,6 +291,12 @@ pre {
   color: var(--green);
 }
 
+.scan-row-empty span:nth-child(3) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .panel {
   padding: 20px;
 }
