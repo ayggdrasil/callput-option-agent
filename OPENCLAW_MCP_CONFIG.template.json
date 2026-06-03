@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "callput_lite": {
+    "callput-lite-agent-mcp": {
       "command": "node",
-      "args": ["<repo_root>/build/index.js"],
+      "args": ["/absolute/path/callput-option-agent/build/index.js"],
       "env": {
         "RPC_URL": "https://mainnet.base.org"
       }

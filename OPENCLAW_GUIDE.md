@@ -2,6 +2,10 @@
 
 Copy-paste setup guide for connecting `callput-lite-agent-mcp` to OpenClaw (or any MCP-compatible agent runtime).
 
+Use exactly one GitHub source repo:
+
+`https://github.com/ayggdrasil/callput-option-agent.git`
+
 ---
 
 ## Prerequisites
@@ -21,8 +25,8 @@ Crypto: `BTC`, `ETH`. Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA
 ## Step 1 — Clone & Build
 
 ```bash
-git clone <repo-url> callput-lite-mcp-skill-standalone
-cd callput-lite-mcp-skill-standalone
+git clone https://github.com/ayggdrasil/callput-option-agent.git
+cd callput-option-agent
 npm install
 npm run build
 ```
@@ -41,9 +45,9 @@ Add this block to your MCP config file (`~/.config/mcp/config.json`, Claude Desk
 ```json
 {
   "mcpServers": {
-    "callput": {
+    "callput-lite-agent-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/callput-lite-mcp-skill-standalone/build/index.js"],
+      "args": ["/absolute/path/callput-option-agent/build/index.js"],
       "env": {
         "RPC_URL": "https://mainnet.base.org"
       }
@@ -52,7 +56,7 @@ Add this block to your MCP config file (`~/.config/mcp/config.json`, Claude Desk
 }
 ```
 
-> **Important**: Replace `/absolute/path/to/...` with the real path. Private keys belong in the external signer/runtime, not in this MCP server config.
+> **Important**: Replace `/absolute/path/callput-option-agent/...` with the real path. Private keys belong in the external signer/runtime, not in this MCP server config.
 
 ### Environment Variables
 

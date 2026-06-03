@@ -37,7 +37,7 @@
           <p class="eyebrow">Operator runbook</p>
           <h1>Connect an agent to Callput options.</h1>
           <p>
-            Clone the package, register <code>callput-lite-agent-mcp</code>, then run one prompt that scans
+            Clone the GitHub repo, register the MCP server id <code>callput-lite-agent-mcp</code>, then run one prompt that scans
             supported crypto and stock-option spreads and returns an unsigned transaction for your external signer.
           </p>
           <div class="chips">
@@ -47,9 +47,10 @@
             <span>Spread-only risk</span>
             <span>Stock/ETF feed enabled</span>
           </div>
-          <div class="hero-meta" aria-label="Package identifiers">
-            <span>Package <strong>callput-lite-mcp-skill</strong></span>
-            <span>Server <strong>callput-lite-agent-mcp</strong></span>
+          <div class="hero-meta" aria-label="Name map">
+            <span>Source repo <strong>ayggdrasil/callput-option-agent</strong></span>
+            <span>MCP server id <strong>callput-lite-agent-mcp</strong></span>
+            <span>Package name <strong>callput-lite-mcp-skill</strong></span>
           </div>
           <div class="hero-actions" aria-label="Primary actions">
             <a class="button primary" href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Open GitHub</a>
@@ -103,7 +104,7 @@
               <span>1</span>
               <button type="button" data-copy-target="installCommands">Copy</button>
             </div>
-            <h3>Get the package</h3>
+            <h3>Clone the source repo</h3>
             <p>Install dependencies, build the MCP server, and verify stock-option support before connecting a runtime.</p>
             <pre class="prompt"><code id="installCommands">git clone https://github.com/ayggdrasil/callput-option-agent.git
 cd callput-option-agent
@@ -130,7 +131,6 @@ npm run verify:mcp</code></pre>
       }
     }
   }
-}
 }</code></pre>
             <p class="expected">Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as Base chain 8453.</p>
           </article>

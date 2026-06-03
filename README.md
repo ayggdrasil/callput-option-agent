@@ -2,6 +2,13 @@
 
 Minimal documentation package for external agents (OpenClaw, Bankr, others) to trade Callput crypto and synthetic stock/ETF options on Base.
 
+## Canonical Names
+- **Source repo to clone:** `https://github.com/ayggdrasil/callput-option-agent.git`
+- **MCP server id in agent config:** `callput-lite-agent-mcp`
+- **Package name in `package.json`:** `callput-lite-mcp-skill`
+
+Use the GitHub repo URL for `git clone`. Use the MCP server id only inside `mcpServers`.
+
 This package is designed for:
 - minimal setup
 - minimal context usage
@@ -52,7 +59,8 @@ This package is designed for:
 ## Quick Start
 
 ```bash
-cd <repo_root>
+git clone https://github.com/ayggdrasil/callput-option-agent.git
+cd callput-option-agent
 npm install
 npm run build
 npm run verify
