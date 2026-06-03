@@ -11,7 +11,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/frontend-v1/styles.css" />
   </head>
   <body>
@@ -21,7 +21,7 @@
         <span>Callput Lite MCP</span>
       </a>
       <nav class="topnav" aria-label="Operator console navigation">
-        <a href="#start">Start</a>
+        <a href="#start">Runbook</a>
         <a href="#markets">Markets</a>
         <a href="#strategies">Strategies</a>
         <a href="#flows">Flows</a>
@@ -34,18 +34,18 @@
     <main class="wrap">
       <section class="hero">
         <div class="hero-copy">
-          <h1>One Console for Crypto + Stock Option Agents</h1>
+          <p class="eyebrow">Operator runbook</p>
+          <h1>Connect an agent to Callput options.</h1>
           <p>
-            A single operator map for OpenClaw, Bankr, and compatible runtimes using
-            <code>callput-lite-agent-mcp</code>. Scan, build, and manage spread-only positions while the agent
-            signs and submits externally.
+            Clone the package, register <code>callput-lite-agent-mcp</code>, then run one prompt that scans
+            supported crypto and stock-option spreads and returns an unsigned transaction for your external signer.
           </p>
           <div class="chips">
-            <span>Base 8453</span>
-            <span>Unsigned transactions</span>
+            <span>5 minute setup</span>
+            <span>Base 8453 verified</span>
+            <span>Unsigned tx only</span>
             <span>Spread-only risk</span>
             <span>Stock/ETF feed enabled</span>
-            <span>No frontend key handling</span>
           </div>
           <div class="hero-meta" aria-label="Package identifiers">
             <span>Package <strong>callput-lite-mcp-skill</strong></span>
@@ -53,41 +53,74 @@
           </div>
           <div class="hero-actions" aria-label="Primary actions">
             <a class="button primary" href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Open GitHub</a>
+            <button class="button" type="button" data-copy-target="installCommands">Copy install</button>
             <a class="button" href="#start">Install and connect</a>
           </div>
         </div>
-        <div class="scan-card" aria-label="Market scan preview">
-          <div class="scan-head">
-            <span>Live market scan</span>
-            <strong>Base 8453</strong>
+        <aside class="activation-card" aria-label="Agent activation path">
+          <div class="activation-head">
+            <span>Activation path</span>
+            <strong>First value: unsigned_tx</strong>
           </div>
-          <div class="symbol-tabs" id="symbolTabs"></div>
-          <div class="scan-table" id="scanTable"></div>
-        </div>
+          <ol class="activation-list">
+            <li>
+              <span>01</span>
+              <div>
+                <strong>Install and verify</strong>
+                <p>Build the MCP server and run package smoke checks.</p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <strong>Register MCP</strong>
+                <p>Point OpenClaw, Bankr, or another runtime at <code>build/index.js</code>.</p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <strong>Run first prompt</strong>
+                <p>Scan, validate, build unsigned calldata, then hand signing to your runtime.</p>
+              </div>
+            </li>
+          </ol>
+          <div class="activation-note">
+            <strong>Safety boundary</strong>
+            <span>The MCP never reads private keys and never broadcasts transactions.</span>
+          </div>
+        </aside>
       </section>
 
       <section id="start" class="panel setup-panel">
         <div class="panel-head">
-          <h2>Start Trading Through an Agent</h2>
-          <p>This single page is not a wallet. Install the package, register the MCP server, then sign transactions in your own agent runtime.</p>
+          <h2>Runbook: connect in 5 minutes</h2>
+          <p>Follow these three steps to reach the first useful output: a validated spread candidate and unsigned transaction payload.</p>
         </div>
         <div class="setup-grid">
           <article class="setup-step">
-            <span>1</span>
+            <div class="step-top">
+              <span>1</span>
+              <button type="button" data-copy-target="installCommands">Copy</button>
+            </div>
             <h3>Get the package</h3>
-            <pre class="prompt"><code>git clone https://github.com/ayggdrasil/callput-option-agent.git
+            <p>Install dependencies, build the MCP server, and verify stock-option support before connecting a runtime.</p>
+            <pre class="prompt"><code id="installCommands">git clone https://github.com/ayggdrasil/callput-option-agent.git
 cd callput-option-agent
 npm install
 npm run build
 npm run verify
 npm run verify:mcp</code></pre>
+            <p class="expected">Expected: build succeeds, 10 MCP tools register, stock-option support test passes.</p>
           </article>
           <article class="setup-step">
-            <span>2</span>
+            <div class="step-top">
+              <span>2</span>
+              <button type="button" data-copy-target="mcpConfig">Copy</button>
+            </div>
             <h3>Register the MCP server</h3>
-            <pre class="prompt"><code>node build/index.js
-
-{
+            <p>Add the stdio server to your agent runtime. Keep wallet secrets in the runtime, not in this MCP.</p>
+            <pre class="prompt"><code id="mcpConfig">{
   "mcpServers": {
     "callput-lite-agent-mcp": {
       "command": "node",
@@ -98,14 +131,24 @@ npm run verify:mcp</code></pre>
     }
   }
 }
-
-The MCP verifies RPC_URL is Base chain 8453 before on-chain reads or transaction builds.</code></pre>
+}</code></pre>
+            <p class="expected">Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as Base chain 8453.</p>
           </article>
           <article class="setup-step">
-            <span>3</span>
-            <h3>Run the trade loop</h3>
-            <pre class="prompt"><code>Scan TSLA spreads, validate a candidate, build unsigned_tx, ask for approval, sign externally, broadcast, parse request_key, then poll status.</code></pre>
+            <div class="step-top">
+              <span>3</span>
+              <button type="button" data-copy-target="firstPrompt">Copy</button>
+            </div>
+            <h3>Run the first prompt</h3>
+            <p>Use a bounded prompt that asks for approval before signing and keeps lifecycle tracking explicit.</p>
+            <pre class="prompt"><code id="firstPrompt">Scan TSLA spreads, validate one candidate, build unsigned_tx, ask for explicit approval, sign externally, broadcast, parse request_key, then poll request status.</code></pre>
+            <p class="expected">Expected: the agent returns a candidate, an unsigned transaction payload, and the signer handoff steps.</p>
           </article>
+        </div>
+        <div class="recovery-strip" aria-label="Common setup recovery steps">
+          <div><strong>If tools are missing</strong><span>Run <code>npm run verify:mcp</code> and restart the agent runtime.</span></div>
+          <div><strong>If chain reads fail</strong><span>Set <code>RPC_URL=https://mainnet.base.org</code> and retry.</span></div>
+          <div><strong>If signing is requested</strong><span>Stop. Signing belongs to the external runtime wallet boundary.</span></div>
         </div>
         <div class="link-strip" aria-label="Repository links">
           <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Source repo</a>
@@ -118,6 +161,14 @@ The MCP verifies RPC_URL is Base chain 8453 before on-chain reads or transaction
         <div class="panel-head">
           <h2>Supported Markets</h2>
           <p>Live tradability depends on the Callput feed. The MCP can still normalize configured symbols and aliases.</p>
+        </div>
+        <div class="scan-card" aria-label="Example market scan">
+          <div class="scan-head">
+            <span>Example scan result</span>
+            <strong>Base 8453</strong>
+          </div>
+          <div class="symbol-tabs" id="symbolTabs"></div>
+          <div class="scan-table" id="scanTable"></div>
         </div>
         <div class="market-grid" id="marketGrid"></div>
         <div class="market-summary" aria-label="Market support summary">

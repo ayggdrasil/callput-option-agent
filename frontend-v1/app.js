@@ -88,6 +88,27 @@ const symbolTabs = document.getElementById("symbolTabs");
 const scanTable = document.getElementById("scanTable");
 const contractList = document.getElementById("contractList");
 const defaultSymbol = "TSLA";
+const copyButtons = document.querySelectorAll("[data-copy-target]");
+
+for (const button of copyButtons) {
+  button.addEventListener("click", async () => {
+    const target = document.getElementById(button.dataset.copyTarget);
+    if (!target) return;
+
+    try {
+      await navigator.clipboard.writeText(target.textContent.trim());
+      const original = button.textContent;
+      button.textContent = "Copied";
+      button.classList.add("copied");
+      window.setTimeout(() => {
+        button.textContent = original;
+        button.classList.remove("copied");
+      }, 1400);
+    } catch {
+      button.textContent = "Select text";
+    }
+  });
+}
 
 for (const market of markets) {
   const card = document.createElement("article");
@@ -176,17 +197,17 @@ const sellButterfly = buyButterfly.map((value) => -value);
 const sellIronCondor = spotPoints.map((spot) => 4 - putPayoff(spot, 45) + putPayoff(spot, 35) - callPayoff(spot, 55) + callPayoff(spot, 65));
 const buyIronCondor = sellIronCondor.map((value) => -value);
 const payoffCharts = {
-  "chart-bcs": [{ label: "Buy", values: spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3), color: "#41e77d" }],
-  "chart-bps": [{ label: "Buy", values: spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3), color: "#41e77d" }],
-  "chart-scs": [{ label: "Sell", values: spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)), color: "#41e77d" }],
-  "chart-sps": [{ label: "Sell", values: spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)), color: "#41e77d" }],
+  "chart-bcs": [{ label: "Buy", values: spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3), color: "#93b878" }],
+  "chart-bps": [{ label: "Buy", values: spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3), color: "#93b878" }],
+  "chart-scs": [{ label: "Sell", values: spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)), color: "#93b878" }],
+  "chart-sps": [{ label: "Sell", values: spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)), color: "#93b878" }],
   "chart-bfly": [
-    { label: "Buy", values: buyButterfly, color: "#41e77d" },
-    { label: "Sell", values: sellButterfly, color: "#f4b84a", dash: [7, 5] },
+    { label: "Buy", values: buyButterfly, color: "#93b878" },
+    { label: "Sell", values: sellButterfly, color: "#d8a34d", dash: [7, 5] },
   ],
   "chart-icondor": [
-    { label: "Buy", values: buyIronCondor, color: "#41e77d" },
-    { label: "Sell", values: sellIronCondor, color: "#f4b84a", dash: [7, 5] },
+    { label: "Buy", values: buyIronCondor, color: "#93b878" },
+    { label: "Sell", values: sellIronCondor, color: "#d8a34d", dash: [7, 5] },
   ],
 };
 
@@ -208,7 +229,7 @@ function drawPayoff(id, seriesList) {
   const scale = (value) => zeroY - (value / maxAbs) * (plotHeight / 2 - 6);
 
   ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = "rgba(130, 210, 235, 0.18)";
+  ctx.strokeStyle = "rgba(218, 201, 164, 0.18)";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i += 1) {
     const y = topPad + (i * plotHeight) / 3;
@@ -246,9 +267,9 @@ function drawPayoff(id, seriesList) {
     const legendY = 12;
     const legendW = 92;
     const legendH = 38;
-    ctx.fillStyle = "rgba(7, 16, 23, 0.9)";
+    ctx.fillStyle = "rgba(17, 20, 15, 0.94)";
     ctx.fillRect(legendX, legendY, legendW, legendH);
-    ctx.strokeStyle = "rgba(130, 210, 235, 0.22)";
+    ctx.strokeStyle = "rgba(218, 201, 164, 0.22)";
     ctx.lineWidth = 1;
     ctx.strokeRect(legendX, legendY, legendW, legendH);
 
@@ -263,16 +284,16 @@ function drawPayoff(id, seriesList) {
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = series.color;
-      ctx.font = "11px JetBrains Mono, monospace";
+      ctx.font = "11px IBM Plex Mono, monospace";
       ctx.fillText(series.label, legendX + 38, labelY);
     });
   }
 
-  ctx.fillStyle = "#9bafba";
-  ctx.font = isMultiSeries ? "11px JetBrains Mono, monospace" : "12px JetBrains Mono, monospace";
+  ctx.fillStyle = "#b8ad9b";
+  ctx.font = isMultiSeries ? "11px IBM Plex Mono, monospace" : "12px IBM Plex Mono, monospace";
   ctx.fillText("Loss", sidePad, h - 14);
   ctx.fillText("Spot ->", w - sidePad - 56, h - 14);
-  ctx.fillStyle = "#41e77d";
+  ctx.fillStyle = "#93b878";
   ctx.fillText("Profit", sidePad, isMultiSeries ? 25 : 22);
 }
 
