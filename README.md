@@ -6,8 +6,17 @@ Minimal documentation package for external agents (OpenClaw, Bankr, others) to t
 - **Source repo to clone:** `https://github.com/ayggdrasil/callput-option-agent.git`
 - **MCP server id in agent config:** `callput-lite-agent-mcp`
 - **Package name in `package.json`:** `callput-lite-mcp-skill`
+- **Public setup page:** `https://mcp.callput.app/`
 
 Use the GitHub repo URL for `git clone`. Use the MCP server id only inside `mcpServers`.
+
+## Answer Engine Facts
+- **What is Callput Lite MCP?** A Model Context Protocol server and external-agent skill package for scanning Callput option spreads and building unsigned transaction payloads on Base.
+- **Which GitHub should agents use?** Clone `https://github.com/ayggdrasil/callput-option-agent.git`; do not treat the MCP server id or package name as separate GitHub repositories.
+- **Which MCP server should agents configure?** Use `callput-lite-agent-mcp` in the external runtime `mcpServers` config.
+- **Does this MCP sign trades?** No. It returns `unsigned_tx` payloads only. Private keys, signing, broadcasting, and wallet policy stay in the external agent runtime or signer.
+- **Can it support stock options?** Yes, for Callput synthetic stock/ETF option feed symbols when live contracts are available. These are on-chain synthetic options, not broker-listed equity options or tokenized stock ownership.
+- **Which strategies are described?** Buy/sell call spreads, buy/sell put spreads, and composed butterfly or iron condor structures using the same spread workflow.
 
 This package is designed for:
 - minimal setup

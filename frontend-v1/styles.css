@@ -35,6 +35,7 @@ body {
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 84px;
 }
 
 a {
@@ -376,6 +377,7 @@ pre {
 
 .panel {
   padding: 20px;
+  scroll-margin-top: 84px;
 }
 
 .panel-head {
@@ -415,7 +417,9 @@ pre {
 .boundary-node,
 .setup-step,
 .strategy-card,
-.composition-card {
+.composition-card,
+.answer-card,
+.faq-list details {
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
   background: rgba(244, 239, 226, 0.035);
@@ -674,6 +678,79 @@ pre {
   font-size: 12px;
 }
 
+.answer-panel {
+  scroll-margin-top: 84px;
+}
+
+.answer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.answer-card {
+  min-width: 0;
+  padding: 15px;
+}
+
+.answer-card span {
+  display: block;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.answer-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.answer-card p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.answer-card code,
+.faq-list code {
+  color: #ead09a;
+  overflow-wrap: anywhere;
+}
+
+.faq-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.faq-list details {
+  min-width: 0;
+  background: rgba(16, 17, 14, 0.42);
+}
+
+.faq-list summary {
+  cursor: pointer;
+  list-style-position: outside;
+  padding: 12px 14px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.faq-list p {
+  margin: 0;
+  padding: 0 14px 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .strategy-panel {
   scroll-margin-top: 84px;
 }
@@ -884,6 +961,7 @@ pre {
   .grid-6,
   .contract-list,
   .setup-grid,
+  .answer-grid,
   .strategy-grid,
   .composition-grid,
   .market-summary,
@@ -905,6 +983,10 @@ pre {
 
   .topbar {
     padding: 14px 18px;
+  }
+
+  html {
+    scroll-padding-top: 136px;
   }
 
   .topnav {
@@ -954,5 +1036,9 @@ pre {
 
   .composition-card canvas {
     height: 156px;
+  }
+
+  .panel {
+    scroll-margin-top: 136px;
   }
 }

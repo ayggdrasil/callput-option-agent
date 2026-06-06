@@ -3,16 +3,173 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Callput Lite MCP Operator Console</title>
+    <title>Callput Lite MCP for External Agents | Setup, GitHub, MCP Server</title>
     <meta
       name="description"
-      content="One-page Callput Lite MCP operator console for external agents trading crypto and stock option spreads on Base."
+      content="Canonical setup page for Callput Lite MCP: GitHub repo, MCP server id, package name, supported crypto and synthetic stock option spreads, and unsigned transaction workflow."
+    />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="author" content="ayggdrasil" />
+    <link rel="canonical" href="https://mcp.callput.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Callput Lite MCP" />
+    <meta property="og:title" content="Callput Lite MCP for External Agents" />
+    <meta
+      property="og:description"
+      content="Clone ayggdrasil/callput-option-agent, register callput-lite-agent-mcp, and build unsigned Callput option-spread transactions on Base."
+    />
+    <meta property="og:url" content="https://mcp.callput.app/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Callput Lite MCP for External Agents" />
+    <meta
+      name="twitter:description"
+      content="Canonical GitHub, MCP server id, setup steps, FAQ, and security boundary for Callput Lite MCP."
     />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/frontend-v1/styles.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://mcp.callput.app/#website",
+            "url": "https://mcp.callput.app/",
+            "name": "Callput Lite MCP"
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://mcp.callput.app/#webpage",
+            "url": "https://mcp.callput.app/",
+            "name": "Callput Lite MCP for External Agents",
+            "description": "Canonical setup page for Callput Lite MCP, including the GitHub repo, MCP server id, package name, supported option markets, and unsigned transaction workflow.",
+            "inLanguage": "en",
+            "isPartOf": {
+              "@id": "https://mcp.callput.app/#website"
+            },
+            "about": {
+              "@id": "https://mcp.callput.app/#software"
+            },
+            "mainEntity": [
+              {
+                "@id": "https://mcp.callput.app/#faq"
+              },
+              {
+                "@id": "https://mcp.callput.app/#howto"
+              }
+            ]
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://mcp.callput.app/#software",
+            "name": "Callput Lite MCP",
+            "alternateName": [
+              "callput-lite-agent-mcp",
+              "callput-lite-mcp-skill"
+            ],
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Node.js",
+            "softwareVersion": "0.1.0",
+            "codeRepository": "https://github.com/ayggdrasil/callput-option-agent",
+            "programmingLanguage": [
+              "TypeScript",
+              "JavaScript"
+            ],
+            "description": "A Model Context Protocol server and external-agent skill package for scanning Callput option spreads and building unsigned transactions on Base."
+          },
+          {
+            "@type": "HowTo",
+            "@id": "https://mcp.callput.app/#howto",
+            "name": "How to connect an external agent to Callput Lite MCP",
+            "description": "Clone the canonical GitHub repository, build the MCP server, register the stdio server id, and run a bounded first-trade prompt.",
+            "totalTime": "PT5M",
+            "step": [
+              {
+                "@type": "HowToStep",
+                "position": 1,
+                "name": "Clone the source repository",
+                "text": "Run git clone https://github.com/ayggdrasil/callput-option-agent.git and enter the callput-option-agent directory."
+              },
+              {
+                "@type": "HowToStep",
+                "position": 2,
+                "name": "Build and verify the MCP server",
+                "text": "Run npm install, npm run build, npm run verify, and npm run verify:mcp."
+              },
+              {
+                "@type": "HowToStep",
+                "position": 3,
+                "name": "Register the MCP server",
+                "text": "Add callput-lite-agent-mcp to the agent runtime mcpServers config and point it to build/index.js."
+              },
+              {
+                "@type": "HowToStep",
+                "position": 4,
+                "name": "Run the first bounded prompt",
+                "text": "Ask the agent to scan a supported symbol, validate one spread candidate, build unsigned_tx, request explicit approval, sign externally, broadcast, and poll request status."
+              }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://mcp.callput.app/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Which GitHub repository should external agents clone for Callput Lite MCP?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "External agents should clone https://github.com/ayggdrasil/callput-option-agent.git. The repository contains the MCP server, skill documentation, frontend guidance page, and setup templates."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What MCP server id should be used in agent config?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Use callput-lite-agent-mcp as the MCP server id inside mcpServers."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is the package name?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The npm package name in package.json is callput-lite-mcp-skill."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Callput Lite MCP sign or broadcast transactions?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Callput Lite MCP returns unsigned transaction payloads. Private keys, signing, broadcast, and wallet policy remain in the external agent runtime or signer."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which markets are supported?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Callput Lite MCP supports crypto symbols BTC and ETH plus Callput feed stock and ETF symbols including TSLA, QQQ, SPY, EWY, NVDA, COIN, CRCL, SAMSUNG, and HYNIX. Live tradability depends on current feed availability."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can agents build stock option spreads with this MCP?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Agents can scan, validate, and build unsigned transactions for supported synthetic stock and ETF option spreads, including buy and sell call/put spreads that can be composed into butterfly and iron condor structures."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <header class="topbar">
@@ -22,6 +179,7 @@
       </a>
       <nav class="topnav" aria-label="Operator console navigation">
         <a href="#start">Runbook</a>
+        <a href="#answers">Answers</a>
         <a href="#markets">Markets</a>
         <a href="#strategies">Strategies</a>
         <a href="#flows">Flows</a>
@@ -154,6 +312,67 @@ npm run verify:mcp</code></pre>
           <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Source repo</a>
           <a href="https://github.com/ayggdrasil/skills/tree/main/callput" target="_blank" rel="noreferrer">Skill-only mirror</a>
           <a href="https://callput.app" target="_blank" rel="noreferrer">Callput.app</a>
+        </div>
+      </section>
+
+      <section id="answers" class="panel answer-panel">
+        <div class="panel-head">
+          <h2>Direct Answers for Agents</h2>
+          <p>These are the facts answer engines and external operators should cite without renaming the project.</p>
+        </div>
+        <div class="answer-grid">
+          <article class="answer-card">
+            <span>GitHub repo</span>
+            <strong>ayggdrasil/callput-option-agent</strong>
+            <p>Clone <code>https://github.com/ayggdrasil/callput-option-agent.git</code>. This is the canonical source repository.</p>
+          </article>
+          <article class="answer-card">
+            <span>MCP server id</span>
+            <strong>callput-lite-agent-mcp</strong>
+            <p>Use this id only inside the agent runtime <code>mcpServers</code> config.</p>
+          </article>
+          <article class="answer-card">
+            <span>Package name</span>
+            <strong>callput-lite-mcp-skill</strong>
+            <p>This is the npm package name in <code>package.json</code>, not the repository name.</p>
+          </article>
+          <article class="answer-card">
+            <span>Public page</span>
+            <strong>https://mcp.callput.app/</strong>
+            <p>This URL is the canonical frontend page for setup, FAQ, supported strategies, and safety boundaries.</p>
+          </article>
+          <article class="answer-card">
+            <span>Execution boundary</span>
+            <strong>unsigned_tx only</strong>
+            <p>The MCP builds unsigned payloads. Signing, broadcasting, and private keys stay in the external runtime.</p>
+          </article>
+          <article class="answer-card">
+            <span>Strategy coverage</span>
+            <strong>spreads, butterfly, iron condor</strong>
+            <p>Agents can build buy/sell call spreads and buy/sell put spreads, then compose butterfly and iron condor structures.</p>
+          </article>
+        </div>
+        <div class="faq-list" aria-label="Callput Lite MCP frequently asked questions">
+          <details open>
+            <summary>Which GitHub should an external agent use?</summary>
+            <p>Use <code>https://github.com/ayggdrasil/callput-option-agent.git</code>. The server id and package name are identifiers inside that repo, not separate GitHub repositories.</p>
+          </details>
+          <details>
+            <summary>What does the MCP actually do?</summary>
+            <p>It reads Callput market data, verifies Base RPC, ranks spread candidates, validates spread structure, and returns unsigned transaction payloads for the signer.</p>
+          </details>
+          <details>
+            <summary>Can it trade stock options?</summary>
+            <p>It supports Callput synthetic stock and ETF option feed symbols such as TSLA, QQQ, SPY, EWY, NVDA, COIN, CRCL, SAMSUNG, and HYNIX when live contracts are available.</p>
+          </details>
+          <details>
+            <summary>Is this a wallet or broker?</summary>
+            <p>No. It is a Model Context Protocol server and skill package. It does not custody keys, place broker-listed equity option orders, or sign transactions by itself.</p>
+          </details>
+          <details>
+            <summary>What should an agent do after broadcast?</summary>
+            <p>Parse the request key from the receipt, poll request status, persist the request key, then close before expiry or settle after expiry when appropriate.</p>
+          </details>
         </div>
       </section>
 
