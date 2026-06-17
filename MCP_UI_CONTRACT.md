@@ -12,7 +12,7 @@ This document defines one UI component per MCP tool.
 
 ### 1. `callput_scan_spreads`
 - Component: `MarketScanCard`
-- Inputs: `underlying_asset` (BTC/ETH/TSLA/QQQ/SPY/EWY/NVDA/COIN/CRCL/SAMSUNG/HYNIX), `bias` (bullish/bearish/neutral-bearish/neutral-bullish)
+- Inputs: `underlying_asset` (BTC/ETH/TSLA/QQQ/SPY/EWY/NVDA/COIN/SPCX/CRCL/SAMSUNG/HYNIX), `bias` (bullish/bearish/neutral-bearish/neutral-bullish)
 - Outputs: ranked spread candidates, ATM IV, cost/credit, max profit/loss
 - Trigger: user selects direction
 - Note: Primary market entry for both crypto and synthetic stock/ETF spreads

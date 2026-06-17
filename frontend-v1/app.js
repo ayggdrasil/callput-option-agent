@@ -7,6 +7,7 @@ const markets = [
   { symbol: "EWY", type: "etf", live: true },
   { symbol: "NVDA", type: "stock", live: true },
   { symbol: "COIN", type: "stock", live: true },
+  { symbol: "SPCX", type: "stock", live: true },
   { symbol: "CRCL", type: "stock", live: false },
   { symbol: "SAMSUNG", type: "stock", live: false },
   { symbol: "HYNIX", type: "stock", live: false },
@@ -16,8 +17,9 @@ const scanRows = [
   { rank: 1, symbol: "TSLA", spread: "440/450 Call Debit", expiry: "05JUN26", metric: "IV 40.5" },
   { rank: 2, symbol: "NVDA", spread: "215/225 Call Debit", expiry: "05JUN26", metric: "IV 38.9" },
   { rank: 3, symbol: "COIN", spread: "185/195 Put Debit", expiry: "05JUN26", metric: "IV 51.2" },
-  { rank: 4, symbol: "ETH", spread: "2800/3000 Call Debit", expiry: "05JUN26", metric: "IV 66.1" },
-  { rank: 5, symbol: "BTC", spread: "105000/108000 Put Credit", expiry: "05JUN26", metric: "IV 58.4" },
+  { rank: 4, symbol: "SPCX", spread: "190/200 Call Debit", expiry: "18JUN26", metric: "IV 158.6" },
+  { rank: 5, symbol: "ETH", spread: "2800/3000 Call Debit", expiry: "05JUN26", metric: "IV 66.1" },
+  { rank: 6, symbol: "BTC", spread: "105000/108000 Put Credit", expiry: "05JUN26", metric: "IV 58.4" },
 ];
 
 const contractItems = [

@@ -49,7 +49,8 @@ export const CONFIG = {
     EWY: { index: 6, decimals: 18, marketType: "STOCK", optionsToken: "0x68D167810e044641cc44178063a185BeA0F6EFf0" },
     NVDA: { index: 7, decimals: 18, marketType: "STOCK", optionsToken: "0x4f7A323E1067286962553269bA98386a5b44b118" },
     COIN: { index: 8, decimals: 18, marketType: "STOCK", optionsToken: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641" },
-    CRCL: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: null },
+    SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: null },
+    CRCL: { index: 12, decimals: 18, marketType: "STOCK", optionsToken: null },
     SAMSUNG: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: null },
     HYNIX: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: null }
   },
@@ -62,7 +63,8 @@ export const CONFIG = {
     EWY: { index: 6, decimals: 18 },
     NVDA: { index: 7, decimals: 18 },
     COIN: { index: 8, decimals: 18 },
-    CRCL: { index: 9, decimals: 18 },
+    SPCX: { index: 9, decimals: 18 },
+    CRCL: { index: 12, decimals: 18 },
     SAMSUNG: { index: 10, decimals: 18 },
     HYNIX: { index: 11, decimals: 18 },
     USDC: { decimals: 6 }

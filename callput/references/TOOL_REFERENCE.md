@@ -46,7 +46,7 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 ## Supported Underlyings
 
 - Crypto: `BTC`, `ETH`
-- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `CRCL`, `SAMSUNG`, `HYNIX`
 - Configured option-token contracts: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
 - Live tradability is feed-driven. A supported symbol can still return no candidates if every contract is unavailable.
 - Leg IDs may be decimal strings or `0x` hex strings from the live Callput feed.

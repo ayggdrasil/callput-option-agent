@@ -48,7 +48,7 @@ This package is designed for:
 
 ## Supported Underlyings
 - Crypto: `BTC`, `ETH`
-- Stock/ETF symbols in the Callput feed: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Stock/ETF symbols in the Callput feed: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `CRCL`, `SAMSUNG`, `HYNIX`
 - Deployed option-token contracts configured here: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
 - Live tradability is determined by the market feed. If a symbol has no available contracts, `callput_scan_spreads` returns no candidates.
 - Stock options are synthetic on-chain options. They are not broker-listed options, shares, ETFs, or tokenized stock ownership.

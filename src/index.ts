@@ -56,7 +56,7 @@ server.registerTool(
   "callput_scan_spreads",
   {
     description:
-      "Primary market scan for crypto and supported stock/ETF underlyings (BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, CRCL, SAMSUNG, HYNIX; availability depends on live feed). Returns up to max_results pre-ranked, ready-to-execute spread candidates. ATM-anchored with narrow/medium/wide widths. Includes ATM implied volatility (atm_iv) for buy-vs-sell strategy decisions. bias: bullish=BuyCallSpread, bearish=BuyPutSpread, neutral-bearish=SellCallSpread (collect premium), neutral-bullish=SellPutSpread (collect premium). High IV favors sell spreads. Pass long_leg_id + short_leg_id directly to execute_spread; leg IDs may be decimal or 0x hex strings.",
+      "Primary market scan for crypto and supported stock/ETF underlyings (BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, CRCL, SAMSUNG, HYNIX; availability depends on live feed). Returns up to max_results pre-ranked, ready-to-execute spread candidates. ATM-anchored with narrow/medium/wide widths. Includes ATM implied volatility (atm_iv) for buy-vs-sell strategy decisions. bias: bullish=BuyCallSpread, bearish=BuyPutSpread, neutral-bearish=SellCallSpread (collect premium), neutral-bullish=SellPutSpread (collect premium). High IV favors sell spreads. Pass long_leg_id + short_leg_id directly to execute_spread; leg IDs may be decimal or 0x hex strings.",
     inputSchema: z.object({
       underlying_asset: z.string(),
       bias: z.enum(["bullish", "bearish", "neutral-bearish", "neutral-bullish"]),

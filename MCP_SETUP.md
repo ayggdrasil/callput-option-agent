@@ -10,7 +10,7 @@ This server is for external agents that should trade Callput crypto and syntheti
 
 ## Supported underlyings
 
-Crypto: `BTC`, `ETH`. Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`. Live availability is feed-driven; no candidates means the symbol is not currently tradable.
+Crypto: `BTC`, `ETH`. Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `CRCL`, `SAMSUNG`, `HYNIX`. Live availability is feed-driven; no candidates means the symbol is not currently tradable.
 
 ## Build
 

@@ -56,7 +56,7 @@ GET https://api.bankr.bot/callput/get_request_key_from_tx?tx_hash=0x...
 ## Supported Underlyings
 
 - Crypto: `BTC`, `ETH`
-- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `CRCL`, `SAMSUNG`, `HYNIX`
 - Configured option-token contracts: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
 - Live tradability is determined by `callput_scan_spreads`; skip a symbol if no candidates are returned.
 - Stock options are synthetic on-chain options, not broker-listed options, shares, ETFs, or tokenized stock ownership.

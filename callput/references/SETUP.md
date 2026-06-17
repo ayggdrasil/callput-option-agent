@@ -6,7 +6,7 @@ This guide connects `callput-lite-agent-mcp` to an MCP-compatible agent runtime.
 
 Supported underlyings:
 - Crypto: `BTC`, `ETH`
-- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `CRCL`, `SAMSUNG`, `HYNIX`
+- Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `CRCL`, `SAMSUNG`, `HYNIX`
 - Configured option-token contracts: `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`
 
 Live tradability is determined by the Callput market feed. If `callput_scan_spreads` returns no candidates, skip that symbol or try another available symbol. Stock options are synthetic on-chain options, not broker-listed options, shares, ETFs, or tokenized stock ownership.
