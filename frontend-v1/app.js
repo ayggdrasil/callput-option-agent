@@ -2,15 +2,14 @@ const markets = [
   { symbol: "BTC", type: "crypto", live: true },
   { symbol: "ETH", type: "crypto", live: true },
   { symbol: "TSLA", type: "stock", live: true },
-  { symbol: "QQQ", type: "etf", live: false },
-  { symbol: "SPY", type: "etf", live: false },
+  { symbol: "QQQ", type: "etf", live: true },
+  { symbol: "SPY", type: "etf", live: true },
   { symbol: "EWY", type: "etf", live: true },
   { symbol: "NVDA", type: "stock", live: true },
   { symbol: "COIN", type: "stock", live: true },
   { symbol: "SPCX", type: "stock", live: true },
-  { symbol: "CRCL", type: "stock", live: false },
-  { symbol: "SAMSUNG", type: "stock", live: false },
-  { symbol: "HYNIX", type: "stock", live: false },
+  { symbol: "MU", type: "stock", live: true },
+  { symbol: "SKHY", type: "stock", live: true },
 ];
 
 const scanRows = [
@@ -20,6 +19,8 @@ const scanRows = [
   { rank: 4, symbol: "SPCX", spread: "190/200 Call Debit", expiry: "18JUN26", metric: "IV 158.6" },
   { rank: 5, symbol: "ETH", spread: "2800/3000 Call Debit", expiry: "05JUN26", metric: "IV 66.1" },
   { rank: 6, symbol: "BTC", spread: "105000/108000 Put Credit", expiry: "05JUN26", metric: "IV 58.4" },
+  { rank: 7, symbol: "QQQ", spread: "ATM Call Debit", expiry: "Live feed", metric: "Ready" },
+  { rank: 8, symbol: "SKHY", spread: "ATM Call Debit", expiry: "Live feed", metric: "Ready" },
 ];
 
 const contractItems = [

@@ -18,7 +18,7 @@ Use exactly one GitHub source repo:
 
 ## Supported Underlyings
 
-Crypto: `BTC`, `ETH`. Stock/ETF feed symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `CRCL`, `SAMSUNG`, `HYNIX`. Configured option-token contracts currently cover `BTC`, `ETH`, `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, and `COIN`; live tradability still depends on the market feed. Stock options are synthetic on-chain options, not broker-listed options or tokenized shares.
+Crypto: `BTC`, `ETH`. Currently tradable stock/ETF symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `MU`, `SKHY`. Configured option-token contracts cover all 11 symbols; live tradability still depends on the market feed. `HYNIX` and `SK Hynix` inputs normalize to `SKHY` for compatibility. Stock options are synthetic on-chain options, not broker-listed options or tokenized shares.
 
 ---
 

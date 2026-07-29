@@ -19,12 +19,20 @@
       content="Clone ayggdrasil/callput-option-agent, register callput-lite-agent-mcp, and build unsigned Callput option-spread transactions on Base."
     />
     <meta property="og:url" content="https://mcp.callput.app/" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
+    <meta property="og:image:secure_url" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="CallPut MCP agentic options preview with luminous blue trading tiles." />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Callput Lite MCP for External Agents" />
     <meta
       name="twitter:description"
       content="Canonical GitHub, MCP server id, setup steps, FAQ, and security boundary for Callput Lite MCP."
     />
+    <meta name="twitter:image" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
+    <meta name="twitter:image:alt" content="CallPut MCP agentic options preview with luminous blue trading tiles." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -72,7 +80,7 @@
             ],
             "applicationCategory": "DeveloperApplication",
             "operatingSystem": "Node.js",
-            "softwareVersion": "0.1.0",
+            "softwareVersion": "0.2.0",
             "codeRepository": "https://github.com/ayggdrasil/callput-option-agent",
             "programmingLanguage": [
               "TypeScript",
@@ -154,7 +162,7 @@
                 "name": "Which markets are supported?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Callput Lite MCP supports crypto symbols BTC and ETH plus Callput feed stock and ETF symbols including TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, CRCL, SAMSUNG, and HYNIX. Live tradability depends on current feed availability."
+                  "text": "Callput Lite MCP supports the currently tradable crypto, stock, and ETF symbols BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. Live tradability depends on current feed availability."
                 }
               },
               {
@@ -363,7 +371,7 @@ npm run verify:mcp</code></pre>
           </details>
           <details>
             <summary>Can it trade stock options?</summary>
-            <p>It supports Callput synthetic stock and ETF option feed symbols such as TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, CRCL, SAMSUNG, and HYNIX when live contracts are available.</p>
+            <p>It supports the currently tradable Callput synthetic stock and ETF option symbols TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY when live contracts are available.</p>
           </details>
           <details>
             <summary>Is this a wallet or broker?</summary>
@@ -391,8 +399,8 @@ npm run verify:mcp</code></pre>
         </div>
         <div class="market-grid" id="marketGrid"></div>
         <div class="market-summary" aria-label="Market support summary">
-          <div><strong>11</strong> <span>feed symbols across crypto, stocks, and ETFs</span></div>
-          <div><strong>8</strong> <span>configured option-token contracts wired in the package registry</span></div>
+          <div><strong>11</strong> <span>currently tradable symbols across crypto, stocks, and ETFs</span></div>
+          <div><strong>11</strong> <span>configured option-token contracts wired in the package registry</span></div>
         </div>
       </section>
 

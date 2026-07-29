@@ -47,6 +47,13 @@ const spcxOptionIds = {
   call205: "0x0009006a3424100000000000cd00000000000000000000000000000000000000"
 };
 
+const skhyOptionIds = {
+  call105: "0x000b006a6cd49000000000006900000000000000000000000000000000000000",
+  call110: "0x000b006a6cd49000000000006e00000000000000000000000000000000000000",
+  call115: "0x000b006a6cd49000000000007300000000000000000000000000000000000000",
+  call120: "0x000b006a6cd49000000000007800000000000000000000000000000000000000"
+};
+
 type VercelBuild = {
   src?: unknown;
   use?: unknown;
@@ -80,10 +87,14 @@ function assertFrontendDeployConfig() {
 
   const rootHtml = readProjectFile("index.html");
   assert.doesNotMatch(rootHtml, /new URL\("\.\/frontend-v1\/", window\.location\.href\)/);
+  assert.match(rootHtml, /property="og:image" content="https:\/\/mcp\.callput\.app\/frontend-v1\/og-callput-mcp\.png"/);
+  assert.match(rootHtml, /name="twitter:card" content="summary_large_image"/);
 
   const frontendHtml = readProjectFile("frontend-v1/index.html");
   assert.match(frontendHtml, /href="\/frontend-v1\/styles\.css"/);
   assert.match(frontendHtml, /src="\/frontend-v1\/app\.js"/);
+  assert.match(frontendHtml, /property="og:image" content="https:\/\/mcp\.callput\.app\/frontend-v1\/og-callput-mcp\.png"/);
+  assert.match(frontendHtml, /name="twitter:card" content="summary_large_image"/);
 
   const vercelConfig = JSON.parse(readProjectFile("vercel.json")) as VercelConfig;
   assert.ok(
@@ -152,9 +163,28 @@ function assertFrontendDeployConfig() {
               ]
             }
           }
+        },
+        SKHY: {
+          expiries: [String(EXPIRY)],
+          options: {
+            [String(EXPIRY)]: {
+              call: [
+                optionRow(105, 21.71, skhyOptionIds.call105, "C", "SKHY", 1.857),
+                optionRow(110, 17.44, skhyOptionIds.call110, "C", "SKHY", 1.816),
+                optionRow(115, 13.48, skhyOptionIds.call115, "C", "SKHY", 1.759),
+                optionRow(120, 9.99, skhyOptionIds.call120, "C", "SKHY", 1.705)
+              ],
+              put: [
+                optionRow(105, 0.94, skhyOptionIds.call105, "P", "SKHY", 1.857),
+                optionRow(110, 1.66, skhyOptionIds.call110, "P", "SKHY", 1.816),
+                optionRow(115, 2.71, skhyOptionIds.call115, "P", "SKHY", 1.759),
+                optionRow(120, 4.22, skhyOptionIds.call120, "P", "SKHY", 1.705)
+              ]
+            }
+          }
         }
       },
-      spotIndices: { TSLA: 438.8, SPCX: 191.54 }
+      spotIndices: { TSLA: 438.8, SPCX: 191.54, SKHY: 106 }
     }
   })
 });
@@ -168,15 +198,28 @@ async function main() {
   assert.equal(normalizeAsset("tsla"), "TSLA");
   assert.equal(normalizeAsset("Tesla"), "TSLA");
   assert.equal(normalizeAsset("spcx"), "SPCX");
+  assert.equal(normalizeAsset("skhy"), "SKHY");
+  assert.equal(normalizeAsset("SK Hynix"), "SKHY");
+  assert.equal(normalizeAsset("HYNIX"), "SKHY");
 
   const configSource = readProjectFile("src/config.ts");
   assert.match(configSource, /SPCX: \{ index: 9, decimals: 18, marketType: "STOCK"/);
+  assert.match(configSource, /MU: \{ index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xBB2eC5C3dA6C17CD470812C8B4e660a283390711" \}/);
+  assert.match(configSource, /SKHY: \{ index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xE99Db918aAFaC955FDb22A52E37a1A514C4332ef" \}/);
+  assert.doesNotMatch(configSource, /HYNIX: \{ index:/);
+  assert.doesNotMatch(configSource, /SAMSUNG: \{ index:/);
 
   const frontendApp = readProjectFile("frontend-v1/app.js");
   assert.match(frontendApp, /symbol: "SPCX", type: "stock", live: true/);
+  assert.match(frontendApp, /symbol: "QQQ", type: "etf", live: true/);
+  assert.match(frontendApp, /symbol: "MU", type: "stock", live: true/);
+  assert.match(frontendApp, /symbol: "SKHY", type: "stock", live: true/);
+  assert.doesNotMatch(frontendApp, /symbol: "HYNIX"/);
+  assert.doesNotMatch(frontendApp, /symbol: "SAMSUNG"/);
 
   const frontendHtml = readProjectFile("frontend-v1/index.html");
-  assert.match(frontendHtml, /TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, CRCL, SAMSUNG, and HYNIX/);
+  assert.match(frontendHtml, /TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY/);
+  assert.match(frontendHtml, /<strong>11<\/strong> <span>currently tradable/);
 
   await getMarketSnapshot(true);
 
@@ -233,6 +276,32 @@ async function main() {
   const spcxValidation = await validateSpread("BuyCallSpread", spcxOptionIds.call190, spcxOptionIds.call200);
   assert.equal(spcxValidation.details.asset, "SPCX");
   assert.equal(spcxValidation.details.option_type, "Call");
+
+  const skhyChains = await getOptionChains({
+    underlyingAsset: "SKHY",
+    optionType: "Call",
+    maxExpiries: 1,
+    maxStrikes: 4
+  });
+
+  assert.equal(skhyChains.asset, "SKHY");
+  assert.equal(skhyChains.spot_price, 106);
+  assert.equal(skhyChains.expiries[EXPIRY_CODE].call[0][4], skhyOptionIds.call105);
+  assert.equal(skhyChains.expiries[EXPIRY_CODE].call[0][6], 185.7);
+
+  const skhyScan = await scanSpreads({
+    underlyingAsset: "HYNIX",
+    bias: "bullish",
+    maxResults: 1
+  });
+
+  assert.equal(skhyScan.asset, "SKHY");
+  assert.equal(skhyScan.candidates[0].long_leg_id, skhyOptionIds.call105);
+  assert.equal(skhyScan.candidates[0].short_leg_id, skhyOptionIds.call120);
+
+  const skhyValidation = await validateSpread("BuyCallSpread", skhyOptionIds.call105, skhyOptionIds.call115);
+  assert.equal(skhyValidation.details.asset, "SKHY");
+  assert.equal(skhyValidation.details.option_type, "Call");
 
   console.log("Stock option support test passed.");
 }

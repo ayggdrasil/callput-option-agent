@@ -80,6 +80,8 @@ const ASSET_ALIASES: Record<string, UnderlyingAsset> = {
   WBTC: "BTC",
   XBT: "BTC",
   WETH: "ETH",
+  SPACEX: "SPCX",
+  XSPCX: "SPCX",
   TESLA: "TSLA",
   NVIDIA: "NVDA",
   COINBASE: "COIN",
@@ -88,7 +90,9 @@ const ASSET_ALIASES: Record<string, UnderlyingAsset> = {
   SANDP500: "SPY",
   SP500: "SPY",
   SNP500: "SPY",
-  KOREA: "EWY"
+  KOREA: "EWY",
+  HYNIX: "SKHY",
+  SKHYNIX: "SKHY"
 };
 
 function isUnderlyingAsset(value: string): value is UnderlyingAsset {

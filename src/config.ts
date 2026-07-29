@@ -38,7 +38,10 @@ export const CONFIG = {
     NVDA: "0xcA00BFE890A30AF19c516eb042A63C14A394bE69",
     OPTIONS_TOKEN_NVDA: "0x4f7A323E1067286962553269bA98386a5b44b118",
     COIN: "0x7e6f70E84262254C519B77AE399E0015b7567504",
-    OPTIONS_TOKEN_COIN: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641"
+    OPTIONS_TOKEN_COIN: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641",
+    OPTIONS_TOKEN_SPCX: "0xD866425f79603D444b21bA6c6b17E31c00E1692F",
+    OPTIONS_TOKEN_MU: "0xBB2eC5C3dA6C17CD470812C8B4e660a283390711",
+    OPTIONS_TOKEN_SKHY: "0xE99Db918aAFaC955FDb22A52E37a1A514C4332ef"
   },
   UNDERLYINGS: {
     BTC: { index: 1, decimals: 8, marketType: "CRYPTO", optionsToken: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444" },
@@ -49,10 +52,9 @@ export const CONFIG = {
     EWY: { index: 6, decimals: 18, marketType: "STOCK", optionsToken: "0x68D167810e044641cc44178063a185BeA0F6EFf0" },
     NVDA: { index: 7, decimals: 18, marketType: "STOCK", optionsToken: "0x4f7A323E1067286962553269bA98386a5b44b118" },
     COIN: { index: 8, decimals: 18, marketType: "STOCK", optionsToken: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641" },
-    SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: null },
-    CRCL: { index: 12, decimals: 18, marketType: "STOCK", optionsToken: null },
-    SAMSUNG: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: null },
-    HYNIX: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: null }
+    SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: "0xD866425f79603D444b21bA6c6b17E31c00E1692F" },
+    MU: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xBB2eC5C3dA6C17CD470812C8B4e660a283390711" },
+    SKHY: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xE99Db918aAFaC955FDb22A52E37a1A514C4332ef" }
   },
   ASSETS: {
     BTC: { index: 1, decimals: 8 },
@@ -64,9 +66,8 @@ export const CONFIG = {
     NVDA: { index: 7, decimals: 18 },
     COIN: { index: 8, decimals: 18 },
     SPCX: { index: 9, decimals: 18 },
-    CRCL: { index: 12, decimals: 18 },
-    SAMSUNG: { index: 10, decimals: 18 },
-    HYNIX: { index: 11, decimals: 18 },
+    MU: { index: 10, decimals: 18 },
+    SKHY: { index: 11, decimals: 18 },
     USDC: { decimals: 6 }
   }
 } as const;
