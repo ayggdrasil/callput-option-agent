@@ -4,6 +4,7 @@ build/
 __pycache__/
 *.pyc
 .vercel
+.worktrees/
 
 # Agent-generated reports (not for repo)
 FINAL_QA_REPORT.txt
