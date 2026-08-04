@@ -1,7 +1,7 @@
 # Callput Bankr App Integration Design
 
 Date: 2026-08-05  
-Status: Approved direction, pending written-spec review  
+Status: Approved and implemented
 Repository: `ayggdrasil/callput-option-agent`
 
 ## 1. Objective
@@ -82,7 +82,7 @@ Remote agents
      -> shared Callput tool registry
 
 Local agents
-  -> existing build/index.js (stdio)
+  -> build/src/index.js (stdio)
      -> shared Callput tool registry
 ```
 
@@ -180,19 +180,13 @@ and must not be marketed as cryptographically permanent referral attribution.
 
 Allow-listed events:
 
-- `bankr_app_view`
-- `bankr_scan_started`
-- `bankr_scan_succeeded`
-- `bankr_scan_failed`
-- `bankr_prepare_succeeded`
-- `bankr_prepare_failed`
-- `bankr_wallet_confirm_opened`
-- `bankr_wallet_confirmed`
-- `bankr_wallet_rejected`
-- `bankr_onchain_request_detected`
-- `bankr_keeper_executed`
-- `bankr_keeper_cancelled`
-- `bankr_reconcile_timeout`
+- `app_view`
+- `scan_success`
+- `transaction_prepared`
+- `wallet_confirmed`
+- `onchain_detected`
+- `keeper_executed`
+- `cancelled`
 
 Event properties are limited to flow ID, anonymous wallet hash, asset, strategy,
 expiry bucket, size/risk bucket, latency, error code, transaction hash when
@@ -203,9 +197,9 @@ authorization header, or full calldata is sent to analytics.
 
 The authoritative metrics are:
 
-- Activated Bankr trader: first `bankr_keeper_executed` per verified wallet.
-- Attempted trade: `bankr_wallet_confirmed`.
-- Submitted/on-chain trade: `bankr_onchain_request_detected`.
+- Activated Bankr trader: first `keeper_executed` per verified wallet.
+- Attempted trade: `wallet_confirmed`.
+- Submitted/on-chain trade: `onchain_detected`.
 - Failed trade: confirmed intent that ends in cancellation, timeout, or a
   categorized reconciliation failure.
 - First-100 report: verified on-chain requests grouped by unique wallet, asset,

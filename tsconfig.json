@@ -9,5 +9,5 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./build"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "api/**/*"]
 }

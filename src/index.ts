@@ -16,11 +16,6 @@ import {
   settlePosition
 } from "./core.js";
 
-const server = new McpServer({
-  name: "callput-lite-agent-mcp",
-  version: "0.2.0"
-});
-
 function ok(payload: Record<string, unknown>) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
@@ -34,6 +29,12 @@ function fail(message: string) {
     isError: true
   };
 }
+
+export function createCallputMcpServer() {
+const server = new McpServer({
+  name: "callput-lite-agent-mcp",
+  version: "0.3.0"
+});
 
 // ─── MCP Tool Registration (10 tools total) ──────────────────────────────────
 // 1. callput_scan_spreads          – Market scan with pre-ranked spread candidates
@@ -304,5 +305,12 @@ server.registerTool(
   }
 );
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+return server;
+}
+
+const invokedAsScript = process.argv[1]?.endsWith("/index.js") || process.argv[1]?.endsWith("/index.ts");
+if (invokedAsScript) {
+  const server = createCallputMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}

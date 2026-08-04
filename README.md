@@ -7,6 +7,7 @@ Minimal documentation package for external agents (OpenClaw, Bankr, others) to t
 - **MCP server id in agent config:** `callput-lite-agent-mcp`
 - **Package name in `package.json`:** `callput-lite-mcp-skill`
 - **Public setup page:** `https://mcp.callput.app/`
+- **Remote Streamable HTTP MCP:** `https://mcp.callput.app/api/mcp`
 
 Use the GitHub repo URL for `git clone`. Use the MCP server id only inside `mcpServers`.
 
@@ -25,7 +26,8 @@ This package is designed for:
 - no Python SDK dependency on the external agent side
 
 ## What You Get
-- Minimal MCP server (`stdio`) with core tools only
+- MCP server over local `stdio` and public stateless Streamable HTTP
+- Bankr App source package and validated REST adapter
 - Ready-to-use `SKILL.md`
 - OpenClaw/Bankr MCP config templates
 - First-trade prompt templates
@@ -45,6 +47,8 @@ This package is designed for:
 - `ARCHITECTURE_V1.md` : frontend vs agent runtime responsibilities
 - `FAQ.md` : operator FAQ
 - `frontend-v1/` : static responsive UI for V1 guidance
+- `bankr-app/` : Bankr manifest, frontend, scripts, install prompt, and QA
+- `api/` : Vercel Functions for remote MCP and Bankr endpoints
 
 ## Supported Underlyings
 - Crypto: `BTC`, `ETH`
@@ -80,15 +84,14 @@ npm run verify:mcp
 - `RPC_URL` (optional)
   - default: `https://mainnet.base.org`
 - `CALLPUT_PRIVATE_KEY` is not read by this MCP server. Configure private keys only in the external agent/signer runtime if that runtime requires one.
+- `CALLPUT_ALLOWED_ORIGINS` (optional comma-separated browser origins)
+- `POSTHOG_KEY` and `POSTHOG_HOST` (optional server-side telemetry; redacted logs are used when absent)
 
 ## Connect OpenClaw / Bankr
-1. Copy template:
-   - `OPENCLAW_MCP_CONFIG.template.json` or `BANKR_MCP_CONFIG.template.json`
-2. Replace placeholders:
-   - `<repo_root>`
-   - signer/private-key settings in your external runtime, if that runtime requires them
-3. Restart agent runtime.
-4. Run first prompts from `FIRST_TRADE_PROMPTS.md`.
+1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
+2. Bankr: add `https://mcp.callput.app/api/mcp` as a Streamable HTTP MCP with no authentication.
+3. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
+4. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
 
 ## Frontend V1 (Guidance UI)
 

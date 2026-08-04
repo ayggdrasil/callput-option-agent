@@ -1,7 +1,7 @@
 ---
 name: callput-lite-trader
-description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; agent signs via Bankr /agent/sign and broadcasts via /agent/submit. Supports BTC/ETH plus synthetic stock/ETF spreads with full position lifecycle.
-version: 1.0.0
+description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; Bankr or another external wallet confirms and broadcasts them. Supports BTC/ETH plus synthetic stock/ETF spreads with full position lifecycle.
+version: 1.1.0
 homepage: https://callput.app
 license: MIT
 mcp:
@@ -18,38 +18,7 @@ Trade Callput crypto and synthetic stock/ETF spreads autonomously on Base using 
 
 ## Integration Pattern (Bankr)
 
-Bankr provides `/agent/sign` and `/agent/submit` endpoints for secure external signing:
-
-```bash
-# Step 1: MCP builds unsigned tx calldata
-POST https://api.bankr.bot/callput/execute_spread
-{
-  "address": "0x...",
-  "asset": "ETH",
-  "bias": "bullish"
-}
-→ { "unsigned_tx": {...}, "calldata": "0x..." }
-
-# Step 2: Agent signs with Bankr
-POST https://api.bankr.bot/agent/sign
-{
-  "tx": { ...unsigned_tx... },
-  "from": "0x..."
-}
-→ { "signature": "0x...", "v": 27, "r": "0x...", "s": "0x..." }
-
-# Step 3: Agent submits signed tx
-POST https://api.bankr.bot/agent/submit
-{
-  "tx": { ...unsigned_tx... },
-  "signature": { "v": 27, "r": "0x...", "s": "0x..." }
-}
-→ { "tx_hash": "0x..." }
-
-# Step 4: Poll tx status and extract request_key
-GET https://api.bankr.bot/callput/get_request_key_from_tx?tx_hash=0x...
-→ { "request_key": "0x..." }
-```
+In the Bankr App, the backend passes validated Callput payloads to `bankr.tx.prepare`; the frontend then calls `bankr.confirmTransaction`. The user always sees Bankr's confirmation UI before Bankr broadcasts. Remote MCP clients connect to `https://mcp.callput.app/api/mcp`.
 
 ---
 
@@ -72,8 +41,7 @@ GET https://api.bankr.bot/callput/get_request_key_from_tx?tx_hash=0x...
    ↓ get ranked candidates + atm_iv
 3. callput_execute_spread(address, strategy)
    ↓ return unsigned_tx + calldata
-4. POST /agent/sign → sign externally
-5. POST /agent/submit → broadcast
+4. external wallet confirmation → sign and broadcast
 6. callput_get_request_key_from_tx(tx_hash)
    ↓ extract request_key from receipt
 7. persist request_key for P&L tracking
@@ -90,7 +58,7 @@ GET https://api.bankr.bot/callput/get_request_key_from_tx?tx_hash=0x...
 3. Use `callput_scan_spreads` as the primary market entry point for crypto or stock/ETF symbols.
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
-6. **MCP never holds private keys — Bankr /agent/sign or the external runtime handles signing.**
+6. **MCP never holds private keys — Bankr confirmation or the external runtime handles signing.**
 7. If `usdc_approval.sufficient == false`, send approve_tx before the main tx.
 8. **Save every `request_key` from `get_request_key_from_tx`** — required for P&L.
 9. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them.

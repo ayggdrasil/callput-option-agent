@@ -29,7 +29,7 @@ npm run verify
   "mcpServers": {
     "callput-lite-agent-mcp": {
       "command": "node",
-      "args": ["/absolute/path/callput-option-agent/build/index.js"],
+      "args": ["/absolute/path/callput-option-agent/build/src/index.js"],
       "env": {
         "RPC_URL": "https://mainnet.base.org"
       }
@@ -37,6 +37,21 @@ npm run verify
   }
 }
 ```
+
+## Remote Streamable HTTP
+
+```json
+{
+  "mcpServers": {
+    "callput-lite-agent-mcp": {
+      "url": "https://mcp.callput.app/api/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
+```
+
+The public endpoint requires no Callput API key. Signing remains in the client runtime.
 
 ## Verify in client
 - Call `callput_portfolio_summary` with your address

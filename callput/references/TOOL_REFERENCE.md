@@ -11,7 +11,7 @@ The Callput Lite MCP server follows a **unsigned-TX architecture**: MCP builds t
 ### Key Design Principle
 
 **Note:** The unsigned-tx flow shown here is agent-agnostic. The MCP server builds the transaction calldata and returns `unsigned_tx`. Responsibility for signing varies by deployment:
-- **Bankr**: Uses `/agent/sign` internally to sign with your secure wallet
+- **Bankr**: Uses an explicit `bankr.confirmTransaction` flow for prepared transactions
 - **Standalone agents** (OpenClaw, custom): Call `ethers.signer.signTransaction()` with the agent's own key
 - **Other runtimes**: May use HSM, Ledger, or other signing infrastructure
 

@@ -111,7 +111,7 @@
                 "@type": "HowToStep",
                 "position": 3,
                 "name": "Register the MCP server",
-                "text": "Add callput-lite-agent-mcp to the agent runtime mcpServers config and point it to build/index.js."
+                "text": "Add callput-lite-agent-mcp to the agent runtime mcpServers config and point it to build/src/index.js, or use the public Streamable HTTP endpoint."
               },
               {
                 "@type": "HowToStep",
@@ -241,7 +241,7 @@
               <span>02</span>
               <div>
                 <strong>Register MCP</strong>
-                <p>Point OpenClaw, Bankr, or another runtime at <code>build/index.js</code>.</p>
+                <p>Point local runtimes at <code>build/src/index.js</code>, or connect to <code>https://mcp.callput.app/api/mcp</code>.</p>
               </div>
             </li>
             <li>
@@ -291,7 +291,7 @@ npm run verify:mcp</code></pre>
   "mcpServers": {
     "callput-lite-agent-mcp": {
       "command": "node",
-      "args": ["/absolute/path/callput-option-agent/build/index.js"],
+      "args": ["/absolute/path/callput-option-agent/build/src/index.js"],
       "env": {
         "RPC_URL": "https://mainnet.base.org"
       }

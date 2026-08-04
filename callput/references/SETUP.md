@@ -46,7 +46,7 @@ npm run verify:mcp
   "mcpServers": {
     "callput_lite": {
       "command": "node",
-      "args": ["/absolute/path/to/callput-lite-mcp-skill-standalone/build/index.js"],
+      "args": ["/absolute/path/to/callput-lite-mcp-skill-standalone/build/src/index.js"],
       "env": {
         "RPC_URL": "https://mainnet.base.org"
       }

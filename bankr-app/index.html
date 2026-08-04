@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Callput Options</title>
+  <style>
+    :root { color-scheme: dark; --bg:#09100e; --panel:#111b17; --line:#26372f; --text:#f2f7f4; --muted:#93a69d; --green:#7df2b1; --amber:#ffc86b; --red:#ff8585; }
+    * { box-sizing:border-box } body { margin:0; background:radial-gradient(circle at 80% 0,#17342a 0,transparent 36%),var(--bg); color:var(--text); font:14px/1.45 Inter,ui-sans-serif,system-ui,sans-serif }
+    main { max-width:980px; margin:auto; padding:28px 18px 60px } header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:22px }
+    h1 { font-size:28px; letter-spacing:-.04em; margin:0 0 5px } h2 { font-size:16px; margin:0 0 14px } p { margin:0; color:var(--muted) }
+    .badge { border:1px solid var(--line); background:#101915cc; border-radius:999px; padding:7px 11px; color:var(--green); white-space:nowrap }
+    .panel { background:#111b17e8; border:1px solid var(--line); border-radius:16px; padding:18px; margin:12px 0; box-shadow:0 18px 50px #0004 }
+    .grid { display:grid; grid-template-columns:2fr 2fr 1fr auto; gap:10px; align-items:end } label { display:grid; gap:6px; color:var(--muted); font-size:12px }
+    select,input,button { border:1px solid var(--line); border-radius:10px; background:#0b1411; color:var(--text); padding:11px 12px; font:inherit }
+    button { cursor:pointer; font-weight:700 } button.primary { background:var(--green); color:#06110b; border-color:transparent } button:disabled { opacity:.45; cursor:not-allowed }
+    .cards { display:grid; gap:10px } .card { border:1px solid var(--line); border-radius:12px; padding:14px; display:grid; grid-template-columns:1fr auto; gap:10px; background:#0d1613 }
+    .card.selected { border-color:var(--green); box-shadow:0 0 0 1px var(--green) inset } .metrics { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:7px }
+    .metrics strong { color:var(--text) } .risk { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0 } .risk div { background:#0b1411; border-radius:10px; padding:10px }
+    .risk span { display:block; color:var(--muted); font-size:11px } .risk strong { display:block; margin-top:3px; overflow-wrap:anywhere }
+    .warning { border-left:3px solid var(--amber); padding:9px 12px; color:#ffdda2; background:#2a2111; border-radius:5px; margin:10px 0 }
+    .status { min-height:22px; margin-top:10px; color:var(--muted) } .ok { color:var(--green) } .error { color:var(--red) } .hidden { display:none }
+    @media(max-width:700px){ .grid { grid-template-columns:1fr 1fr } .risk { grid-template-columns:1fr 1fr } header { flex-direction:column } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Callput</h1><p>24/7 risk-defined stock, ETF, and crypto option spreads on Base.</p></div>
+    <div class="badge">Base · explicit confirmation</div>
+  </header>
+
+  <section class="panel">
+    <h2>1. Find a spread</h2>
+    <div class="grid">
+      <label>Underlying<select id="asset"><option>TSLA</option><option>QQQ</option><option>SPY</option><option>EWY</option><option>NVDA</option><option>COIN</option><option>SPCX</option><option>MU</option><option>SKHY</option><option>BTC</option><option>ETH</option></select></label>
+      <label>Market view<select id="bias"><option value="bullish">Bullish — buy call spread</option><option value="bearish">Bearish — buy put spread</option><option value="neutral-bearish">Neutral/bearish — sell call spread</option><option value="neutral-bullish">Neutral/bullish — sell put spread</option></select></label>
+      <label>Size<input id="size" type="number" value="1" min="0.000001" step="any" /></label>
+      <button id="scan" class="primary">Scan</button>
+    </div>
+    <div id="scanStatus" class="status">Sign in to Bankr, then scan the live market.</div>
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <section id="review" class="panel hidden">
+    <h2>2. Review the exact risk</h2>
+    <div id="risk" class="risk"></div>
+    <div class="warning">This prepares an on-chain options trade. Nothing is broadcast until Bankr shows its confirmation modal and you approve it.</div>
+    <button id="confirm" class="primary">Open wallet confirmation</button>
+    <div id="tradeStatus" class="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>3. Check keeper execution</h2>
+    <button id="reconcile">Check my latest Callput request</button>
+    <div id="reconcileStatus" class="status"></div>
+  </section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let selected = null;
+  let prepared = null;
+
+  function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; }
+  function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
+  async function requireSignIn() { if (!signedIn()) { await bankr.auth.requireSignIn(); return false; } return true; }
+  function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
+
+  async function scan() {
+    if (!(await requireSignIn())) return;
+    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; selected=null; prepared=null; $("review").classList.add("hidden");
+    try {
+      const result = await bankr.scripts.run("scan", { underlying_asset:$("asset").value, bias:$("bias").value, max_results:3 });
+      setStatus("scanStatus",`${result.asset} spot ${money(result.spot_price)} · ${result.strategy}`,"ok");
+      result.candidates.forEach((candidate) => {
+        const card=document.createElement("button"); card.className="card"; card.type="button";
+        const premium=candidate.spread_cost ?? candidate.spread_credit;
+        card.innerHTML=`<div style="text-align:left"><strong>#${candidate.rank} ${candidate.expiry_code}</strong><div class="metrics"><span>strikes <strong>${candidate.long_strike} / ${candidate.short_strike}</strong></span><span>premium <strong>${money(premium)}</strong></span><span>DTE <strong>${candidate.days_to_expiry}</strong></span><span>ATM IV <strong>${candidate.atm_iv ?? "—"}</strong></span></div></div><span>Choose →</span>`;
+        card.onclick=()=>{ document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected")); card.classList.add("selected"); selected=candidate; prepare(); };
+        $("cards").appendChild(card);
+      });
+    } catch (error) { setStatus("scanStatus",error.message || String(error),"error"); }
+  }
+
+  async function prepare() {
+    if (!selected) return;
+    setStatus("tradeStatus","Building and independently validating the Base transaction…"); $("review").classList.remove("hidden"); $("confirm").disabled=true;
+    try {
+      prepared=await bankr.scripts.run("prepare", { strategy:selected.strategy, long_leg_id:selected.long_leg_id, short_leg_id:selected.short_leg_id, size:Number($("size").value) });
+      const r=prepared.risk_preview;
+      $("risk").innerHTML=`<div><span>Wallet</span><strong>${r.wallet.slice(0,6)}…${r.wallet.slice(-4)}</strong></div><div><span>Strategy</span><strong>${r.strategy}</strong></div><div><span>Maximum at risk</span><strong>${money(r.maximum_usdc_at_risk)} USDC</strong></div><div><span>Network fee value</span><strong>${r.execution_fee_wei} wei</strong></div>`;
+      setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
+      $("confirm").disabled=false;
+    } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); }
+  }
+
+  async function confirmTrade() {
+    if (!prepared || !(await requireSignIn())) return;
+    $("confirm").disabled=true;
+    try {
+      if (prepared.approval) { setStatus("tradeStatus","Confirm the bounded USDC approval in Bankr…"); await bankr.confirmTransaction(prepared.approval); }
+      setStatus("tradeStatus","Confirm the Callput order in Bankr…"); await bankr.confirmTransaction(prepared.transaction);
+      await bankr.scripts.run("track", { event:"wallet_confirmed", intent_fingerprint:prepared.intent_fingerprint, asset:prepared.risk_preview.asset, strategy:prepared.risk_preview.strategy });
+      setStatus("tradeStatus","Transaction submitted. Use the keeper check below after it is mined.","ok");
+    } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); $("confirm").disabled=false; }
+  }
+
+  async function reconcile() {
+    if (!(await requireSignIn())) return;
+    setStatus("reconcileStatus","Reading recent Callput request events on Base…");
+    try { const result=await bankr.scripts.run("reconcile",{}); setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · ${result.request_key || "no recent request"}`, result.status === "executed" ? "ok" : ""); }
+    catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
+  }
+
+  $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile;
+  bankr.on("ready", async () => {
+    if (signedIn()) { setStatus("scanStatus",`Wallet ready: ${bankr.ctx.walletAddress.slice(0,6)}…${bankr.ctx.walletAddress.slice(-4)}`,"ok"); await bankr.scripts.run("track",{event:"app_view"}).catch(()=>{}); }
+  });
+</script>
+</body>
+</html>

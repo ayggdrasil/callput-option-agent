@@ -1,0 +1,16 @@
+{
+  "slug": "callput-options",
+  "title": "Callput — 24/7 Stock & ETF Options",
+  "description": "Scan risk-defined option spreads, review maximum loss, and prepare Base transactions for explicit wallet confirmation.",
+  "tags": ["options", "stocks", "etf", "base", "trading"],
+  "permissions": [
+    "read:wallet",
+    "fetch:http",
+    "prepare:transaction"
+  ],
+  "scripts": ["assets", "scan", "prepare", "reconcile", "track"],
+  "schedule": [],
+  "secrets": [],
+  "publicDataKeys": [],
+  "frontendIdentity": "viewer"
+}
