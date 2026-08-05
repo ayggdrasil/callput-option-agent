@@ -106,6 +106,14 @@ function assertFrontendDeployConfig() {
     "The public root must serve the operator console directly"
   );
   assert.ok(
+    vercelConfig.builds?.some((build) => build.src === "api/**/*.ts" && build.use === "@vercel/node"),
+    "Vercel Functions must be included in the deployment"
+  );
+  assert.ok(
+    vercelConfig.routes?.some((route) => route.src === "/api/(.*)" && route.dest === "/api/$1.ts"),
+    "Legacy Vercel routes must resolve extensionless API URLs to the .ts function identifiers"
+  );
+  assert.ok(
     !vercelConfig.routes?.some((route) => route.src === "/(.*)" && route.dest === "/index.html"),
     "Vercel must not catch all frontend-v1 requests with the root redirect page"
   );
