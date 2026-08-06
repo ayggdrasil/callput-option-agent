@@ -88,7 +88,7 @@
     try {
       prepared=await bankr.scripts.run("prepare", { strategy:selected.strategy, long_leg_id:selected.long_leg_id, short_leg_id:selected.short_leg_id, size:Number($("size").value) });
       const r=prepared.risk_preview;
-      $("risk").innerHTML=`<div><span>Wallet</span><strong>${r.wallet.slice(0,6)}…${r.wallet.slice(-4)}</strong></div><div><span>Strategy</span><strong>${r.strategy}</strong></div><div><span>Maximum at risk</span><strong>${money(r.maximum_usdc_at_risk)} USDC</strong></div><div><span>Network fee value</span><strong>${r.execution_fee_wei} wei</strong></div>`;
+      $("risk").innerHTML=`<div><span>Wallet</span><strong>${r.wallet.slice(0,6)}…${r.wallet.slice(-4)}</strong></div><div><span>Strategy</span><strong>${r.strategy}</strong></div><div><span>Maximum at risk</span><strong>${money(r.maximum_usdc_at_risk)} USDC</strong></div><div><span>Minimum fill</span><strong>${money(r.minimum_fill_ratio * 100)}%</strong></div><div><span>Minimum size (raw)</span><strong>${r.minimum_size_raw}</strong></div><div><span>Network fee value</span><strong>${r.execution_fee_wei} wei</strong></div>`;
       setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
       $("confirm").disabled=false;
     } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); }

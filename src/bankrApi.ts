@@ -199,6 +199,8 @@ export async function handleBankrApiRequest(
           strategy: input.strategy,
           size: input.size,
           maximum_usdc_at_risk: prepared.quote.amount_in_usdc,
+          minimum_fill_ratio: prepared.quote.min_fill_ratio,
+          minimum_size_raw: prepared.quote.min_size_raw,
           execution_fee_wei: prepared.unsigned_tx.value,
           approval_required: !prepared.usdc_approval.sufficient
         }

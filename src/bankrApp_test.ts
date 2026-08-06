@@ -22,7 +22,10 @@ function main() {
 
   const prepare = read("bankr-app/scripts/prepare.ts");
   assert.match(prepare, /bankr\.tx\.prepare/);
+  assert.match(prepare, /const DEFAULT_MIN_FILL_RATIO = 0\.78/);
+  assert.match(prepare, /min_fill_ratio: DEFAULT_MIN_FILL_RATIO/);
   assert.doesNotMatch(prepare, /privateKey|secret|signTransaction/i);
+  assert.match(html, /minimum_fill_ratio/);
 
   console.log("Bankr App package tests passed.");
 }

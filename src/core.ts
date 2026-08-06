@@ -610,6 +610,7 @@ export async function executeSpread(params: {
       strategy: params.strategy,
       size: params.size,
       size_raw: sizeRaw.toString(),
+      min_fill_ratio: minFillRatio,
       min_size_raw: minSize.toString(),
       amount_in_usdc: amountInUsdc,
       amount_in_raw: amountIn.toString(),

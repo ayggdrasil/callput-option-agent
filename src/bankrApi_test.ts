@@ -38,6 +38,7 @@ function prepared(to: string = CONFIG.CONTRACTS.POSITION_MANAGER) {
       size: 1,
       size_raw: "1",
       min_size_raw: "1",
+      min_fill_ratio: 0.78,
       amount_in_usdc: 2,
       amount_in_raw: "2000000",
       underlying_decimals: 18
@@ -89,6 +90,8 @@ async function main() {
   assert.equal(prepareResponse.status, 200);
   const prepareBody = await prepareResponse.json() as any;
   assert.equal(prepareBody.risk_preview.maximum_usdc_at_risk, 2);
+  assert.equal(prepareBody.risk_preview.minimum_fill_ratio, 0.78);
+  assert.equal(prepareBody.risk_preview.minimum_size_raw, "1");
   assert.match(prepareBody.intent_fingerprint, /^[0-9a-f]{64}$/);
 
   const reconcile = await post("reconcile", { wallet_address: wallet, tx_hash: txHash });

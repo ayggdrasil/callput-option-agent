@@ -1,3 +1,5 @@
+const DEFAULT_MIN_FILL_RATIO = 0.78;
+
 const me = await bankr.wallet.me();
 const prepared = await http.fetch("https://mcp.callput.app/api/bankr/prepare", {
   method: "POST",
@@ -8,7 +10,7 @@ const prepared = await http.fetch("https://mcp.callput.app/api/bankr/prepare", {
     long_leg_id: String(args.long_leg_id),
     short_leg_id: String(args.short_leg_id),
     size: Number(args.size),
-    min_fill_ratio: 0.95
+    min_fill_ratio: DEFAULT_MIN_FILL_RATIO
   })
 });
 
