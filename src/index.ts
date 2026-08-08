@@ -3,8 +3,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { bankrExecuteSpreadInputSchema, resolveBankrMaxUsdcRiskRaw, validatePreparedTransaction } from "./bankrApi.js";
 import {
-  DEFAULT_MIN_FILL_RATIO,
   checkRequestStatus,
   closePosition,
   executeSpread,
@@ -31,19 +31,12 @@ function fail(message: string) {
   };
 }
 
-export const executeSpreadInputSchema = z.object({
-  strategy: z.enum(["BuyCallSpread", "SellCallSpread", "BuyPutSpread", "SellPutSpread"]),
-  from_address: z.string(),
-  long_leg_id: z.string(),
-  short_leg_id: z.string(),
-  size: z.number().positive(),
-  min_fill_ratio: z.number().min(0.01).max(1).default(DEFAULT_MIN_FILL_RATIO)
-});
+export const executeSpreadInputSchema = bankrExecuteSpreadInputSchema;
 
 export function createCallputMcpServer() {
 const server = new McpServer({
   name: "callput-lite-agent-mcp",
-  version: "0.3.0"
+  version: "0.4.0"
 });
 
 // ─── MCP Tool Registration (10 tools total) ──────────────────────────────────
@@ -93,7 +86,7 @@ server.registerTool(
   "callput_execute_spread",
   {
     description:
-      "Build an unsigned spread transaction for crypto or supported stock/ETF options. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. Also returns usdc_approval: if sufficient=false, sign and send approve_tx first. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
+      "Build an unsigned spread transaction for crypto or supported stock/ETF options. Enforces the configured per-trade USDC risk cap (100 USDC by default) and validates all prepared calldata before returning it. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. Also returns usdc_approval: if sufficient=false, sign and send the bounded approve_tx first. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
     inputSchema: executeSpreadInputSchema
   },
   async (args) => {
@@ -106,6 +99,7 @@ server.registerTool(
         size: args.size,
         minFillRatio: args.min_fill_ratio
       });
+      validatePreparedTransaction(result, args, resolveBankrMaxUsdcRiskRaw());
       return ok(result as Record<string, unknown>);
     } catch (e: any) {
       return fail(`execute_spread failed: ${e.message}`);
@@ -182,12 +176,14 @@ server.registerTool(
   "callput_close_position",
   {
     description:
-      "Build an unsigned close-position transaction for crypto or supported stock/ETF positions. Returns unsigned_tx for the agent to sign and broadcast. Use when days_to_expiry < 1 or close_pnl_est_pct > 50.",
+      "Build an unsigned close-position transaction for a wallet-owned, unexpired position. Requires explicit positive raw-unit minimum output floors; derive them from the user's approved slippage tolerance. Returns unsigned_tx for external confirmation.",
     inputSchema: z.object({
       underlying_asset: z.string(),
       from_address: z.string(),
       option_token_id: z.string(),
-      size: z.number().positive()
+      size: z.number().positive(),
+      min_amount_out_raw: z.string().regex(/^[1-9]\d*$/).max(78),
+      min_out_when_swap_raw: z.string().regex(/^[1-9]\d*$/).max(78)
     })
   },
   async (args) => {
@@ -196,7 +192,9 @@ server.registerTool(
         underlyingAsset: args.underlying_asset,
         fromAddress: args.from_address,
         optionTokenId: args.option_token_id,
-        size: args.size
+        size: args.size,
+        minAmountOutRaw: args.min_amount_out_raw,
+        minOutWhenSwapRaw: args.min_out_when_swap_raw
       });
       return ok(out as Record<string, unknown>);
     } catch (e: any) {
@@ -210,11 +208,12 @@ server.registerTool(
   "callput_settle_position",
   {
     description:
-      "Build an unsigned settle transaction for an expired position. Returns unsigned_tx (including from) for the agent to sign and broadcast.",
+      "Build an unsigned settle transaction for a wallet-owned expired position. Requires an explicit positive raw-unit minimum swap output floor approved by the user.",
     inputSchema: z.object({
       underlying_asset: z.string(),
       from_address: z.string(),
-      option_token_id: z.string()
+      option_token_id: z.string(),
+      min_out_when_swap_raw: z.string().regex(/^[1-9]\d*$/).max(78)
     })
   },
   async (args) => {
@@ -222,7 +221,8 @@ server.registerTool(
       const out = await settlePosition({
         underlyingAsset: args.underlying_asset,
         fromAddress: args.from_address,
-        optionTokenId: args.option_token_id
+        optionTokenId: args.option_token_id,
+        minOutWhenSwapRaw: args.min_out_when_swap_raw
       });
       return ok(out as Record<string, unknown>);
     } catch (e: any) {

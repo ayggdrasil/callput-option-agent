@@ -46,13 +46,13 @@ This document defines one UI component per MCP tool.
 
 ### 6. `callput_close_position`
 - Component: `PreExpiryCloseCard`
-- Inputs: `underlying_asset`, `from_address`, `option_token_id`, `size`
+- Inputs: `underlying_asset`, `from_address`, `option_token_id`, `size`, `min_amount_out_raw`, `min_out_when_swap_raw`
 - Outputs: `unsigned_tx`, close estimate
 - Trigger: when close_pnl_est > 50% or days_to_expiry < 1
 
 ### 7. `callput_settle_position`
 - Component: `PostExpirySettleCard`
-- Inputs: `underlying_asset`, `from_address`, `option_token_id`
+- Inputs: `underlying_asset`, `from_address`, `option_token_id`, `min_out_when_swap_raw`
 - Outputs: `unsigned_tx`, settle metadata
 - Trigger: after expiry date
 

@@ -12,12 +12,29 @@ type NodeResponse = {
   end(body?: Uint8Array | string): void;
 };
 
-async function requestBody(req: NodeRequest): Promise<BodyInit | undefined> {
+const MAX_ADAPTER_BODY_BYTES = 64 * 1024;
+
+class RequestBodyTooLargeError extends Error {}
+
+async function requestBody(req: NodeRequest, maxBytes: number): Promise<BodyInit | undefined> {
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return undefined;
-  if (req.body !== undefined) return typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+  const declaredValue = req.headers["content-length"];
+  const declared = Number(Array.isArray(declaredValue) ? declaredValue[0] : declaredValue ?? 0);
+  if (Number.isFinite(declared) && declared > maxBytes) throw new RequestBodyTooLargeError("Request body is too large");
+  if (req.body !== undefined) {
+    const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    if (Buffer.byteLength(body) > maxBytes) throw new RequestBodyTooLargeError("Request body is too large");
+    return body;
+  }
   const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
   if (req[Symbol.asyncIterator]) {
-    for await (const chunk of req as any) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    for await (const chunk of req as any) {
+      const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      totalBytes += bytes.byteLength;
+      if (totalBytes > maxBytes) throw new RequestBodyTooLargeError("Request body is too large");
+      chunks.push(bytes);
+    }
   }
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
@@ -34,11 +51,20 @@ export async function runVercelHandler(
   }
   const host = headers.get("x-forwarded-host") ?? headers.get("host") ?? "mcp.callput.app";
   const proto = headers.get("x-forwarded-proto") ?? "https";
-  const request = new Request(`${proto}://${host}${req.url ?? "/"}`, {
-    method: req.method ?? "GET",
-    headers,
-    body: await requestBody(req)
-  });
+  let request: Request;
+  try {
+    request = new Request(`${proto}://${host}${req.url ?? "/"}`, {
+      method: req.method ?? "GET",
+      headers,
+      body: await requestBody(req, MAX_ADAPTER_BODY_BYTES)
+    });
+  } catch (error) {
+    if (!(error instanceof RequestBodyTooLargeError)) throw error;
+    res.statusCode = 413;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ error: error.message }));
+    return;
+  }
   const response = await handler(request);
   res.statusCode = response.status;
   response.headers.forEach((value, name) => res.setHeader(name, value));

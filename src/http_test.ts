@@ -33,7 +33,34 @@ async function main() {
   assert.equal(initialize.status, 200);
   const initialized = await initialize.json() as any;
   assert.equal(initialized.result.serverInfo.name, "callput-lite-agent-mcp");
-  assert.equal(initialized.result.serverInfo.version, "0.3.0");
+  assert.equal(initialized.result.serverInfo.version, "0.4.0");
+
+  const toolList = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
+    method: "POST",
+    headers: {
+      "accept": "application/json, text/event-stream",
+      "content-type": "application/json",
+      "mcp-protocol-version": "2025-03-26"
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })
+  }));
+  assert.equal(toolList.status, 200);
+  const tools = ((await toolList.json()) as any).result.tools;
+  const closeRequired = tools.find((tool: any) => tool.name === "callput_close_position").inputSchema.required;
+  assert.ok(closeRequired.includes("min_amount_out_raw"));
+  assert.ok(closeRequired.includes("min_out_when_swap_raw"));
+  const settleRequired = tools.find((tool: any) => tool.name === "callput_settle_position").inputSchema.required;
+  assert.ok(settleRequired.includes("min_out_when_swap_raw"));
+
+  let limitedStatus = 0;
+  for (let index = 0; index < 61; index += 1) {
+    const limited = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
+      method: "GET",
+      headers: { "x-forwarded-for": "203.0.113.9" }
+    }));
+    limitedStatus = limited.status;
+  }
+  assert.equal(limitedStatus, 429, "public MCP must enforce a per-client request ceiling");
 
   console.log("HTTP MCP tests passed.");
 }

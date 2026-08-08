@@ -21,8 +21,10 @@ Execution authority remains in each external agent runtime.
   - Persist internal data and risk controls
 - MCP server
   - Fetch market data
-  - Validate spreads
-  - Build and execute requests
+  - Reject stale or malformed market data and mismatched option-token encodings
+  - Validate spreads, per-trade risk, transaction calldata, native fee, ownership, lifecycle, and slippage floors
+  - Build unsigned requests only; never sign or broadcast
+  - Bound public request rate, body size, RPC duration, event lookback, and portfolio fanout
 
 ## Out of Scope for V1 Frontend
 - Key storage
@@ -33,3 +35,7 @@ Execution authority remains in each external agent runtime.
 ## Security Statement
 - `CALLPUT_PRIVATE_KEY` is never entered in frontend forms.
 - Skill and MCP setup references only environment-level key management.
+- The Bankr App uses viewer identity and requires Bankr confirmation for every approval and order.
+- Public open-position preparation defaults to a 100 USDC maximum risk per trade; aggregate exposure remains the external signer's responsibility.
+- Reconciliation accepts only a transaction hash, request key, or a prepared intent fingerprint. It must never select an arbitrary latest wallet request.
+- Fingerprint reconciliation verifies the wallet, successful receipt, PositionManager destination, and PositionManager event provenance inside a bounded recent-block window; callers retry when the RPC has not indexed a canonical receipt yet.

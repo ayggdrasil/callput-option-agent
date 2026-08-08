@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createCallputMcpServer } from "./index.js";
-import { bodyWithinLimit, isAllowedHttpHost } from "./httpSecurity.js";
+import { bodyWithinLimit, isAllowedHttpHost, rateLimitRequest } from "./httpSecurity.js";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const DEFAULT_ORIGINS = ["https://bankr.bot", "https://mcp.callput.app"];
@@ -33,6 +33,14 @@ export async function handleMcpHttpRequest(request: Request): Promise<Response> 
   if (origin && !allowedOrigins().has(origin)) return jsonError(403, "Origin is not allowed", null);
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  const rateLimit = rateLimitRequest(request, "mcp");
+  if (!rateLimit.allowed) {
+    const limited = jsonError(429, "Too many requests", origin);
+    limited.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
+    limited.headers.set("X-RateLimit-Limit", String(rateLimit.limit));
+    limited.headers.set("X-RateLimit-Remaining", "0");
+    return limited;
+  }
   if (request.method !== "POST") return jsonError(405, "Only POST is supported", origin);
 
   if (!(await bodyWithinLimit(request, MAX_BODY_BYTES))) {

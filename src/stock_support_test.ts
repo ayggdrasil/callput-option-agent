@@ -7,6 +7,14 @@ import { formatExpiry, getMarketSnapshot, getOptionChains, normalizeAsset, scanS
 const EXPIRY = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60;
 const EXPIRY_CODE = formatExpiry(EXPIRY);
 
+function encodedOptionId(assetIndex: number, strike: number): string {
+  return `0x${(
+    (BigInt(assetIndex) << 240n) |
+    (BigInt(EXPIRY) << 200n) |
+    (BigInt(strike) << 152n)
+  ).toString(16).padStart(64, "0")}`;
+}
+
 function optionRow(
   strikePrice: number,
   markPrice: number,
@@ -34,24 +42,24 @@ function optionRow(
 }
 
 const tslaOptionIds = {
-  call435: "0x0003006a2300900000000001b300000000000000000000000000000000000000",
-  call440: "0x0003006a2300900000000001b800000000000000000000000000000000000000",
-  call445: "0x0003006a2300900000000001bd00000000000000000000000000000000000000",
-  call450: "0x0003006a2300900000000001c200000000000000000000000000000000000000"
+  call435: encodedOptionId(3, 435),
+  call440: encodedOptionId(3, 440),
+  call445: encodedOptionId(3, 445),
+  call450: encodedOptionId(3, 450)
 };
 
 const spcxOptionIds = {
-  call190: "0x0009006a3424100000000000be00000000000000000000000000000000000000",
-  call195: "0x0009006a3424100000000000c300000000000000000000000000000000000000",
-  call200: "0x0009006a3424100000000000c800000000000000000000000000000000000000",
-  call205: "0x0009006a3424100000000000cd00000000000000000000000000000000000000"
+  call190: encodedOptionId(9, 190),
+  call195: encodedOptionId(9, 195),
+  call200: encodedOptionId(9, 200),
+  call205: encodedOptionId(9, 205)
 };
 
 const skhyOptionIds = {
-  call105: "0x000b006a6cd49000000000006900000000000000000000000000000000000000",
-  call110: "0x000b006a6cd49000000000006e00000000000000000000000000000000000000",
-  call115: "0x000b006a6cd49000000000007300000000000000000000000000000000000000",
-  call120: "0x000b006a6cd49000000000007800000000000000000000000000000000000000"
+  call105: encodedOptionId(11, 105),
+  call110: encodedOptionId(11, 110),
+  call115: encodedOptionId(11, 115),
+  call120: encodedOptionId(11, 120)
 };
 
 type VercelBuild = {
@@ -132,6 +140,8 @@ function assertFrontendDeployConfig() {
 (globalThis as any).fetch = async () => ({
   ok: true,
   json: async () => ({
+    lastUpdatedAt: new Date().toISOString(),
+    timestamp: Date.now(),
     data: {
       market: {
         TSLA: {
@@ -212,8 +222,8 @@ async function main() {
 
   const configSource = readProjectFile("src/config.ts");
   assert.match(configSource, /SPCX: \{ index: 9, decimals: 18, marketType: "STOCK"/);
-  assert.match(configSource, /MU: \{ index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xBB2eC5C3dA6C17CD470812C8B4e660a283390711" \}/);
-  assert.match(configSource, /SKHY: \{ index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xE99Db918aAFaC955FDb22A52E37a1A514C4332ef" \}/);
+  assert.match(configSource, /MU: \{ index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711" \}/);
+  assert.match(configSource, /SKHY: \{ index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xe99db918aafac955fdb22a52e37a1a514c4332ef" \}/);
   assert.doesNotMatch(configSource, /HYNIX: \{ index:/);
   assert.doesNotMatch(configSource, /SAMSUNG: \{ index:/);
 

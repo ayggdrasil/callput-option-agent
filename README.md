@@ -85,13 +85,23 @@ npm run verify:mcp
   - default: `https://mainnet.base.org`
 - `CALLPUT_PRIVATE_KEY` is not read by this MCP server. Configure private keys only in the external agent/signer runtime if that runtime requires one.
 - `CALLPUT_ALLOWED_ORIGINS` (optional comma-separated browser origins)
+- `BANKR_MAX_USDC_RISK_PER_TRADE` (optional; default `100` USDC, maximum six decimals)
+- `CALLPUT_RATE_LIMIT_PER_MINUTE` (optional; default `60` per process/client/scope)
+- `CALLPUT_MAX_EVENT_LOOKBACK_BLOCKS` (optional; default `100000`, hard maximum `500000`)
+- `CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS` (optional; default `7200`, hard maximum `50000`; the normal fingerprint scan starts at `1800` recent Base blocks)
+- `CALLPUT_MARKET_TIMEOUT_MS` (optional; default `8000`, allowed `25`–`60000`)
+- `CALLPUT_RPC_TIMEOUT_MS` (optional; default `10000`, allowed `25`–`60000`)
+- `CALLPUT_MAX_PORTFOLIO_REQUEST_KEYS` (optional; default `50`, hard maximum `200`)
+- `CALLPUT_PORTFOLIO_REQUEST_CONCURRENCY` (optional; default `4`, hard maximum `20`)
+- `CALLPUT_MAX_EXECUTION_FEE_WEI` (optional; default `300000000000000`, or `0.0003 ETH`)
 - `POSTHOG_KEY` and `POSTHOG_HOST` (optional server-side telemetry; redacted logs are used when absent)
 
 ## Connect OpenClaw / Bankr
 1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
-2. Bankr: add `https://mcp.callput.app/api/mcp` as a Streamable HTTP MCP with no authentication.
-3. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
-4. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
+2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.0/callput`.
+3. Bankr MCP: add `https://mcp.callput.app/api/mcp` as HTTP with authentication `None`.
+4. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
+5. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
 
 ## Frontend V1 (Guidance UI)
 
@@ -125,9 +135,11 @@ V1 note:
 4. Put spread: long higher strike, short lower strike.
 5. Poll request status after broadcast.
 6. Close pre-expiry, settle post-expiry.
+7. Close and settle require positive user-approved raw-unit minimum output floors; zero defaults are rejected.
+8. Public open-position builders enforce the configured per-trade USDC risk cap and validate every calldata field before returning it.
 
 ## Notes
 - The server fetches live crypto and stock/ETF option data from the Callput S3 feed.
 - Keep private keys out of logs and chat output.
-- For production use, add your own notional/risk limits at orchestrator layer.
+- The server enforces a per-trade cap; the signer/orchestrator must additionally enforce aggregate wallet exposure, daily loss, and transaction-frequency limits.
 - Frontend does not store or process private keys. Key ownership remains in each external agent runtime.

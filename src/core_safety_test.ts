@@ -1,0 +1,254 @@
+import assert from "node:assert/strict";
+import http from "node:http";
+import test from "node:test";
+import { ethers } from "ethers";
+import { CONFIG, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
+import { closePosition, getMarketSnapshot, settlePosition } from "./core.js";
+
+const ACCOUNT = "0x1111111111111111111111111111111111111111";
+const NOW_SEC = Math.floor(Date.now() / 1000);
+
+function optionId(assetIndex: number, expirySec: number, strike: number): string {
+  return ethers.toBeHex(
+    (BigInt(assetIndex) << 240n) |
+    (BigInt(expirySec) << 200n) |
+    (BigInt(strike) << 152n),
+    32
+  );
+}
+
+function spreadTokenId(assetIndex: number, expirySec: number): string {
+  const nakedStrike = 100 * 8 + 4;
+  const pairStrike = 110 * 8 + 4;
+  return (
+    (BigInt(assetIndex) << 240n) |
+    (BigInt(expirySec) << 200n) |
+    (0x56n << 192n) |
+    (BigInt(nakedStrike) << 144n) |
+    (BigInt(pairStrike) << 96n)
+  ).toString();
+}
+
+function marketPayload(overrides: Record<string, unknown> = {}) {
+  const expirySec = NOW_SEC + 86_400;
+  const timestamp = Date.now();
+  return {
+    lastUpdatedAt: new Date(timestamp).toISOString(),
+    timestamp,
+    data: {
+      market: {
+        TSLA: {
+          expiries: [expirySec],
+          options: {
+            [String(expirySec)]: {
+              call: [{
+                instrument: "TSLA-TEST-100-C",
+                optionId: optionId(3, expirySec, 100),
+                strikePrice: 100,
+                markPrice: 10,
+                riskPremiumRateForBuy: 0.01,
+                riskPremiumRateForSell: 0.01,
+                isOptionAvailable: true,
+                expiry: expirySec,
+                markIv: 0.5
+              }],
+              put: []
+            }
+          }
+        }
+      },
+      spotIndices: { TSLA: 100 }
+    },
+    ...overrides
+  };
+}
+
+let ownedBalanceRaw = 100_000_000n;
+
+async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
+  const executionFeeSelector = new ethers.Interface(POSITION_MANAGER_ABI).getFunction("executionFee")!.selector;
+  const balanceSelector = new ethers.Interface([
+    "function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])"
+  ]).getFunction("balanceOfBatch")!.selector;
+  const coder = ethers.AbiCoder.defaultAbiCoder();
+
+  const server = http.createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const incoming = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    const requests = Array.isArray(incoming) ? incoming : [incoming];
+    const replies = requests.map((rpc: any) => {
+      let result: string;
+      if (rpc.method === "eth_chainId") {
+        result = ethers.toQuantity(CONFIG.CHAIN_ID);
+      } else if (rpc.method === "eth_call") {
+        const data = String(rpc.params?.[0]?.data ?? "");
+        if (data.startsWith(executionFeeSelector)) {
+          result = coder.encode(["uint256"], [CONFIG.EXECUTION_FEE_FALLBACK]);
+        } else if (data.startsWith(balanceSelector)) {
+          result = coder.encode(["uint256[]"], [[ownedBalanceRaw]]);
+        } else {
+          throw new Error(`Unexpected eth_call selector: ${data.slice(0, 10)}`);
+        }
+      } else {
+        throw new Error(`Unexpected RPC method: ${rpc.method}`);
+      }
+      return { jsonrpc: "2.0", id: rpc.id, result };
+    });
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(Array.isArray(incoming) ? replies : replies[0]));
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("RPC test server did not bind");
+  return { server, url: `http://127.0.0.1:${address.port}` };
+}
+
+test("trade core safety gates", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalRpcUrl = CONFIG.RPC_URL;
+  const rpc = await startRpcServer();
+  (CONFIG as any).RPC_URL = rpc.url;
+
+  t.after(async () => {
+    globalThis.fetch = originalFetch;
+    (CONFIG as any).RPC_URL = originalRpcUrl;
+    await new Promise<void>((resolve, reject) => rpc.server.close((error) => error ? reject(error) : resolve()));
+  });
+
+  await t.test("rejects stale market data", async () => {
+    const staleAt = Date.now() - 5 * 60_000 - 1;
+    globalThis.fetch = async () => new Response(JSON.stringify(marketPayload({
+      lastUpdatedAt: new Date(staleAt).toISOString(),
+      timestamp: staleAt
+    })));
+    await assert.rejects(() => getMarketSnapshot(true), /STALE_MARKET_DATA/);
+  });
+
+  await t.test("rejects malformed option rows", async () => {
+    const payload: any = marketPayload();
+    delete payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0].markPrice;
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+    await assert.rejects(() => getMarketSnapshot(true), /MARKET_DATA_SCHEMA/);
+  });
+
+  await t.test("rejects feed rows whose option token encoding disagrees with the row", async () => {
+    const payload: any = marketPayload();
+    payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0].optionId = optionId(1, NOW_SEC + 86_400, 100);
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+    await assert.rejects(() => getMarketSnapshot(true), /MARKET_DATA_TOKEN_MISMATCH/);
+  });
+
+  await t.test("close rejects an asset mismatch", async () => {
+    await assert.rejects(() => closePosition({
+      underlyingAsset: "ETH",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      size: 1,
+      minAmountOutRaw: "1",
+      minOutWhenSwapRaw: "1"
+    } as any), /does not match token asset/);
+  });
+
+  await t.test("close rejects expired positions", async () => {
+    await assert.rejects(() => closePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC - 1),
+      size: 1,
+      minAmountOutRaw: "1",
+      minOutWhenSwapRaw: "1"
+    } as any), /already expired/);
+  });
+
+  await t.test("close rejects a wallet that does not own enough position tokens", async () => {
+    ownedBalanceRaw = 50_000_000n;
+    await assert.rejects(() => closePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      size: 1,
+      minAmountOutRaw: "1",
+      minOutWhenSwapRaw: "1"
+    } as any), /insufficient position balance/);
+  });
+
+  await t.test("close requires and encodes positive user-approved floors", async () => {
+    ownedBalanceRaw = 100_000_000n;
+    await assert.rejects(() => closePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      size: 1
+    } as any), /minAmountOutRaw/);
+
+    const result = await closePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      size: 1,
+      minAmountOutRaw: "123",
+      minOutWhenSwapRaw: "45"
+    } as any);
+    const parsed = new ethers.Interface(POSITION_MANAGER_ABI).parseTransaction({ data: result.unsigned_tx.data });
+    assert.equal(parsed?.args[4], 123n);
+    assert.equal(parsed?.args[5], 45n);
+  });
+
+  await t.test("settle requires a wallet", async () => {
+    await assert.rejects(() => settlePosition({
+      underlyingAsset: "BTC",
+      optionTokenId: spreadTokenId(1, NOW_SEC - 1),
+      minOutWhenSwapRaw: "1"
+    } as any), /fromAddress is required/);
+  });
+
+  await t.test("settle rejects an asset mismatch", async () => {
+    await assert.rejects(() => settlePosition({
+      underlyingAsset: "ETH",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC - 1),
+      minOutWhenSwapRaw: "1"
+    } as any), /does not match token asset/);
+  });
+
+  await t.test("settle rejects positions that have not expired", async () => {
+    await assert.rejects(() => settlePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      minOutWhenSwapRaw: "1"
+    } as any), /has not expired/);
+  });
+
+  await t.test("settle rejects a wallet that does not own the position", async () => {
+    ownedBalanceRaw = 0n;
+    await assert.rejects(() => settlePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC - 1),
+      minOutWhenSwapRaw: "1"
+    } as any), /does not own position/);
+  });
+
+  await t.test("settle requires and encodes a positive user-approved swap floor", async () => {
+    ownedBalanceRaw = 1n;
+    await assert.rejects(() => settlePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC - 1),
+      minOutWhenSwapRaw: "0"
+    } as any), /minOutWhenSwapRaw/);
+
+    const result = await settlePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC - 1),
+      minOutWhenSwapRaw: "77"
+    } as any);
+    const parsed = new ethers.Interface(SETTLE_MANAGER_ABI).parseTransaction({ data: result.unsigned_tx.data });
+    assert.equal(parsed?.args[3], 77n);
+    assert.equal(result.unsigned_tx.from, ethers.getAddress(ACCOUNT));
+  });
+});

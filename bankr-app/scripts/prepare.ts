@@ -38,6 +38,12 @@ const transaction = await bankr.tx.prepare({
 return {
   approval,
   transaction,
+  transaction_preview: {
+    chain: "Base",
+    chain_id: tx.chain_id,
+    destination: tx.to,
+    value_wei: tx.value
+  },
   risk_preview: prepared.risk_preview,
   intent_fingerprint: prepared.intent_fingerprint,
   quote: prepared.quote

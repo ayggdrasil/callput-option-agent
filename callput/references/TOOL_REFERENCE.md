@@ -261,7 +261,9 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
   underlying_asset: string,        // "ETH", "BTC", "TSLA", "NVDA", "COIN", "EWY", etc.
   from_address: string,
   option_token_id: string,         // From portfolio_summary
-  size: number                     // Positive, whole contracts
+  size: number,                    // Positive, whole contracts
+  min_amount_out_raw: string,      // User-approved positive USDC base-unit floor
+  min_out_when_swap_raw: string    // User-approved positive swap-output base-unit floor
 }
 ```
 
@@ -279,7 +281,9 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
     asset: string,
     option_token_id: string,
     size: number,
-    size_raw: string
+    size_raw: string,
+    min_amount_out_raw: string,
+    min_out_when_swap_raw: string
   }
 }
 ```
@@ -288,6 +292,7 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 - `days_to_expiry < 1`
 - `close_pnl_est_pct > 50` (profit-taking)
 - Before position expires (to avoid forced settlement)
+- Only after presenting the expected output and receiving the user's explicit minimum-output approval
 
 ---
 
@@ -300,7 +305,8 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 {
   underlying_asset: string,        // "ETH", "BTC", "TSLA", "NVDA", "COIN", "EWY", etc.
   from_address: string,
-  option_token_id: string          // From portfolio_summary
+  option_token_id: string,         // From portfolio_summary
+  min_out_when_swap_raw: string    // User-approved positive swap-output base-unit floor
 }
 ```
 
@@ -316,7 +322,8 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
   },
   settle: {
     asset: string,
-    option_token_id: string
+    option_token_id: string,
+    min_out_when_swap_raw: string
   }
 }
 ```
@@ -325,6 +332,7 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 - After expiry date has passed
 - To recover max profit or loss
 - Required to free up collateral for new trades
+- Never submit a zero or implicit minimum output
 
 ---
 

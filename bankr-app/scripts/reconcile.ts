@@ -5,6 +5,7 @@ const result = await http.fetch("https://mcp.callput.app/api/bankr/reconcile", {
   body: JSON.stringify({
     wallet_address: me.evmAddress,
     tx_hash: args.tx_hash ? String(args.tx_hash) : undefined,
+    intent_fingerprint: args.intent_fingerprint ? String(args.intent_fingerprint) : undefined,
     request_key: args.request_key ? String(args.request_key) : undefined,
     is_open: args.is_open === undefined ? true : Boolean(args.is_open),
     from_block: args.from_block ? Number(args.from_block) : undefined

@@ -1,8 +1,8 @@
 {
   "slug": "callput-options",
-  "title": "Callput — 24/7 Stock & ETF Options",
-  "description": "Scan risk-defined option spreads, review maximum loss, and prepare Base transactions for explicit wallet confirmation.",
-  "tags": ["options", "stocks", "etf", "base", "trading"],
+  "title": "Callput — 24/7 Synthetic Options",
+  "description": "Trade risk-defined synthetic on-chain crypto, stock, and ETF option spreads on Base. Not broker-listed securities or ownership.",
+  "tags": ["options", "crypto", "stocks", "etf", "base", "trading"],
   "permissions": [
     "read:wallet",
     "fetch:http",

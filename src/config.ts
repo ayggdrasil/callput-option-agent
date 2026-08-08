@@ -39,9 +39,9 @@ export const CONFIG = {
     OPTIONS_TOKEN_NVDA: "0x4f7A323E1067286962553269bA98386a5b44b118",
     COIN: "0x7e6f70E84262254C519B77AE399E0015b7567504",
     OPTIONS_TOKEN_COIN: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641",
-    OPTIONS_TOKEN_SPCX: "0xD866425f79603D444b21bA6c6b17E31c00E1692F",
-    OPTIONS_TOKEN_MU: "0xBB2eC5C3dA6C17CD470812C8B4e660a283390711",
-    OPTIONS_TOKEN_SKHY: "0xE99Db918aAFaC955FDb22A52E37a1A514C4332ef"
+    OPTIONS_TOKEN_SPCX: "0xd866425f79603d444b21ba6c6b17e31c00e1692f",
+    OPTIONS_TOKEN_MU: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711",
+    OPTIONS_TOKEN_SKHY: "0xe99db918aafac955fdb22a52e37a1a514c4332ef"
   },
   UNDERLYINGS: {
     BTC: { index: 1, decimals: 8, marketType: "CRYPTO", optionsToken: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444" },
@@ -52,9 +52,9 @@ export const CONFIG = {
     EWY: { index: 6, decimals: 18, marketType: "STOCK", optionsToken: "0x68D167810e044641cc44178063a185BeA0F6EFf0" },
     NVDA: { index: 7, decimals: 18, marketType: "STOCK", optionsToken: "0x4f7A323E1067286962553269bA98386a5b44b118" },
     COIN: { index: 8, decimals: 18, marketType: "STOCK", optionsToken: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641" },
-    SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: "0xD866425f79603D444b21bA6c6b17E31c00E1692F" },
-    MU: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xBB2eC5C3dA6C17CD470812C8B4e660a283390711" },
-    SKHY: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xE99Db918aAFaC955FDb22A52E37a1A514C4332ef" }
+    SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: "0xd866425f79603d444b21ba6c6b17e31c00e1692f" },
+    MU: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711" },
+    SKHY: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xe99db918aafac955fdb22a52e37a1a514c4332ef" }
   },
   ASSETS: {
     BTC: { index: 1, decimals: 8 },

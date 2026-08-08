@@ -1,9 +1,11 @@
 ---
 name: callput-lite-trader
 description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; Bankr or another external wallet confirms and broadcasts them. Supports BTC/ETH plus synthetic stock/ETF spreads with full position lifecycle.
-version: 1.1.0
+version: 1.2.0
 homepage: https://callput.app
 license: MIT
+visibility: public
+tags: [options, crypto, stocks, etf, base, trading]
 mcp:
   required:
     - name: callput-lite-agent-mcp
@@ -112,6 +114,7 @@ Skip and wait if any of these are true:
 - **Pre-expiry**: use `callput_close_position` when `days_to_expiry < 1`
 - **Post-expiry**: use `callput_settle_position` for expired positions
 - **Profit taking**: close when `close_pnl_est_pct > 50` (50% gain)
+- **Slippage floors**: before close or settle, show the user the expected USDC output and obtain an explicit minimum. Pass the positive base-unit value in `min_amount_out_raw` / `min_out_when_swap_raw`; never use zero or silently default to `1`.
 
 ---
 

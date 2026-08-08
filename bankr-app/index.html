@@ -36,8 +36,9 @@
       <label>Underlying<select id="asset"><option>TSLA</option><option>QQQ</option><option>SPY</option><option>EWY</option><option>NVDA</option><option>COIN</option><option>SPCX</option><option>MU</option><option>SKHY</option><option>BTC</option><option>ETH</option></select></label>
       <label>Market view<select id="bias"><option value="bullish">Bullish — buy call spread</option><option value="bearish">Bearish — buy put spread</option><option value="neutral-bearish">Neutral/bearish — sell call spread</option><option value="neutral-bullish">Neutral/bullish — sell put spread</option></select></label>
       <label>Size<input id="size" type="number" value="1" min="0.000001" step="any" /></label>
-      <button id="scan" class="primary">Scan</button>
+      <button id="scan" class="primary" disabled>Scan</button>
     </div>
+    <button id="signIn" class="primary">Sign in to trade</button>
     <div id="scanStatus" class="status">Sign in to Bankr, then scan the live market.</div>
     <div id="cards" class="cards"></div>
   </section>
@@ -52,7 +53,7 @@
 
   <section class="panel">
     <h2>3. Check keeper execution</h2>
-    <button id="reconcile">Check my latest Callput request</button>
+    <button id="reconcile" disabled>Check my confirmed Callput transaction</button>
     <div id="reconcileStatus" class="status"></div>
   </section>
 </main>
@@ -60,15 +61,31 @@
   const $ = (id) => document.getElementById(id);
   let selected = null;
   let prepared = null;
+  let preparationVersion = 0;
+  let lastConfirmedTxHash = null;
+  let lastConfirmedIntentFingerprint = null;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
   async function requireSignIn() { if (!signedIn()) { await bankr.auth.requireSignIn(); return false; } return true; }
+  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); }
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
+  function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[char]); }
+  function reviewField(label, value) { return `<div><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`; }
+  function invalidatePrepared() {
+    preparationVersion += 1;
+    prepared = null;
+    $("confirm").disabled=true;
+    $("review").classList.add("hidden");
+  }
+  function transactionHash(result) {
+    if (typeof result === "string") return result;
+    return result?.tx_hash ?? result?.txHash ?? result?.transactionHash ?? result?.hash ?? result?.transaction?.hash ?? null;
+  }
 
   async function scan() {
     if (!(await requireSignIn())) return;
-    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; selected=null; prepared=null; $("review").classList.add("hidden");
+    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; selected=null; invalidatePrepared();
     try {
       const result = await bankr.scripts.run("scan", { underlying_asset:$("asset").value, bias:$("bias").value, max_results:3 });
       setStatus("scanStatus",`${result.asset} spot ${money(result.spot_price)} · ${result.strategy}`,"ok");
@@ -76,7 +93,7 @@
         const card=document.createElement("button"); card.className="card"; card.type="button";
         const premium=candidate.spread_cost ?? candidate.spread_credit;
         card.innerHTML=`<div style="text-align:left"><strong>#${candidate.rank} ${candidate.expiry_code}</strong><div class="metrics"><span>strikes <strong>${candidate.long_strike} / ${candidate.short_strike}</strong></span><span>premium <strong>${money(premium)}</strong></span><span>DTE <strong>${candidate.days_to_expiry}</strong></span><span>ATM IV <strong>${candidate.atm_iv ?? "—"}</strong></span></div></div><span>Choose →</span>`;
-        card.onclick=()=>{ document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected")); card.classList.add("selected"); selected=candidate; prepare(); };
+        card.onclick=()=>{ document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected")); card.classList.add("selected"); selected=candidate; invalidatePrepared(); prepare(); };
         $("cards").appendChild(card);
       });
     } catch (error) { setStatus("scanStatus",error.message || String(error),"error"); }
@@ -84,36 +101,72 @@
 
   async function prepare() {
     if (!selected) return;
+    const candidate=selected;
+    const size=Number($("size").value);
+    const currentPreparationVersion=++preparationVersion;
+    prepared=null;
     setStatus("tradeStatus","Building and independently validating the Base transaction…"); $("review").classList.remove("hidden"); $("confirm").disabled=true;
     try {
-      prepared=await bankr.scripts.run("prepare", { strategy:selected.strategy, long_leg_id:selected.long_leg_id, short_leg_id:selected.short_leg_id, size:Number($("size").value) });
-      const r=prepared.risk_preview;
-      $("risk").innerHTML=`<div><span>Wallet</span><strong>${r.wallet.slice(0,6)}…${r.wallet.slice(-4)}</strong></div><div><span>Strategy</span><strong>${r.strategy}</strong></div><div><span>Maximum at risk</span><strong>${money(r.maximum_usdc_at_risk)} USDC</strong></div><div><span>Minimum fill</span><strong>${money(r.minimum_fill_ratio * 100)}%</strong></div><div><span>Minimum size (raw)</span><strong>${r.minimum_size_raw}</strong></div><div><span>Network fee value</span><strong>${r.execution_fee_wei} wei</strong></div>`;
+      const result=await bankr.scripts.run("prepare", { strategy:candidate.strategy, long_leg_id:candidate.long_leg_id, short_leg_id:candidate.short_leg_id, size });
+      if (currentPreparationVersion !== preparationVersion) return;
+      const r=result.risk_preview;
+      const txPreview=result.transaction_preview;
+      if (!result.intent_fingerprint || !txPreview?.destination || !txPreview?.chain) throw new Error("Prepared transaction is missing its bound review details.");
+      prepared={ ...result, candidate, size, preparationVersion:currentPreparationVersion };
+      $("risk").innerHTML=[
+        reviewField("Asset",r.asset), reviewField("Strategy",r.strategy), reviewField("Size",size),
+        reviewField("Expiry",candidate.expiry_code), reviewField("Strikes",`${candidate.long_strike} / ${candidate.short_strike}`),
+        reviewField("Destination",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
+        reviewField("Wallet",r.wallet), reviewField("Maximum at risk",`${money(r.maximum_usdc_at_risk)} USDC`),
+        reviewField("Network fee",`${r.execution_fee_wei} wei`), reviewField("Minimum fill",`${money(r.minimum_fill_ratio * 100)}%`),
+        reviewField("Intent fingerprint",result.intent_fingerprint)
+      ].join("");
       setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
       $("confirm").disabled=false;
-    } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); }
+    } catch(error) { if (currentPreparationVersion === preparationVersion) setStatus("tradeStatus",error.message || String(error),"error"); }
   }
 
   async function confirmTrade() {
-    if (!prepared || !(await requireSignIn())) return;
+    const confirmationIntent=prepared;
+    const confirmationVersion=preparationVersion;
+    if (!confirmationIntent || !(await requireSignIn())) return;
+    if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
     $("confirm").disabled=true;
     try {
-      if (prepared.approval) { setStatus("tradeStatus","Confirm the bounded USDC approval in Bankr…"); await bankr.confirmTransaction(prepared.approval); }
-      setStatus("tradeStatus","Confirm the Callput order in Bankr…"); await bankr.confirmTransaction(prepared.transaction);
-      await bankr.scripts.run("track", { event:"wallet_confirmed", intent_fingerprint:prepared.intent_fingerprint, asset:prepared.risk_preview.asset, strategy:prepared.risk_preview.strategy });
-      setStatus("tradeStatus","Transaction submitted. Use the keeper check below after it is mined.","ok");
+      if (confirmationIntent.approval) {
+        setStatus("tradeStatus","Confirm the bounded USDC approval in Bankr…");
+        await bankr.confirmTransaction(confirmationIntent.approval);
+        if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
+      }
+      setStatus("tradeStatus","Confirm the Callput order in Bankr…");
+      const confirmation=await bankr.confirmTransaction(confirmationIntent.transaction);
+      const txHash=transactionHash(confirmation);
+      lastConfirmedTxHash=/^0x[0-9a-f]{64}$/i.test(txHash || "") ? txHash : null;
+      lastConfirmedIntentFingerprint=confirmationIntent.intent_fingerprint;
+      await bankr.scripts.run("track", { event:"wallet_confirmed", intent_fingerprint:confirmationIntent.intent_fingerprint, asset:confirmationIntent.risk_preview.asset, strategy:confirmationIntent.risk_preview.strategy });
+      const confirmationReference=lastConfirmedTxHash ? `${lastConfirmedTxHash.slice(0,10)}…${lastConfirmedTxHash.slice(-8)}` : `review ${lastConfirmedIntentFingerprint.slice(0,12)}…`;
+      setStatus("tradeStatus",`Transaction submitted. Check this exact ${confirmationReference} after it is mined.`,"ok");
     } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); $("confirm").disabled=false; }
   }
 
   async function reconcile() {
     if (!(await requireSignIn())) return;
-    setStatus("reconcileStatus","Reading recent Callput request events on Base…");
-    try { const result=await bankr.scripts.run("reconcile",{}); setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · ${result.request_key || "no recent request"}`, result.status === "executed" ? "ok" : ""); }
+    if (!lastConfirmedIntentFingerprint) { setStatus("reconcileStatus","Confirm a Callput order in this session first. This check only reconciles the exact confirmed transaction.","error"); return; }
+    const reconcileArgs=lastConfirmedTxHash ? { tx_hash:lastConfirmedTxHash } : { intent_fingerprint:lastConfirmedIntentFingerprint };
+    const reconciliationReference=lastConfirmedTxHash ? `${lastConfirmedTxHash.slice(0,10)}…${lastConfirmedTxHash.slice(-8)}` : `review ${lastConfirmedIntentFingerprint.slice(0,12)}…`;
+    setStatus("reconcileStatus",`Reading the Callput request created by ${reconciliationReference} on Base…`);
+    try { const result=await bankr.scripts.run("reconcile",reconcileArgs); setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · ${result.request_key || "not indexed yet"}`, result.status === "executed" ? "ok" : ""); }
     catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
   }
 
+  ["asset","bias","size"].forEach(id=>$(id).addEventListener("change",invalidatePrepared));
+  ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
+  $("size").addEventListener("input",invalidatePrepared);
+  $("size").addEventListener("change",()=>{ if (selected) prepare(); });
   $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile;
+  $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };
   bankr.on("ready", async () => {
+    syncAuthUi();
     if (signedIn()) { setStatus("scanStatus",`Wallet ready: ${bankr.ctx.walletAddress.slice(0,6)}…${bankr.ctx.walletAddress.slice(-4)}`,"ok"); await bankr.scripts.run("track",{event:"app_view"}).catch(()=>{}); }
   });
 </script>

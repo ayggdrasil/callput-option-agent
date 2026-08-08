@@ -7,6 +7,14 @@ Callput can be used in Bankr in two complementary ways:
 
 Both integrations build unsigned Base transactions. Callput never receives a private key and never broadcasts a trade. Bankr displays the final transaction and requires the signed-in user to confirm it.
 
+## Install the Callput Skill
+
+Paste this stable release URL into Bankr:
+
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.0/callput`
+
+The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
+
 ## Production endpoints
 
 - Bankr App API: `https://mcp.callput.app/api/bankr/*`
@@ -19,8 +27,10 @@ In Bankr Terminal, open the MCP/Tools settings and add:
 
 - Name: `callput-lite-agent-mcp`
 - URL: `https://mcp.callput.app/api/mcp`
-- Transport: Streamable HTTP
-- Authentication: none
+- Transport: HTTP
+- Authentication: None
+
+Bankr labels this transport `HTTP`; the endpoint itself implements Streamable HTTP.
 
 Verify with a read-only prompt:
 
@@ -40,7 +50,7 @@ Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and
 4. Review wallet, Base network, strategy, and maximum USDC at risk.
 5. If needed, confirm a bounded USDC approval.
 6. Confirm the Callput order in Bankr.
-7. Check the latest request to read the request key and keeper status from Base.
+7. Reconcile the confirmed transaction by transaction hash or the exact prepared intent fingerprint to read its request key and keeper status from Base.
 
 For buy spreads, `maximum_usdc_at_risk` is the debit. For sell spreads it is the collateral amount passed into Callput. The native `execution_fee_wei` is shown separately.
 
@@ -48,6 +58,9 @@ For buy spreads, `maximum_usdc_at_risk` is the debit. For sell spreads it is the
 
 - Prepared transactions must target Base and the deployed Callput PositionManager, with calldata decoding to `createOpenPosition`.
 - USDC approvals must target Base USDC and the deployed Callput Router.
+- Every prepared field is rebound to the validated request, and maximum risk defaults to 100 USDC per trade.
+- Market data older than five minutes is rejected.
+- Close/settle requests require explicit positive minimum-output floors and verified position ownership/lifecycle.
 - The app cannot auto-confirm or broadcast.
 - Stock/ETF products are synthetic on-chain options, not broker-listed contracts or stock ownership.
 
@@ -63,7 +76,7 @@ Only allowlisted funnel events are accepted. Wallets are hashed before analytics
 | No spread candidates | Try another live symbol/bias; availability comes from the market feed. |
 | Approval is shown | Confirm the bounded approval first, then the order. |
 | Keeper status is pending | Wait for Base confirmation and refresh. |
-| No recent request found | Use a transaction hash/request key or increase the block lookback. |
+| Confirmed transaction is temporarily `not_found` | Retry after the RPC provider indexes the canonical receipt/log; use the transaction hash when available. Fingerprint reconciliation scans 1,800 recent Base blocks by default and is capped by `CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS`. |
 
 ## Rollback
 

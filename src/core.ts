@@ -1,11 +1,50 @@
+import { createHash } from "node:crypto";
 import { ethers } from "ethers";
-import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI, validateChainId } from "./config.js";
+import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
 
 export type UnderlyingAsset = keyof typeof CONFIG.UNDERLYINGS;
 const UNDERLYING_ASSETS = Object.keys(CONFIG.UNDERLYINGS) as UnderlyingAsset[];
 export type OptionSide = "Call" | "Put";
 export type SpreadStrategy = "BuyCallSpread" | "SellCallSpread" | "BuyPutSpread" | "SellPutSpread";
 export const DEFAULT_MIN_FILL_RATIO = 0.78;
+export const DEFAULT_MAX_MARKET_AGE_MS = 5 * 60_000;
+export const DEFAULT_EVENT_LOOKBACK_BLOCKS = 50_000;
+export const DEFAULT_MAX_EVENT_LOOKBACK_BLOCKS = 100_000;
+export const DEFAULT_MARKET_TIMEOUT_MS = 8_000;
+export const DEFAULT_RPC_TIMEOUT_MS = 10_000;
+export const DEFAULT_MAX_PORTFOLIO_REQUEST_KEYS = 50;
+export const DEFAULT_PORTFOLIO_REQUEST_CONCURRENCY = 4;
+export const DEFAULT_MAX_EXECUTION_FEE_WEI = 300_000_000_000_000n;
+export const DEFAULT_INTENT_RECONCILE_LOOKBACK_BLOCKS = 1_800;
+export const DEFAULT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS = 7_200;
+
+const HARD_MAX_EVENT_LOOKBACK_BLOCKS = 500_000;
+const HARD_MAX_NETWORK_TIMEOUT_MS = 60_000;
+const HARD_MAX_PORTFOLIO_REQUEST_KEYS = 200;
+const HARD_MAX_PORTFOLIO_REQUEST_CONCURRENCY = 20;
+const HARD_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS = 50_000;
+
+function readIntegerEnv(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  if (!/^\d+$/.test(raw)) throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  }
+  return parsed;
+}
+
+function getMaxExecutionFeeWei(): bigint {
+  const raw = process.env.CALLPUT_MAX_EXECUTION_FEE_WEI;
+  if (raw === undefined || raw === "") return DEFAULT_MAX_EXECUTION_FEE_WEI;
+  if (!/^[1-9]\d*$/.test(raw)) {
+    throw new Error("CALLPUT_MAX_EXECUTION_FEE_WEI must be a positive decimal integer");
+  }
+  const parsed = BigInt(raw);
+  if (parsed > ethers.MaxUint256) throw new Error("CALLPUT_MAX_EXECUTION_FEE_WEI exceeds uint256");
+  return parsed;
+}
 
 // ─── Type interfaces for contract responses ────────────────────────────────
 export interface OpenPositionRequest {
@@ -57,7 +96,8 @@ type MarketOption = {
 };
 
 type MarketDataPayload = {
-  lastUpdatedAt?: number;
+  lastUpdatedAt?: string | number;
+  timestamp?: number;
   data?: {
     market?: Record<string, {
       expiries?: string[];
@@ -70,12 +110,18 @@ type MarketDataPayload = {
 type ParsedTokenId = {
   underlyingAssetIndex: number;
   expirySec: number;
+  strikePrice: number;
   optionType: OptionSide;
 };
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
-let marketCache: { tsMs: number; options: MarketOption[]; spot: Record<UnderlyingAsset, number> } | null = null;
+let marketCache: {
+  tsMs: number;
+  updatedAtMs: number;
+  options: MarketOption[];
+  spot: Record<UnderlyingAsset, number>;
+} | null = null;
 
 const ASSET_ALIASES: Record<string, UnderlyingAsset> = {
   WBTC: "BTC",
@@ -130,10 +176,12 @@ export function parseOptionTokenId(optionId: string): ParsedTokenId {
   const id = BigInt(optionId);
   const underlyingAssetIndex = Number((id >> 240n) & 0xffffn);
   const expirySec = Number((id >> 200n) & 0xffffffffffn);
+  const strikePrice = Number((id >> 152n) & 0xffffffffffffn);
   const firstLegIsCall = ((id >> 146n) & 0x1n) === 1n;
   return {
     underlyingAssetIndex,
     expirySec,
+    strikePrice,
     optionType: firstLegIsCall ? "Call" : "Put"
   };
 }
@@ -185,59 +233,190 @@ export function buildInstrument(
 }
 
 async function fetchRawMarketData(): Promise<MarketDataPayload> {
+  const timeoutMs = readIntegerEnv(
+    "CALLPUT_MARKET_TIMEOUT_MS",
+    DEFAULT_MARKET_TIMEOUT_MS,
+    25,
+    HARD_MAX_NETWORK_TIMEOUT_MS
+  );
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(`MARKET_DATA_TIMEOUT: exceeded ${timeoutMs}ms`)), timeoutMs);
   try {
-    const response = await fetch(CONFIG.MARKET_DATA_URL, { cache: "no-store" });
+    const response = await fetch(CONFIG.MARKET_DATA_URL, { cache: "no-store", signal: controller.signal });
     if (!response.ok) {
       throw new Error(`Failed to fetch market data from ${CONFIG.MARKET_DATA_URL}: HTTP ${response.status}`);
     }
     return (await response.json()) as MarketDataPayload;
   } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`MARKET_DATA_TIMEOUT: ${CONFIG.MARKET_DATA_URL} exceeded ${timeoutMs}ms`);
+    }
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to fetch market data from ${CONFIG.MARKET_DATA_URL}: ${msg}`);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
-export async function getMarketSnapshot(force = false): Promise<{ options: MarketOption[]; spot: Record<UnderlyingAsset, number> }> {
+function marketSchemaError(message: string): never {
+  throw new Error(`MARKET_DATA_SCHEMA: ${message}`);
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requireFiniteNumber(value: unknown, path: string, options: { positive?: boolean; integer?: boolean } = {}): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return marketSchemaError(`${path} must be a finite number`);
+  }
+  if (options.positive && value <= 0) return marketSchemaError(`${path} must be > 0`);
+  if (options.integer && !Number.isSafeInteger(value)) return marketSchemaError(`${path} must be a safe integer`);
+  return value;
+}
+
+function getMarketUpdatedAtMs(payload: MarketDataPayload): number {
+  const isoUpdatedAt = typeof payload.lastUpdatedAt === "string"
+    ? Date.parse(payload.lastUpdatedAt)
+    : typeof payload.lastUpdatedAt === "number"
+      ? payload.lastUpdatedAt
+      : Number.NaN;
+  const epochUpdatedAt = payload.timestamp;
+
+  if (!Number.isFinite(isoUpdatedAt)) {
+    return marketSchemaError("lastUpdatedAt must be an ISO timestamp or epoch milliseconds");
+  }
+  if (epochUpdatedAt !== undefined) {
+    requireFiniteNumber(epochUpdatedAt, "timestamp", { positive: true, integer: true });
+    if (Math.abs(epochUpdatedAt - isoUpdatedAt) > 1_000) {
+      return marketSchemaError("lastUpdatedAt and timestamp disagree");
+    }
+  }
+  return isoUpdatedAt;
+}
+
+function parsePositiveRawAmount(value: string | undefined, name: string): bigint {
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) {
+    throw new Error(`${name} must be a positive decimal integer string`);
+  }
+  const parsed = BigInt(value);
+  if (parsed > ethers.MaxUint256) throw new Error(`${name} exceeds uint256`);
+  return parsed;
+}
+
+function parsePositiveTokenId(value: string): bigint {
+  if (!/^(0x[0-9a-fA-F]+|[1-9]\d*)$/.test(value)) {
+    throw new Error(`optionTokenId must be a positive decimal or 0x-prefixed hexadecimal integer: ${value}`);
+  }
+  const parsed = BigInt(value);
+  if (parsed <= 0n || parsed > ethers.MaxUint256) throw new Error("optionTokenId must fit uint256");
+  return parsed;
+}
+
+export async function getMarketSnapshot(
+  force = false,
+  maxAgeMs = DEFAULT_MAX_MARKET_AGE_MS
+): Promise<{ options: MarketOption[]; spot: Record<UnderlyingAsset, number> }> {
   const now = Date.now();
-  if (!force && marketCache && now - marketCache.tsMs < 5_000) {
+  if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) throw new Error("maxAgeMs must be > 0");
+  if (
+    !force &&
+    marketCache &&
+    now - marketCache.tsMs < 5_000 &&
+    now - marketCache.updatedAtMs <= maxAgeMs
+  ) {
     return { options: marketCache.options, spot: marketCache.spot };
   }
 
   const payload = await fetchRawMarketData();
-  const market = payload.data?.market;
-  if (!market) {
-    throw new Error("Market data payload missing data.market");
+  if (!isRecord(payload)) marketSchemaError("payload must be an object");
+  const updatedAtMs = getMarketUpdatedAtMs(payload);
+  const ageMs = now - updatedAtMs;
+  if (ageMs > maxAgeMs) {
+    throw new Error(`STALE_MARKET_DATA: feed is ${ageMs}ms old; maximum is ${maxAgeMs}ms`);
   }
+  if (ageMs < -60_000) marketSchemaError("feed timestamp is more than 60 seconds in the future");
+
+  if (!isRecord(payload.data)) marketSchemaError("data must be an object");
+  const market = payload.data?.market;
+  if (!isRecord(market)) marketSchemaError("data.market must be an object");
+  const spotIndices = payload.data.spotIndices;
+  if (!isRecord(spotIndices)) marketSchemaError("data.spotIndices must be an object");
 
   const options: MarketOption[] = [];
   const spot = Object.fromEntries(
     UNDERLYING_ASSETS.map((asset) => [
       asset,
-      Number(payload.data?.spotIndices?.[asset] ?? payload.data?.spotIndices?.[asset.toLowerCase()] ?? 0)
+      Number(spotIndices[asset] ?? spotIndices[asset.toLowerCase()] ?? 0)
     ])
   ) as Record<UnderlyingAsset, number>;
 
   for (const asset of UNDERLYING_ASSETS) {
     const assetData = market[asset];
+    if (assetData === undefined) continue;
+    if (!isRecord(assetData)) marketSchemaError(`data.market.${asset} must be an object`);
+    if (!Array.isArray(assetData.expiries)) marketSchemaError(`data.market.${asset}.expiries must be an array`);
+    const assetSpot = spotIndices[asset] ?? spotIndices[asset.toLowerCase()];
+    spot[asset] = requireFiniteNumber(assetSpot, `data.spotIndices.${asset}`, { positive: true });
     const optionByExpiry = assetData?.options ?? {};
+    if (!isRecord(optionByExpiry)) marketSchemaError(`data.market.${asset}.options must be an object`);
     for (const [expirySecStr, byType] of Object.entries(optionByExpiry)) {
       const expirySec = Number(expirySecStr);
+      if (!Number.isSafeInteger(expirySec) || expirySec <= 0) {
+        marketSchemaError(`data.market.${asset}.options expiry key must be a positive integer`);
+      }
+      if (!isRecord(byType)) marketSchemaError(`data.market.${asset}.options.${expirySecStr} must be an object`);
       const expiryCode = formatExpiry(expirySec);
       for (const optionType of ["Call", "Put"] as const) {
-        const arr = optionType === "Call" ? byType.call ?? [] : byType.put ?? [];
-        for (const row of arr) {
-          const mark = Number(row.markPrice ?? 0);
-          const rpBuy = Number(row.riskPremiumRateForBuy ?? 0);
-          const rpSell = Number(row.riskPremiumRateForSell ?? 0);
-          const strike = Number(row.strikePrice ?? 0);
-          const optionId = String(row.optionId ?? "");
-          const isAvailable = Boolean(row.isOptionAvailable);
+        const arr = optionType === "Call" ? byType.call : byType.put;
+        if (!Array.isArray(arr)) {
+          marketSchemaError(`data.market.${asset}.options.${expirySecStr}.${optionType.toLowerCase()} must be an array`);
+        }
+        for (let rowIndex = 0; rowIndex < arr.length; rowIndex++) {
+          const row = arr[rowIndex];
+          const rowPath = `data.market.${asset}.options.${expirySecStr}.${optionType.toLowerCase()}[${rowIndex}]`;
+          if (!isRecord(row)) marketSchemaError(`${rowPath} must be an object`);
+          const mark = requireFiniteNumber(row.markPrice, `${rowPath}.markPrice`);
+          if (mark < 0) marketSchemaError(`${rowPath}.markPrice must be >= 0`);
+          const rpBuy = requireFiniteNumber(row.riskPremiumRateForBuy, `${rowPath}.riskPremiumRateForBuy`);
+          const rpSell = requireFiniteNumber(row.riskPremiumRateForSell, `${rowPath}.riskPremiumRateForSell`);
+          if (rpBuy < 0 || rpBuy > 1 || rpSell < 0 || rpSell > 1) {
+            marketSchemaError(`${rowPath} risk premium rates must be between 0 and 1`);
+          }
+          const strike = requireFiniteNumber(row.strikePrice, `${rowPath}.strikePrice`, { positive: true, integer: true });
+          if (typeof row.optionId !== "string" || !/^(0x[0-9a-fA-F]+|[1-9]\d*)$/.test(row.optionId)) {
+            marketSchemaError(`${rowPath}.optionId must be a positive integer string`);
+          }
+          const optionId = row.optionId;
+          if (typeof row.isOptionAvailable !== "boolean") {
+            marketSchemaError(`${rowPath}.isOptionAvailable must be boolean`);
+          }
+          const isAvailable = row.isOptionAvailable;
+          if (typeof row.instrument !== "string" || !row.instrument) {
+            marketSchemaError(`${rowPath}.instrument must be a non-empty string`);
+          }
+          const rowExpiry = requireFiniteNumber(row.expiry, `${rowPath}.expiry`, { positive: true, integer: true });
+          if (rowExpiry !== expirySec) marketSchemaError(`${rowPath}.expiry does not match its expiry bucket`);
+
+          const parsed = parseOptionTokenId(optionId);
+          const expectedAssetIndex = CONFIG.UNDERLYINGS[asset].index;
+          if (
+            parsed.underlyingAssetIndex !== expectedAssetIndex ||
+            parsed.expirySec !== expirySec ||
+            parsed.strikePrice !== strike
+          ) {
+            throw new Error(
+              `MARKET_DATA_TOKEN_MISMATCH: ${rowPath}.optionId encodes asset/expiry/strike ` +
+              `${parsed.underlyingAssetIndex}/${parsed.expirySec}/${parsed.strikePrice}, expected ` +
+              `${expectedAssetIndex}/${expirySec}/${strike}`
+            );
+          }
+
           const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIv ?? row.markIV ?? row.sigma ?? 0);
           const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
-          if (!optionId || !Number.isFinite(strike) || !Number.isFinite(mark)) continue;
 
           options.push({
-            instrument: String(row.instrument ?? buildInstrument(asset, expiryCode, strike, optionType)),
+            instrument: row.instrument,
             optionId,
             strikePrice: strike,
             markPrice: mark,
@@ -255,7 +434,7 @@ export async function getMarketSnapshot(force = false): Promise<{ options: Marke
     }
   }
 
-  marketCache = { tsMs: now, options, spot };
+  marketCache = { tsMs: now, updatedAtMs, options, spot };
   return { options, spot };
 }
 
@@ -397,12 +576,23 @@ export async function validateSpread(strategy: SpreadStrategy, longLegId: string
 }
 
 function getProvider() {
-  return new ethers.JsonRpcProvider(CONFIG.RPC_URL);
+  const timeoutMs = readIntegerEnv(
+    "CALLPUT_RPC_TIMEOUT_MS",
+    DEFAULT_RPC_TIMEOUT_MS,
+    25,
+    HARD_MAX_NETWORK_TIMEOUT_MS
+  );
+  const request = new ethers.FetchRequest(CONFIG.RPC_URL);
+  request.timeout = timeoutMs;
+  return new ethers.JsonRpcProvider(request, CONFIG.CHAIN_ID, { staticNetwork: true });
 }
 
 async function getValidatedProvider(): Promise<ethers.JsonRpcProvider> {
   const provider = getProvider();
-  await validateChainId(provider);
+  const chainId = BigInt(await provider.send("eth_chainId", []));
+  if (chainId !== BigInt(CONFIG.CHAIN_ID)) {
+    throw new Error(`RPC provider is on chain ${chainId}, expected Base (${CONFIG.CHAIN_ID})`);
+  }
   return provider;
 }
 
@@ -413,11 +603,17 @@ function statusFromRaw(raw: number): "pending" | "cancelled" | "executed" {
 }
 
 async function getExecutionFee(contract: ethers.Contract): Promise<bigint> {
+  let executionFee: bigint;
   try {
-    return (await contract.executionFee()) as bigint;
+    executionFee = (await contract.executionFee()) as bigint;
   } catch {
-    return CONFIG.EXECUTION_FEE_FALLBACK;
+    executionFee = CONFIG.EXECUTION_FEE_FALLBACK;
   }
+  const maximum = getMaxExecutionFeeWei();
+  if (executionFee > maximum) {
+    throw new Error(`EXECUTION_FEE_LIMIT: ${executionFee.toString()} wei exceeds configured maximum ${maximum.toString()} wei`);
+  }
+  return executionFee;
 }
 
 function toDecimalString(value: number, decimals: number): string {
@@ -463,12 +659,36 @@ async function checkAllowance(
   };
 }
 
-function extractRequestKey(receipt: ethers.TransactionReceipt): { request_key: string; is_open: boolean } | null {
+export function transactionIntentFingerprint(tx: {
+  chainId: string | number | bigint;
+  from: string;
+  to: string;
+  value: string | number | bigint;
+  data: string;
+}): string {
+  return createHash("sha256")
+    .update([tx.chainId, tx.from, tx.to, tx.value, tx.data].map(String).join(":").toLowerCase())
+    .digest("hex");
+}
+
+type RequestKeyResult = { request_key: string; is_open: boolean };
+
+function extractRequestKey(
+  receipt: ethers.TransactionReceipt,
+  expectedAccount: string,
+  expectedKey?: string
+): RequestKeyResult | null {
   const iface = new ethers.Interface(POSITION_MANAGER_ABI);
   for (const log of receipt.logs) {
+    if (ethers.getAddress(log.address) !== ethers.getAddress(CONFIG.CONTRACTS.POSITION_MANAGER)) continue;
     try {
       const parsed = iface.parseLog(log);
-      if (parsed && parsed.name === "GenerateRequestKey") {
+      if (
+        parsed &&
+        parsed.name === "GenerateRequestKey" &&
+        ethers.getAddress(String(parsed.args.account)) === ethers.getAddress(expectedAccount) &&
+        (expectedKey === undefined || String(parsed.args.key).toLowerCase() === expectedKey.toLowerCase())
+      ) {
         return {
           request_key: String(parsed.args.key),
           is_open: Boolean(parsed.args.isOpen)
@@ -481,13 +701,104 @@ function extractRequestKey(receipt: ethers.TransactionReceipt): { request_key: s
   return null;
 }
 
-export async function getRequestKeyFromTx(txHash: string): Promise<{ request_key: string; is_open: boolean } | { error: string }> {
-  const provider = await getValidatedProvider();
-  const receipt = await provider.getTransactionReceipt(txHash);
+async function inspectRequestTransaction(
+  provider: ethers.JsonRpcProvider,
+  txHash: string,
+  expectedAccount?: string,
+  expectedKey?: string
+): Promise<{ result: RequestKeyResult; transaction: ethers.TransactionResponse } | { error: string }> {
+  const [transaction, receipt] = await Promise.all([
+    provider.getTransaction(txHash),
+    provider.getTransactionReceipt(txHash)
+  ]);
+  if (!transaction) return { error: `Transaction not found for ${txHash}` };
   if (!receipt) return { error: `Transaction receipt not found for ${txHash}` };
-  const result = extractRequestKey(receipt as ethers.TransactionReceipt);
-  if (!result) return { error: "GenerateRequestKey event not found in transaction logs" };
-  return result;
+  if (receipt.status !== 1) return { error: `Transaction ${txHash} did not succeed` };
+  if (transaction.chainId !== BigInt(CONFIG.CHAIN_ID)) return { error: `Transaction ${txHash} is on the wrong chain` };
+  if (!transaction.to || ethers.getAddress(transaction.to) !== ethers.getAddress(CONFIG.CONTRACTS.POSITION_MANAGER)) {
+    return { error: `Transaction ${txHash} was not sent to PositionManager` };
+  }
+  if (!receipt.to || ethers.getAddress(receipt.to) !== ethers.getAddress(CONFIG.CONTRACTS.POSITION_MANAGER)) {
+    return { error: `Transaction receipt ${txHash} is not for PositionManager` };
+  }
+  if (ethers.getAddress(receipt.from) !== ethers.getAddress(transaction.from)) {
+    return { error: `Transaction receipt ${txHash} sender does not match its transaction` };
+  }
+  if (expectedAccount && ethers.getAddress(transaction.from) !== ethers.getAddress(expectedAccount)) {
+    return { error: `Transaction ${txHash} was sent by a different wallet` };
+  }
+  const result = extractRequestKey(receipt, transaction.from, expectedKey);
+  if (!result) return { error: "Verified GenerateRequestKey event not found in transaction logs" };
+  return { result, transaction };
+}
+
+export async function getRequestKeyFromTx(
+  txHash: string,
+  expectedAccount?: string
+): Promise<RequestKeyResult | { error: string }> {
+  const provider = await getValidatedProvider();
+  if (expectedAccount && !ethers.isAddress(expectedAccount)) return { error: `Invalid address: ${expectedAccount}` };
+  const inspected = await inspectRequestTransaction(provider, txHash, expectedAccount);
+  return "error" in inspected ? inspected : inspected.result;
+}
+
+function getBoundedIntentReconcileFromBlock(requestedFromBlock: number | undefined, latestBlock: number): number {
+  if (!Number.isSafeInteger(latestBlock) || latestBlock < 0) throw new Error(`Invalid latest block: ${latestBlock}`);
+  if (
+    requestedFromBlock !== undefined &&
+    (!Number.isSafeInteger(requestedFromBlock) || requestedFromBlock < 0 || requestedFromBlock > latestBlock)
+  ) {
+    throw new Error(`fromBlock must be an integer between 0 and latest block ${latestBlock}`);
+  }
+  const maxLookback = readIntegerEnv(
+    "CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS",
+    DEFAULT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS,
+    1,
+    HARD_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS
+  );
+  const defaultFromBlock = Math.max(0, latestBlock - DEFAULT_INTENT_RECONCILE_LOOKBACK_BLOCKS);
+  const minimumAllowedFromBlock = Math.max(0, latestBlock - maxLookback);
+  return Math.max(requestedFromBlock ?? defaultFromBlock, minimumAllowedFromBlock);
+}
+
+export async function findRequestKeyByIntentFingerprint(params: {
+  address: string;
+  intentFingerprint: string;
+  fromBlock?: number;
+}): Promise<(RequestKeyResult & { tx_hash: string; from_block: number; to_block: number }) | null> {
+  if (!ethers.isAddress(params.address)) throw new Error(`Invalid address: ${params.address}`);
+  if (!/^[0-9a-f]{64}$/.test(params.intentFingerprint)) throw new Error("Invalid intent fingerprint");
+  const account = ethers.getAddress(params.address);
+  const provider = await getValidatedProvider();
+  const latestBlock = await provider.getBlockNumber();
+  const fromBlock = getBoundedIntentReconcileFromBlock(params.fromBlock, latestBlock);
+  const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
+  const logs = await pm.queryFilter(pm.filters.GenerateRequestKey(account), fromBlock, latestBlock);
+
+  for (const candidate of [...logs].reverse()) {
+    if (ethers.getAddress(candidate.address) !== ethers.getAddress(CONFIG.CONTRACTS.POSITION_MANAGER)) continue;
+    const event = candidate as ethers.EventLog;
+    const key = String(event.args.key);
+    const inspected = await inspectRequestTransaction(provider, event.transactionHash, account, key);
+    if ("error" in inspected) continue;
+    const transaction = inspected.transaction;
+    const fingerprint = transactionIntentFingerprint({
+      chainId: transaction.chainId,
+      from: transaction.from,
+      to: transaction.to!,
+      value: transaction.value,
+      data: transaction.data
+    });
+    if (fingerprint === params.intentFingerprint) {
+      return {
+        ...inspected.result,
+        tx_hash: event.transactionHash,
+        from_block: fromBlock,
+        to_block: latestBlock
+      };
+    }
+  }
+  return null;
 }
 
 export async function checkRequestStatus(requestKey: string, isOpen: boolean) {
@@ -626,27 +937,47 @@ export async function closePosition(params: {
   fromAddress: string;
   optionTokenId: string;
   size: number;
+  minAmountOutRaw?: string;
+  minOutWhenSwapRaw?: string;
 }) {
   if (!ethers.isAddress(params.fromAddress)) throw new Error(`Invalid fromAddress: ${params.fromAddress}`);
+  const account = ethers.getAddress(params.fromAddress);
   const asset = normalizeAsset(params.underlyingAsset);
   if (!asset) throw new Error(`Unsupported asset: ${params.underlyingAsset}`);
 
+  const tokenId = parsePositiveTokenId(params.optionTokenId);
+  const decoded = decodeSpreadTokenId(tokenId.toString());
+  if (decoded.underlying !== asset) {
+    throw new Error(`Requested asset ${asset} does not match token asset ${decoded.underlying ?? "UNKNOWN"}`);
+  }
+  if (decoded.expirySec <= Math.floor(Date.now() / 1000)) {
+    throw new Error(`Position already expired at ${decoded.expiryCode}; use settlement instead`);
+  }
+
+  const minAmountOut = parsePositiveRawAmount(params.minAmountOutRaw, "minAmountOutRaw");
+  const minOutWhenSwap = parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
   const sizeRaw = toSizeRaw(params.size, asset);
   const path = [CONFIG.CONTRACTS.USDC];
   const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
 
+  const provider = await getValidatedProvider();
+  const token = new ethers.Contract(CONFIG.UNDERLYINGS[asset].optionsToken, OPTIONS_TOKEN_ABI, provider);
+  const [positionBalance] = (await token.balanceOfBatch([account], [tokenId])) as bigint[];
+  if ((positionBalance ?? 0n) < sizeRaw) {
+    throw new Error(`Wallet has insufficient position balance: ${(positionBalance ?? 0n).toString()} < ${sizeRaw.toString()}`);
+  }
+
   const iface = new ethers.Interface(POSITION_MANAGER_ABI);
   const data = iface.encodeFunctionData("createClosePosition", [
     underlyingIndex,
-    BigInt(params.optionTokenId),
+    tokenId,
     sizeRaw,
     path,
-    0,
-    0,
+    minAmountOut,
+    minOutWhenSwap,
     false
   ]);
 
-  const provider = await getValidatedProvider();
   const pmRead = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
   const executionFee = await getExecutionFee(pmRead);
 
@@ -656,13 +987,15 @@ export async function closePosition(params: {
       data,
       value: executionFee.toString(),
       chain_id: CONFIG.CHAIN_ID,
-      from: ethers.getAddress(params.fromAddress)
+      from: account
     },
     close: {
       asset,
       option_token_id: params.optionTokenId,
       size: params.size,
-      size_raw: sizeRaw.toString()
+      size_raw: sizeRaw.toString(),
+      min_amount_out_raw: minAmountOut.toString(),
+      min_out_when_swap_raw: minOutWhenSwap.toString()
     },
     next_steps: [
       "1. Sign and broadcast unsigned_tx",
@@ -676,10 +1009,26 @@ export async function settlePosition(params: {
   underlyingAsset: string;
   optionTokenId: string;
   fromAddress?: string;
+  minOutWhenSwapRaw?: string;
 }) {
+  if (!params.fromAddress) throw new Error("fromAddress is required to verify position ownership");
+  if (!ethers.isAddress(params.fromAddress)) throw new Error(`Invalid fromAddress: ${params.fromAddress}`);
+  const account = ethers.getAddress(params.fromAddress);
   const asset = normalizeAsset(params.underlyingAsset);
   if (!asset) throw new Error(`Unsupported asset: ${params.underlyingAsset}`);
-  await getValidatedProvider();
+  const tokenId = parsePositiveTokenId(params.optionTokenId);
+  const decoded = decodeSpreadTokenId(tokenId.toString());
+  if (decoded.underlying !== asset) {
+    throw new Error(`Requested asset ${asset} does not match token asset ${decoded.underlying ?? "UNKNOWN"}`);
+  }
+  if (decoded.expirySec > Math.floor(Date.now() / 1000)) {
+    throw new Error(`Position has not expired yet (${decoded.expiryCode})`);
+  }
+  const minOutWhenSwap = parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
+  const provider = await getValidatedProvider();
+  const token = new ethers.Contract(CONFIG.UNDERLYINGS[asset].optionsToken, OPTIONS_TOKEN_ABI, provider);
+  const [positionBalance] = (await token.balanceOfBatch([account], [tokenId])) as bigint[];
+  if ((positionBalance ?? 0n) <= 0n) throw new Error("Wallet does not own position token");
   const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
   const path = [CONFIG.CONTRACTS.USDC];
 
@@ -687,8 +1036,8 @@ export async function settlePosition(params: {
   const data = iface.encodeFunctionData("settlePosition", [
     path,
     underlyingIndex,
-    BigInt(params.optionTokenId),
-    0,
+    tokenId,
+    minOutWhenSwap,
     false
   ]);
 
@@ -698,11 +1047,12 @@ export async function settlePosition(params: {
       data,
       value: "0",
       chain_id: CONFIG.CHAIN_ID,
-      from: params.fromAddress ? ethers.getAddress(params.fromAddress) : undefined
+      from: account
     },
     settle: {
       asset,
-      option_token_id: params.optionTokenId
+      option_token_id: params.optionTokenId,
+      min_out_when_swap_raw: minOutWhenSwap.toString()
     },
     next_steps: [
       "1. Sign and broadcast unsigned_tx",
@@ -767,6 +1117,25 @@ export async function getPositions(address: string) {
 // Recovers all request_keys by querying GenerateRequestKey events on-chain.
 // Critical for restoring P&L tracking after session loss.
 
+function getBoundedEventFromBlock(requestedFromBlock: number | undefined, latestBlock: number): number {
+  if (!Number.isSafeInteger(latestBlock) || latestBlock < 0) throw new Error(`Invalid latest block: ${latestBlock}`);
+  if (
+    requestedFromBlock !== undefined &&
+    (!Number.isSafeInteger(requestedFromBlock) || requestedFromBlock < 0 || requestedFromBlock > latestBlock)
+  ) {
+    throw new Error(`fromBlock must be an integer between 0 and latest block ${latestBlock}`);
+  }
+  const maxLookback = readIntegerEnv(
+    "CALLPUT_MAX_EVENT_LOOKBACK_BLOCKS",
+    DEFAULT_MAX_EVENT_LOOKBACK_BLOCKS,
+    1,
+    HARD_MAX_EVENT_LOOKBACK_BLOCKS
+  );
+  const defaultFromBlock = Math.max(0, latestBlock - DEFAULT_EVENT_LOOKBACK_BLOCKS);
+  const minimumAllowedFromBlock = Math.max(0, latestBlock - maxLookback);
+  return Math.max(requestedFromBlock ?? defaultFromBlock, minimumAllowedFromBlock);
+}
+
 export async function listPositionsByWallet(params: {
   address: string;
   fromBlock?: number;
@@ -777,8 +1146,7 @@ export async function listPositionsByWallet(params: {
 
   const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
   const latestBlock = await provider.getBlockNumber();
-  // Default: look back ~50k blocks (~1 day on Base at 2s/block). Increase for older positions.
-  const fromBlock = params.fromBlock ?? Math.max(0, latestBlock - 50_000);
+  const fromBlock = getBoundedEventFromBlock(params.fromBlock, latestBlock);
 
   const filter = pm.filters.GenerateRequestKey(account);
   const logs = await pm.queryFilter(filter, fromBlock, latestBlock);
@@ -802,7 +1170,7 @@ export async function listPositionsByWallet(params: {
     close_request_keys: closeKeys,
     total_open: openKeys.length,
     total_close: closeKeys.length,
-    note: "Pass open_request_keys to callput_portfolio_summary to restore P&L tracking. If missing older positions, set from_block further back (e.g., latestBlock - 500000 for ~10 days)."
+    note: "Pass open_request_keys to callput_portfolio_summary to restore P&L tracking. Event history is limited by CALLPUT_MAX_EVENT_LOOKBACK_BLOCKS."
   };
 }
 
@@ -820,7 +1188,7 @@ export async function getSettledPnl(params: {
 
   const settle = new ethers.Contract(CONFIG.CONTRACTS.SETTLE_MANAGER, SETTLE_MANAGER_ABI, provider);
   const latestBlock = await provider.getBlockNumber();
-  const fromBlock = params.fromBlock ?? Math.max(0, latestBlock - 50_000);
+  const fromBlock = getBoundedEventFromBlock(params.fromBlock, latestBlock);
 
   const filter = settle.filters.SettlePosition(account);
   const logs = await settle.queryFilter(filter, fromBlock, latestBlock);
@@ -1026,14 +1394,67 @@ export async function scanSpreads(params: {
 // Returns USDC balance, enriched positions with current spread mark value,
 // and optional P&L if request_keys from prior executions are provided.
 
+function normalizePortfolioRequestKeys(requestKeys: string[] | undefined): string[] {
+  if (requestKeys === undefined) return [];
+  if (!Array.isArray(requestKeys)) throw new Error("requestKeys must be an array");
+
+  const uniqueKeys: string[] = [];
+  const seen = new Set<string>();
+  for (const key of requestKeys) {
+    if (typeof key !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
+      throw new Error("Each portfolio request key must be a 0x-prefixed 32-byte hexadecimal string");
+    }
+    const normalized = key.toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    uniqueKeys.push(normalized);
+  }
+
+  const maximum = readIntegerEnv(
+    "CALLPUT_MAX_PORTFOLIO_REQUEST_KEYS",
+    DEFAULT_MAX_PORTFOLIO_REQUEST_KEYS,
+    1,
+    HARD_MAX_PORTFOLIO_REQUEST_KEYS
+  );
+  if (uniqueKeys.length > maximum) {
+    throw new Error(`Portfolio request exceeds maximum request keys: ${uniqueKeys.length} > ${maximum}`);
+  }
+  return uniqueKeys;
+}
+
+async function mapSettledWithConcurrency<T, R>(
+  values: T[],
+  concurrency: number,
+  mapper: (value: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(values.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= values.length) return;
+      try {
+        results[index] = { status: "fulfilled", value: await mapper(values[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  const workerCount = Math.min(concurrency, values.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 export async function getPortfolioSummary(params: {
   address: string;
   requestKeys?: string[];
 }) {
-  const provider = await getValidatedProvider();
-
   if (!ethers.isAddress(params.address)) throw new Error(`Invalid address: ${params.address}`);
   const account = ethers.getAddress(params.address);
+  const requestKeys = normalizePortfolioRequestKeys(params.requestKeys);
+  const provider = await getValidatedProvider();
 
   const usdc = new ethers.Contract(CONFIG.CONTRACTS.USDC, ERC20_ABI, provider);
   const [snapshot, positionData, usdcBalanceRaw] = await Promise.all([
@@ -1049,13 +1470,22 @@ export async function getPortfolioSummary(params: {
   // openPositionRequests(key) returns optionTokenId (index [3]) which is the
   // ERC-1155 token the position settled into — this is the bridge between
   // request_key and a live position for per-position P&L.
-  const hasRequestKeys = Boolean(params.requestKeys?.length);
+  const hasRequestKeys = requestKeys.length > 0;
   const tokenIdToEntryUsd = new Map<string, number>();
+  let ignoredForeignRequestKeys = 0;
 
   if (hasRequestKeys) {
     const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
-    const results = await Promise.allSettled(
-      params.requestKeys!.map((key) => pm.openPositionRequests(key))
+    const concurrency = readIntegerEnv(
+      "CALLPUT_PORTFOLIO_REQUEST_CONCURRENCY",
+      DEFAULT_PORTFOLIO_REQUEST_CONCURRENCY,
+      1,
+      HARD_MAX_PORTFOLIO_REQUEST_CONCURRENCY
+    );
+    const results = await mapSettledWithConcurrency(
+      requestKeys,
+      concurrency,
+      (key) => pm.openPositionRequests(key)
     );
     for (const r of results) {
       if (r.status !== "fulfilled") continue;
@@ -1063,6 +1493,10 @@ export async function getPortfolioSummary(params: {
       // Extract account safely from struct response
       const acct = String(req.account || (Array.isArray(req) && req[0]) || "");
       if (!acct || acct.toLowerCase() === ethers.ZeroAddress.toLowerCase()) continue;
+      if (!ethers.isAddress(acct) || ethers.getAddress(acct) !== account) {
+        ignoredForeignRequestKeys++;
+        continue;
+      }
       // Extract tokenId safely from struct response (index 3)
       const tokenId = String(req.optionTokenId || (Array.isArray(req) && req[3]) || "0");
       // Extract amountIn safely from struct response (index 5)
@@ -1202,7 +1636,8 @@ export async function getPortfolioSummary(params: {
     result.total_entry_cost_usd = totalEntryRounded;
     result.total_pnl_usd        = pnlUsd;
     result.total_pnl_pct        = pnlPct;
-    result.tracked_request_keys = params.requestKeys!.length;
+    result.tracked_request_keys = requestKeys.length;
+    result.ignored_foreign_request_keys = ignoredForeignRequestKeys;
     result.pnl_note = [
       "unrealized_pnl = current mark value vs on-chain amountIn (fair mid, not tradeable).",
       "close_pnl_est  = bid-based spread value vs entry cost (conservative, tradeable estimate).",

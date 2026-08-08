@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { ethers } from "ethers";
 import { z } from "zod";
 import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
@@ -6,42 +5,84 @@ import {
   DEFAULT_MIN_FILL_RATIO,
   checkRequestStatus,
   executeSpread,
+  findRequestKeyByIntentFingerprint,
   getMarketSnapshot,
   getRequestKeyFromTx,
-  listPositionsByWallet,
-  scanSpreads
+  scanSpreads,
+  transactionIntentFingerprint
 } from "./core.js";
-import { anonymousWalletId, captureTelemetry, TELEMETRY_EVENTS, type TelemetryEvent } from "./telemetry.js";
-import { bodyWithinLimit, isAllowedHttpHost } from "./httpSecurity.js";
+import { anonymousWalletId, captureTelemetry, type TelemetryEvent } from "./telemetry.js";
+import { bodyWithinLimit, isAllowedHttpHost, rateLimitRequest } from "./httpSecurity.js";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const BANKR_ORIGINS = new Set(["https://bankr.bot", "https://mcp.callput.app"]);
+const UINT256_MAX = (1n << 256n) - 1n;
+const MAX_SAFE_INPUT_NUMBER = Number.MAX_SAFE_INTEGER;
+const USDC_DECIMALS = CONFIG.ASSETS.USDC.decimals;
+const CLIENT_TELEMETRY_EVENTS = [
+  "app_view",
+  "scan_success",
+  "transaction_prepared",
+  "wallet_confirmed",
+  "cancelled"
+] as const;
+
+export const BANKR_MAX_USDC_RISK_ENV = "BANKR_MAX_USDC_RISK_PER_TRADE";
+export const DEFAULT_BANKR_MAX_USDC_RISK = "100";
+
+const addressSchema = z.string().refine((value) => ethers.isAddress(value), "Invalid address");
+
+const optionIdSchema = z.string()
+  .min(1)
+  .max(78)
+  .refine((value) => /^(0x[0-9a-fA-F]+|\d+)$/.test(value), "Option ID must be a decimal or 0x-prefixed uint256")
+  .refine((value) => {
+    try {
+      const parsed = BigInt(value);
+      return parsed > 0n && parsed <= UINT256_MAX;
+    } catch {
+      return false;
+    }
+  }, "Option ID must be between 1 and uint256 max");
+
+const sizeSchema = z.number()
+  .finite()
+  .min(1e-18)
+  .max(MAX_SAFE_INPUT_NUMBER);
 
 const scanSchema = z.object({
-  underlying_asset: z.string().min(1),
+  underlying_asset: z.string().min(1).max(16),
   bias: z.enum(["bullish", "bearish", "neutral-bearish", "neutral-bullish"]),
   max_results: z.number().int().min(1).max(5).optional()
 }).strict();
 
-const prepareSchema = z.object({
+export const bankrExecuteSpreadInputSchema = z.object({
   strategy: z.enum(["BuyCallSpread", "SellCallSpread", "BuyPutSpread", "SellPutSpread"]),
-  from_address: z.string(),
-  long_leg_id: z.string(),
-  short_leg_id: z.string(),
-  size: z.number().positive(),
+  from_address: addressSchema,
+  long_leg_id: optionIdSchema,
+  short_leg_id: optionIdSchema,
+  size: sizeSchema,
   min_fill_ratio: z.number().min(0.01).max(1).default(DEFAULT_MIN_FILL_RATIO)
-}).strict();
+}).strict().refine((value) => BigInt(value.long_leg_id) !== BigInt(value.short_leg_id), {
+  message: "Long and short leg option IDs must differ",
+  path: ["short_leg_id"]
+});
+
+const prepareSchema = bankrExecuteSpreadInputSchema;
 
 const reconcileSchema = z.object({
-  wallet_address: z.string(),
+  wallet_address: addressSchema,
   tx_hash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
   request_key: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
+  intent_fingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   is_open: z.boolean().default(true),
-  from_block: z.number().int().nonnegative().optional()
-}).strict();
+  from_block: z.number().int().nonnegative().max(MAX_SAFE_INPUT_NUMBER).optional()
+}).strict().refine((value) => value.tx_hash || value.request_key || value.intent_fingerprint, {
+  message: "tx_hash, request_key, or intent_fingerprint is required"
+});
 
 const eventSchema = z.object({
-  event: z.enum(TELEMETRY_EVENTS),
+  event: z.enum(CLIENT_TELEMETRY_EVENTS),
   wallet_address: z.string().refine((value) => ethers.isAddress(value), "Invalid wallet_address").optional(),
   anonymous_id: z.string().min(8).max(128).optional(),
   intent_fingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),
@@ -53,14 +94,15 @@ const eventSchema = z.object({
 });
 
 type Prepared = Awaited<ReturnType<typeof executeSpread>>;
+export type BankrExecuteSpreadInput = z.infer<typeof bankrExecuteSpreadInputSchema>;
 
 export type BankrDependencies = {
   getMarketSnapshot: typeof getMarketSnapshot;
   scanSpreads: typeof scanSpreads;
   executeSpread: typeof executeSpread;
   getRequestKeyFromTx: typeof getRequestKeyFromTx;
+  findRequestKeyByIntentFingerprint: typeof findRequestKeyByIntentFingerprint;
   checkRequestStatus: typeof checkRequestStatus;
-  listPositionsByWallet: typeof listPositionsByWallet;
   captureTelemetry: typeof captureTelemetry;
 };
 
@@ -69,8 +111,8 @@ const defaultDependencies: BankrDependencies = {
   scanSpreads,
   executeSpread,
   getRequestKeyFromTx,
+  findRequestKeyByIntentFingerprint,
   checkRequestStatus,
-  listPositionsByWallet,
   captureTelemetry
 };
 
@@ -100,37 +142,213 @@ async function readJson(request: Request): Promise<unknown> {
 
 function intentFingerprint(prepared: Prepared): string {
   const tx = prepared.unsigned_tx;
-  return createHash("sha256")
-    .update([tx.chain_id, tx.from, tx.to, tx.value, tx.data].join(":" ).toLowerCase())
-    .digest("hex");
+  return transactionIntentFingerprint({
+    chainId: tx.chain_id,
+    from: tx.from,
+    to: tx.to,
+    value: tx.value,
+    data: tx.data
+  });
 }
 
-export function validatePreparedTransaction(prepared: Prepared): void {
+function parseUint256(value: unknown, label: string): bigint {
+  if (typeof value !== "string" && typeof value !== "bigint" && typeof value !== "number") {
+    throw new Error(`${label} is not a uint256`);
+  }
+  const text = String(value);
+  if (!/^(0|[1-9]\d*)$/.test(text)) throw new Error(`${label} is not a canonical uint256`);
+  const parsed = BigInt(text);
+  if (parsed < 0n || parsed > UINT256_MAX) throw new Error(`${label} is outside uint256 bounds`);
+  return parsed;
+}
+
+function parseOptionId(value: unknown, label: string): bigint {
+  const text = String(value);
+  if (!/^(0x[0-9a-fA-F]+|\d+)$/.test(text)) throw new Error(`${label} is not a uint256 option ID`);
+  const parsed = BigInt(text);
+  if (parsed <= 0n || parsed > UINT256_MAX) throw new Error(`${label} is outside uint256 bounds`);
+  return parsed;
+}
+
+function unitsFromNumber(value: unknown, decimals: number, label: string): bigint {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > MAX_SAFE_INPUT_NUMBER) {
+    throw new Error(`${label} must be a finite positive number within safe input bounds`);
+  }
+  const decimal = value.toLocaleString("en-US", {
+    useGrouping: false,
+    maximumFractionDigits: decimals
+  });
+  const parsed = ethers.parseUnits(decimal, decimals);
+  if (parsed <= 0n || parsed > UINT256_MAX) throw new Error(`${label} is outside uint256 bounds after scaling`);
+  return parsed;
+}
+
+function sameAddress(actual: unknown, expected: string, label: string): void {
+  if (typeof actual !== "string" || !ethers.isAddress(actual) || ethers.getAddress(actual) !== ethers.getAddress(expected)) {
+    throw new Error(`${label} does not match the prepared request`);
+  }
+}
+
+function sameBooleanArray(actual: unknown, expected: readonly boolean[], label: string): void {
+  if (!Array.isArray(actual) && !(actual && typeof actual === "object" && "length" in actual)) {
+    throw new Error(`${label} is not an array`);
+  }
+  const values = Array.from(actual as ArrayLike<unknown>);
+  if (values.length !== expected.length || values.some((value, index) => value !== expected[index])) {
+    throw new Error(`${label} does not match the requested strategy`);
+  }
+}
+
+export function resolveBankrMaxUsdcRiskRaw(env: NodeJS.ProcessEnv = process.env): bigint {
+  const configured = env[BANKR_MAX_USDC_RISK_ENV] ?? DEFAULT_BANKR_MAX_USDC_RISK;
+  if (!/^\d+(?:\.\d{1,6})?$/.test(configured)) {
+    throw new Error(`${BANKR_MAX_USDC_RISK_ENV} must be a positive USDC amount with at most 6 decimals`);
+  }
+  const raw = ethers.parseUnits(configured, USDC_DECIMALS);
+  const maxSafeRaw = ethers.parseUnits(String(MAX_SAFE_INPUT_NUMBER), USDC_DECIMALS);
+  if (raw <= 0n || raw > maxSafeRaw || raw > UINT256_MAX / 2n) {
+    throw new Error(`${BANKR_MAX_USDC_RISK_ENV} is outside supported bounds`);
+  }
+  return raw;
+}
+
+export function validatePreparedTransaction(
+  prepared: Prepared,
+  request: BankrExecuteSpreadInput,
+  maxUsdcRiskRaw: bigint = resolveBankrMaxUsdcRiskRaw()
+): void {
+  if (maxUsdcRiskRaw <= 0n || maxUsdcRiskRaw > UINT256_MAX / 2n) {
+    throw new Error("Maximum USDC risk policy is outside supported bounds");
+  }
+
+  if (prepared.validation.status !== "Valid") throw new Error("Prepared spread validation is not valid");
+  const details = prepared.validation.details as any;
+  const asset = String(details.asset ?? "") as keyof typeof CONFIG.UNDERLYINGS;
+  const assetConfig = CONFIG.UNDERLYINGS[asset];
+  if (!assetConfig) throw new Error("Prepared transaction has an unsupported validation asset");
+
+  const expectedOptionType = request.strategy.includes("Call") ? "Call" : "Put";
+  if (details.option_type !== expectedOptionType) {
+    throw new Error("Prepared validation option type does not match the requested strategy");
+  }
+  if (parseOptionId(details.long_leg?.option_id, "Prepared validation long leg") !== BigInt(request.long_leg_id)) {
+    throw new Error("Prepared validation long leg does not match the request");
+  }
+  if (parseOptionId(details.short_leg?.option_id, "Prepared validation short leg") !== BigInt(request.short_leg_id)) {
+    throw new Error("Prepared validation short leg does not match the request");
+  }
+
+  const quote = prepared.quote;
+  if (quote.strategy !== request.strategy) throw new Error("Prepared quote strategy does not match the request");
+  if (quote.size !== request.size) throw new Error("Prepared quote size does not match the request");
+  if (quote.min_fill_ratio !== request.min_fill_ratio) throw new Error("Prepared quote minimum fill ratio does not match the request");
+  if (quote.underlying_decimals !== assetConfig.decimals) {
+    throw new Error("Prepared quote underlying decimals do not match the validation asset");
+  }
+
+  const sizeRaw = parseUint256(quote.size_raw, "Prepared quote size");
+  const expectedSizeRaw = unitsFromNumber(request.size, assetConfig.decimals, "Requested size");
+  if (sizeRaw !== expectedSizeRaw) throw new Error("Prepared quote size does not match the scaled request size");
+
+  const minSizeRaw = parseUint256(quote.min_size_raw, "Prepared quote minimum size");
+  const expectedMinSize = (sizeRaw * BigInt(Math.floor(request.min_fill_ratio * 10_000))) / 10_000n;
+  if (minSizeRaw <= 0n || minSizeRaw !== expectedMinSize) {
+    throw new Error("Prepared quote minimum size does not match the requested fill ratio");
+  }
+
+  const amountInRaw = parseUint256(quote.amount_in_raw, "Prepared quote amount in");
+  if (amountInRaw <= 0n) throw new Error("Prepared quote amount in must be positive");
+  if (unitsFromNumber(quote.amount_in_usdc, USDC_DECIMALS, "Prepared quote USDC risk") !== amountInRaw) {
+    throw new Error("Prepared quote USDC risk does not match its amount in");
+  }
+  const riskBasis = request.strategy.startsWith("Buy") ? details.spread_cost : details.strike_diff;
+  const expectedAmountIn = unitsFromNumber(Number(riskBasis) * request.size, USDC_DECIMALS, "Prepared validation risk");
+  if (amountInRaw !== expectedAmountIn) {
+    throw new Error("Prepared quote amount in does not match the validated spread risk");
+  }
+  if (amountInRaw > maxUsdcRiskRaw) {
+    const configured = ethers.formatUnits(maxUsdcRiskRaw, USDC_DECIMALS).replace(/\.0$/, "");
+    throw new Error(`Prepared transaction risk exceeds maximum ${configured} USDC per trade`);
+  }
+
   const tx = prepared.unsigned_tx;
   if (tx.chain_id !== CONFIG.CHAIN_ID) throw new Error("Prepared transaction has an unexpected chain ID");
   if (ethers.getAddress(tx.to) !== ethers.getAddress(CONFIG.CONTRACTS.POSITION_MANAGER)) {
     throw new Error("Prepared transaction has an unexpected destination");
   }
-  if (!ethers.isAddress(tx.from)) throw new Error("Prepared transaction has an invalid sender");
-  const parsed = new ethers.Interface(POSITION_MANAGER_ABI).parseTransaction({ data: tx.data, value: tx.value });
+  sameAddress(tx.from, request.from_address, "Prepared transaction sender");
+  const txValue = parseUint256(tx.value, "Prepared transaction value");
+  if (txValue <= 0n) throw new Error("Prepared transaction value must be positive");
+
+  const positionManager = new ethers.Interface(POSITION_MANAGER_ABI);
+  const parsed = positionManager.parseTransaction({ data: tx.data, value: tx.value });
   if (parsed?.name !== "createOpenPosition") throw new Error("Prepared transaction has unexpected calldata");
-  if (BigInt(parsed.args[5]) !== BigInt(prepared.quote.min_size_raw)) {
-    throw new Error("Prepared transaction minimum size does not match its quote");
-  }
-  if (BigInt(parsed.args[7]) !== BigInt(prepared.quote.amount_in_raw)) {
-    throw new Error("Prepared transaction amount in does not match its quote");
+  const canonicalData = positionManager.encodeFunctionData("createOpenPosition", Array.from(parsed.args));
+  if (canonicalData.toLowerCase() !== tx.data.toLowerCase()) {
+    throw new Error("Prepared transaction calldata is not canonical");
   }
 
-  const approval = prepared.usdc_approval.approve_tx;
-  if (approval) {
-    if (approval.chain_id !== CONFIG.CHAIN_ID) throw new Error("Approval has an unexpected chain ID");
-    if (ethers.getAddress(approval.to) !== ethers.getAddress(CONFIG.CONTRACTS.USDC)) {
-      throw new Error("Approval has an unexpected destination");
-    }
-    const decoded = new ethers.Interface(ERC20_ABI).parseTransaction({ data: approval.data });
-    if (decoded?.name !== "approve" || ethers.getAddress(String(decoded.args[0])) !== ethers.getAddress(CONFIG.CONTRACTS.ROUTER)) {
-      throw new Error("Approval has unexpected calldata");
-    }
+  if (BigInt(parsed.args[0]) !== BigInt(assetConfig.index)) {
+    throw new Error("Prepared transaction underlying does not match the validated asset");
+  }
+  if (BigInt(parsed.args[1]) !== 2n) throw new Error("Prepared transaction spread length must be 2");
+
+  const isBuy = request.strategy.startsWith("Buy");
+  const isCall = request.strategy.includes("Call");
+  sameBooleanArray(parsed.args[2], [isBuy, !isBuy, false, false], "Prepared transaction buy sides");
+
+  const optionIds = Array.from(parsed.args[3] as ArrayLike<unknown>);
+  const expectedOptionIds = [BigInt(request.long_leg_id), BigInt(request.short_leg_id), 0n, 0n];
+  if (optionIds.length !== expectedOptionIds.length || optionIds.some((value, index) => BigInt(String(value)) !== expectedOptionIds[index])) {
+    throw new Error("Prepared transaction option legs do not match the request");
+  }
+  sameBooleanArray(parsed.args[4], [isCall, isCall, false, false], "Prepared transaction call/put flags");
+
+  if (BigInt(parsed.args[5]) !== minSizeRaw) {
+    throw new Error("Prepared transaction minimum size does not match its quote");
+  }
+  const path = Array.from(parsed.args[6] as ArrayLike<unknown>);
+  if (path.length !== 1) throw new Error("Prepared transaction path must contain only USDC");
+  sameAddress(path[0], CONFIG.CONTRACTS.USDC, "Prepared transaction USDC path");
+  if (BigInt(parsed.args[7]) !== amountInRaw) {
+    throw new Error("Prepared transaction amount in does not match its quote");
+  }
+  if (BigInt(parsed.args[8]) !== 0n) throw new Error("Prepared transaction minimum output must be zero for the USDC path");
+  sameAddress(String(parsed.args[9]), ethers.ZeroAddress, "Prepared transaction lead trader");
+
+  const approvalInfo = prepared.usdc_approval;
+  const currentAllowance = parseUint256(approvalInfo.current_allowance, "Current USDC allowance");
+  const requiredApproval = parseUint256(approvalInfo.required, "USDC approval required amount");
+  if (requiredApproval !== amountInRaw) throw new Error("USDC approval required amount does not match the quote");
+  if (approvalInfo.sufficient !== (currentAllowance >= requiredApproval)) {
+    throw new Error("USDC allowance sufficiency does not match the reported allowance");
+  }
+
+  const approval = approvalInfo.approve_tx;
+  if (approvalInfo.sufficient) {
+    if (approval) throw new Error("USDC approval must be absent when allowance is sufficient");
+    return;
+  }
+  if (!approval) throw new Error("USDC approval is required when allowance is insufficient");
+  if (approval.chain_id !== CONFIG.CHAIN_ID) throw new Error("Approval has an unexpected chain ID");
+  if (ethers.getAddress(approval.to) !== ethers.getAddress(CONFIG.CONTRACTS.USDC)) {
+    throw new Error("Approval has an unexpected destination");
+  }
+  if (parseUint256(approval.value, "USDC approval transaction value") !== 0n) {
+    throw new Error("USDC approval transaction value must be zero");
+  }
+  const erc20 = new ethers.Interface(ERC20_ABI);
+  const decoded = erc20.parseTransaction({ data: approval.data, value: approval.value });
+  if (decoded?.name !== "approve") throw new Error("Approval has unexpected calldata");
+  sameAddress(String(decoded.args[0]), CONFIG.CONTRACTS.ROUTER, "USDC approval spender");
+  const approvalAmount = BigInt(decoded.args[1]);
+  const expectedApprovalAmount = amountInRaw * 2n;
+  if (approvalAmount !== expectedApprovalAmount || approvalAmount > maxUsdcRiskRaw * 2n) {
+    throw new Error("USDC approval amount must equal twice the quoted risk and stay within twice the risk cap");
+  }
+  const canonicalApprovalData = erc20.encodeFunctionData("approve", Array.from(decoded.args));
+  if (canonicalApprovalData.toLowerCase() !== approval.data.toLowerCase()) {
+    throw new Error("USDC approval calldata is not canonical");
   }
 }
 
@@ -150,6 +368,12 @@ export async function handleBankrApiRequest(
   if (!isAllowedHttpHost(request)) return response(421, { error: "Host is not allowed" }, null);
   if (origin && !BANKR_ORIGINS.has(origin)) return response(403, { error: "Origin is not allowed" }, null);
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: headers(origin) });
+  const rateLimit = rateLimitRequest(request, `bankr:${action}`);
+  if (!rateLimit.allowed) {
+    const limited = response(429, { error: "Too many requests" }, origin);
+    limited.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
+    return limited;
+  }
   if (action === "assets" && request.method !== "GET") return response(405, { error: "Use GET" }, origin);
   if (action !== "assets" && request.method !== "POST") return response(405, { error: "Use POST" }, origin);
   if (!(await bodyWithinLimit(request, MAX_BODY_BYTES))) return response(413, { error: "Request body is too large" }, origin);
@@ -188,7 +412,8 @@ export async function handleBankrApiRequest(
         size: input.size,
         minFillRatio: input.min_fill_ratio
       });
-      validatePreparedTransaction(prepared);
+      const maxUsdcRiskRaw = resolveBankrMaxUsdcRiskRaw();
+      validatePreparedTransaction(prepared, input, maxUsdcRiskRaw);
       const fingerprint = intentFingerprint(prepared);
       await telemetry(deps, "transaction_prepared", input.from_address, {
         intent_fingerprint: fingerprint,
@@ -206,6 +431,8 @@ export async function handleBankrApiRequest(
           strategy: input.strategy,
           size: input.size,
           maximum_usdc_at_risk: prepared.quote.amount_in_usdc,
+          maximum_usdc_at_risk_raw: prepared.quote.amount_in_raw,
+          maximum_usdc_per_trade: Number(ethers.formatUnits(maxUsdcRiskRaw, USDC_DECIMALS)),
           minimum_fill_ratio: prepared.quote.min_fill_ratio,
           minimum_size_raw: prepared.quote.min_size_raw,
           execution_fee_wei: prepared.unsigned_tx.value,
@@ -219,20 +446,29 @@ export async function handleBankrApiRequest(
       if (!ethers.isAddress(input.wallet_address)) throw new Error("Invalid wallet_address");
       let requestKey = input.request_key;
       let isOpen = input.is_open;
+      let resolvedTxHash = input.tx_hash;
       if (input.tx_hash) {
-        const extracted = await deps.getRequestKeyFromTx(input.tx_hash);
+        const extracted = await deps.getRequestKeyFromTx(input.tx_hash, input.wallet_address);
         if ("error" in extracted) return response(404, extracted, origin);
         requestKey = extracted.request_key;
         isOpen = extracted.is_open;
       }
-      if (!requestKey) {
-        const recovered = await deps.listPositionsByWallet({
+      if (!requestKey && input.intent_fingerprint) {
+        const recovered = await deps.findRequestKeyByIntentFingerprint({
           address: input.wallet_address,
+          intentFingerprint: input.intent_fingerprint,
           fromBlock: input.from_block
         });
-        requestKey = recovered.open_request_keys.at(-1) ?? recovered.close_request_keys.at(-1);
-        isOpen = recovered.open_request_keys.includes(requestKey ?? "");
-        if (!requestKey) return response(200, { status: "not_found", wallet: ethers.getAddress(input.wallet_address), recovered }, origin);
+        if (!recovered) {
+          return response(200, {
+            status: "not_found",
+            wallet: ethers.getAddress(input.wallet_address),
+            intent_fingerprint: input.intent_fingerprint
+          }, origin);
+        }
+        requestKey = recovered.request_key;
+        isOpen = recovered.is_open;
+        resolvedTxHash = recovered.tx_hash;
       }
       const status = await deps.checkRequestStatus(requestKey!, isOpen);
       const account = "account" in status ? String(status.account) : undefined;
@@ -242,7 +478,7 @@ export async function handleBankrApiRequest(
       await telemetry(deps, "onchain_detected", input.wallet_address, { request_key: requestKey, status: status.status });
       if (status.status === "executed") await telemetry(deps, "keeper_executed", input.wallet_address, { request_key: requestKey });
       if (status.status === "cancelled") await telemetry(deps, "cancelled", input.wallet_address, { request_key: requestKey });
-      return response(200, { tx_hash: input.tx_hash, is_open: isOpen, ...status }, origin);
+      return response(200, { tx_hash: resolvedTxHash, is_open: isOpen, ...status }, origin);
     }
 
     const input = eventSchema.parse(raw);
