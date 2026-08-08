@@ -21,9 +21,14 @@ function main() {
   }
 
   const prepare = read("bankr-app/scripts/prepare.ts");
+  const core = read("src/core.ts");
+  const toolReference = read("callput/references/TOOL_REFERENCE.md");
   assert.match(prepare, /bankr\.tx\.prepare/);
   assert.match(prepare, /const DEFAULT_MIN_FILL_RATIO = 0\.78/);
   assert.match(prepare, /min_fill_ratio: DEFAULT_MIN_FILL_RATIO/);
+  assert.match(core, /export const DEFAULT_MIN_FILL_RATIO = 0\.78/);
+  assert.match(core, /params\.minFillRatio \?\? DEFAULT_MIN_FILL_RATIO/);
+  assert.match(toolReference, /default 0\.78/);
   assert.doesNotMatch(prepare, /privateKey|secret|signTransaction/i);
   assert.match(html, /minimum_fill_ratio/);
 

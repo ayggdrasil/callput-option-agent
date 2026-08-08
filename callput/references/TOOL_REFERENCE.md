@@ -109,7 +109,7 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
   long_leg_id: string,             // From scan_spreads.long_leg_id (decimal or 0x hex)
   short_leg_id: string,            // From scan_spreads.short_leg_id (decimal or 0x hex)
   size: number,                    // Positive, whole contracts
-  min_fill_ratio: number (optional) // 0.01–1.0, default 0.95
+  min_fill_ratio: number (optional) // 0.01–1.0, default 0.78
 }
 ```
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ethers } from "ethers";
 import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import { handleBankrApiRequest, validatePreparedTransaction, type BankrDependencies } from "./bankrApi.js";
+import { executeSpreadInputSchema } from "./index.js";
 
 const wallet = "0x1111111111111111111111111111111111111111";
 const requestKey = `0x${"ab".repeat(32)}`;
@@ -16,7 +17,7 @@ function prepared(to: string = CONFIG.CONTRACTS.POSITION_MANAGER) {
       to,
       data: pm.encodeFunctionData("createOpenPosition", [
         3, 2, [true, false, false, false], [ethers.ZeroHash, ethers.ZeroHash, ethers.ZeroHash, ethers.ZeroHash],
-        [true, true, false, false], 1n, [CONFIG.CONTRACTS.USDC], 2_000_000n, 0, ethers.ZeroAddress
+        [true, true, false, false], 78_000n, [CONFIG.CONTRACTS.USDC], 2_000_000n, 0, ethers.ZeroAddress
       ]),
       value: "60000000000000",
       chain_id: 8453,
@@ -35,9 +36,9 @@ function prepared(to: string = CONFIG.CONTRACTS.POSITION_MANAGER) {
     },
     quote: {
       strategy: "BuyCallSpread" as const,
-      size: 1,
-      size_raw: "1",
-      min_size_raw: "1",
+      size: 0.001,
+      size_raw: "100000",
+      min_size_raw: "78000",
       min_fill_ratio: 0.78,
       amount_in_usdc: 2,
       amount_in_raw: "2000000",
@@ -48,13 +49,17 @@ function prepared(to: string = CONFIG.CONTRACTS.POSITION_MANAGER) {
 }
 
 const captured: string[] = [];
+let capturedMinFillRatio: number | undefined;
 const deps = {
   getMarketSnapshot: async () => ({
     spot: { BTC: 100, ETH: 10, TSLA: 200, QQQ: 300, SPY: 400, EWY: 50, NVDA: 120, COIN: 90, SPCX: 180, MU: 80, SKHY: 70 },
     options: [{ underlying: "TSLA", isAvailable: true }]
   }),
   scanSpreads: async () => ({ asset: "TSLA", strategy: "BuyCallSpread", candidates: [{ rank: 1 }] }),
-  executeSpread: async () => prepared(),
+  executeSpread: async (input: { minFillRatio?: number }) => {
+    capturedMinFillRatio = input.minFillRatio;
+    return prepared();
+  },
   getRequestKeyFromTx: async () => ({ request_key: requestKey, is_open: true }),
   checkRequestStatus: async () => ({ request_key: requestKey, status: "executed" as const, account: wallet }),
   listPositionsByWallet: async () => ({ open_request_keys: [requestKey] }),
@@ -70,8 +75,23 @@ async function post(action: "scan" | "prepare" | "reconcile" | "events", body: u
 }
 
 async function main() {
+  const mcpDefaults = executeSpreadInputSchema.parse({
+    strategy: "BuyCallSpread",
+    from_address: wallet,
+    long_leg_id: "1",
+    short_leg_id: "2",
+    size: 0.001
+  });
+  assert.equal(mcpDefaults.min_fill_ratio, 0.78, "MCP must preserve the safe fill default when omitted");
+
   validatePreparedTransaction(prepared() as any);
   assert.throws(() => validatePreparedTransaction(prepared(CONFIG.CONTRACTS.ROUTER) as any), /unexpected destination/);
+  const mismatchedMinSize = prepared() as any;
+  mismatchedMinSize.quote.min_size_raw = "2";
+  assert.throws(() => validatePreparedTransaction(mismatchedMinSize), /minimum size/i);
+  const mismatchedAmountIn = prepared() as any;
+  mismatchedAmountIn.quote.amount_in_raw = "2000001";
+  assert.throws(() => validatePreparedTransaction(mismatchedAmountIn), /amount in/i);
 
   const assets = await handleBankrApiRequest("assets", new Request("https://mcp.callput.app/api/bankr/assets"), deps);
   assert.equal(assets.status, 200);
@@ -85,13 +105,14 @@ async function main() {
     from_address: wallet,
     long_leg_id: "1",
     short_leg_id: "2",
-    size: 1
+    size: 0.001
   });
   assert.equal(prepareResponse.status, 200);
   const prepareBody = await prepareResponse.json() as any;
   assert.equal(prepareBody.risk_preview.maximum_usdc_at_risk, 2);
   assert.equal(prepareBody.risk_preview.minimum_fill_ratio, 0.78);
-  assert.equal(prepareBody.risk_preview.minimum_size_raw, "1");
+  assert.equal(prepareBody.risk_preview.minimum_size_raw, "78000");
+  assert.equal(capturedMinFillRatio, 0.78, "Bankr API must preserve the safe fill default when omitted");
   assert.match(prepareBody.intent_fingerprint, /^[0-9a-f]{64}$/);
 
   const reconcile = await post("reconcile", { wallet_address: wallet, tx_hash: txHash });

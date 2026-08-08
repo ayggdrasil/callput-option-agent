@@ -5,6 +5,7 @@ export type UnderlyingAsset = keyof typeof CONFIG.UNDERLYINGS;
 const UNDERLYING_ASSETS = Object.keys(CONFIG.UNDERLYINGS) as UnderlyingAsset[];
 export type OptionSide = "Call" | "Put";
 export type SpreadStrategy = "BuyCallSpread" | "SellCallSpread" | "BuyPutSpread" | "SellPutSpread";
+export const DEFAULT_MIN_FILL_RATIO = 0.78;
 
 // ─── Type interfaces for contract responses ────────────────────────────────
 export interface OpenPositionRequest {
@@ -556,7 +557,7 @@ export async function executeSpread(params: {
   const amountIn = toUsdcRaw(amountInUsdc);
 
   const sizeRaw = toSizeRaw(params.size, asset);
-  const minFillRatio = Math.max(0.01, Math.min(1, params.minFillRatio ?? 0.95));
+  const minFillRatio = Math.max(0.01, Math.min(1, params.minFillRatio ?? DEFAULT_MIN_FILL_RATIO));
   const minSize = (sizeRaw * BigInt(Math.floor(minFillRatio * 10_000))) / 10_000n;
 
   const isCall = params.strategy.includes("Call");

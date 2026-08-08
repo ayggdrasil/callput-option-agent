@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
+  DEFAULT_MIN_FILL_RATIO,
   checkRequestStatus,
   closePosition,
   executeSpread,
@@ -29,6 +30,15 @@ function fail(message: string) {
     isError: true
   };
 }
+
+export const executeSpreadInputSchema = z.object({
+  strategy: z.enum(["BuyCallSpread", "SellCallSpread", "BuyPutSpread", "SellPutSpread"]),
+  from_address: z.string(),
+  long_leg_id: z.string(),
+  short_leg_id: z.string(),
+  size: z.number().positive(),
+  min_fill_ratio: z.number().min(0.01).max(1).default(DEFAULT_MIN_FILL_RATIO)
+});
 
 export function createCallputMcpServer() {
 const server = new McpServer({
@@ -84,14 +94,7 @@ server.registerTool(
   {
     description:
       "Build an unsigned spread transaction for crypto or supported stock/ETF options. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. Also returns usdc_approval: if sufficient=false, sign and send approve_tx first. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
-    inputSchema: z.object({
-      strategy: z.enum(["BuyCallSpread", "SellCallSpread", "BuyPutSpread", "SellPutSpread"]),
-      from_address: z.string(),
-      long_leg_id: z.string(),
-      short_leg_id: z.string(),
-      size: z.number().positive(),
-      min_fill_ratio: z.number().min(0.01).max(1).optional()
-    })
+    inputSchema: executeSpreadInputSchema
   },
   async (args) => {
     try {

@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { z } from "zod";
 import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import {
+  DEFAULT_MIN_FILL_RATIO,
   checkRequestStatus,
   executeSpread,
   getMarketSnapshot,
@@ -28,7 +29,7 @@ const prepareSchema = z.object({
   long_leg_id: z.string(),
   short_leg_id: z.string(),
   size: z.number().positive(),
-  min_fill_ratio: z.number().min(0.01).max(1).optional()
+  min_fill_ratio: z.number().min(0.01).max(1).default(DEFAULT_MIN_FILL_RATIO)
 }).strict();
 
 const reconcileSchema = z.object({
@@ -113,6 +114,12 @@ export function validatePreparedTransaction(prepared: Prepared): void {
   if (!ethers.isAddress(tx.from)) throw new Error("Prepared transaction has an invalid sender");
   const parsed = new ethers.Interface(POSITION_MANAGER_ABI).parseTransaction({ data: tx.data, value: tx.value });
   if (parsed?.name !== "createOpenPosition") throw new Error("Prepared transaction has unexpected calldata");
+  if (BigInt(parsed.args[5]) !== BigInt(prepared.quote.min_size_raw)) {
+    throw new Error("Prepared transaction minimum size does not match its quote");
+  }
+  if (BigInt(parsed.args[7]) !== BigInt(prepared.quote.amount_in_raw)) {
+    throw new Error("Prepared transaction amount in does not match its quote");
+  }
 
   const approval = prepared.usdc_approval.approve_tx;
   if (approval) {
