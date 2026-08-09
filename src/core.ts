@@ -378,8 +378,9 @@ export async function getMarketSnapshot(
           if (mark < 0) marketSchemaError(`${rowPath}.markPrice must be >= 0`);
           const rpBuy = requireFiniteNumber(row.riskPremiumRateForBuy, `${rowPath}.riskPremiumRateForBuy`);
           const rpSell = requireFiniteNumber(row.riskPremiumRateForSell, `${rowPath}.riskPremiumRateForSell`);
-          if (rpBuy < 0 || rpBuy > 1 || rpSell < 0 || rpSell > 1) {
-            marketSchemaError(`${rowPath} risk premium rates must be between 0 and 1`);
+          if (rpBuy < 0) marketSchemaError(`${rowPath} risk premium rate for buy must be >= 0`);
+          if (rpSell < 0 || rpSell > 1) {
+            marketSchemaError(`${rowPath} risk premium rate for sell must be between 0 and 1`);
           }
           const strike = requireFiniteNumber(row.strikePrice, `${rowPath}.strikePrice`, { positive: true, integer: true });
           if (typeof row.optionId !== "string" || !/^(0x[0-9a-fA-F]+|[1-9]\d*)$/.test(row.optionId)) {
@@ -430,14 +431,22 @@ export async function getMarketSnapshot(
 
           const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIv ?? row.markIV ?? row.sigma ?? 0);
           const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
+          const bid = mark * (1 - rpSell);
+          const ask = mark * (1 + rpBuy);
+          if (!Number.isFinite(bid) || bid < 0) {
+            marketSchemaError(`${rowPath} derived bid must be finite and >= 0`);
+          }
+          if (!Number.isFinite(ask) || ask < 0) {
+            marketSchemaError(`${rowPath} derived ask must be finite and >= 0`);
+          }
 
           options.push({
             instrument,
             optionId,
             strikePrice: strike,
             markPrice: mark,
-            bid: mark * (1 - rpSell),
-            ask: mark * (1 + rpBuy),
+            bid,
+            ask,
             underlying: asset,
             optionType,
             expirySec,
