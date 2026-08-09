@@ -411,6 +411,15 @@ pre {
   grid-template-columns: repeat(11, minmax(0, 1fr));
 }
 
+.availability-status {
+  margin: 0 0 12px;
+  border-left: 2px solid var(--green);
+  padding: 8px 11px;
+  color: var(--muted);
+  background: rgba(65, 231, 125, 0.05);
+  font: 500 11px/1.5 var(--font-mono);
+}
+
 .market-card,
 .flow-card,
 .contract-item,

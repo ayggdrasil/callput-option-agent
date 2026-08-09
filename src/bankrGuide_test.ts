@@ -46,7 +46,9 @@ function main() {
   assert.match(html, /Callput App[\s\S]*Bankr Chat[\s\S]*User Wallet/);
   for (const symbol of ["BTC", "ETH", "TSLA", "QQQ", "SPY", "EWY", "NVDA", "COIN", "SPCX", "MU", "SKHY"]) {
     assert.match(html, new RegExp(`>${symbol}<`), `the market section must expose ${symbol} as text`);
+    assert.match(html, new RegExp(`data-asset="${symbol}"`), `the interactive demo must offer ${symbol}`);
   }
+  assert.match(html, /id="liveMarketStatus"[^>]*role="status"/, "the guide must expose live market availability status");
   assert.match(html, /https:\/\/mcp\.callput\.app\/api\/mcp/);
   assert.match(html, /callput-lite-agent-mcp/);
   assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.4\.3\/callput/);
@@ -67,7 +69,8 @@ function main() {
   assert.match(demoScript, /demo_risk_view/);
   assert.match(html, /data-event="bankr_app_open"/);
   assert.match(demoScript, /callput:analytics/);
-  assert.doesNotMatch(demoScript, /\bfetch\s*\(/, "the educational demo must not make network requests");
+  assert.match(demoScript, /fetch\("\/api\/bankr\/assets"/, "the guide must refresh tradable symbols from the public assets endpoint");
+  assert.match(demoScript, /tradable_options/, "the guide must show live tradable option counts");
   assert.doesNotMatch(demoScript, /window\.ethereum|bankr\.|privateKey|calldata/i, "the educational demo must not touch wallet or transaction APIs");
 
   const rootFrontend = readProjectFile("frontend-v1/index.html");

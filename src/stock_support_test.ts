@@ -234,10 +234,13 @@ async function main() {
   assert.match(frontendApp, /symbol: "SKHY", type: "stock", live: true/);
   assert.doesNotMatch(frontendApp, /symbol: "HYNIX"/);
   assert.doesNotMatch(frontendApp, /symbol: "SAMSUNG"/);
+  assert.match(frontendApp, /fetch\("\/api\/bankr\/assets"/, "the root console must refresh live tradability from the public assets endpoint");
+  assert.match(frontendApp, /tradable_options/, "the root console must render live tradable option counts");
 
   const frontendHtml = readProjectFile("frontend-v1/index.html");
   assert.match(frontendHtml, /TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY/);
   assert.match(frontendHtml, /<strong>11<\/strong> <span>currently tradable/);
+  assert.match(frontendHtml, /id="liveAvailabilityStatus"[^>]*role="status"/, "the root console must expose live market availability status");
 
   await getMarketSnapshot(true);
 

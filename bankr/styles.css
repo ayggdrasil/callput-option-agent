@@ -348,7 +348,7 @@ h1 {
 
 .asset-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 7px;
 }
 
@@ -618,6 +618,15 @@ h1 {
 .market-groups {
   display: grid;
   gap: 16px;
+}
+
+.availability-status {
+  margin: 0 24px 16px;
+  border-left: 2px solid var(--green);
+  padding: 8px 11px;
+  color: var(--muted);
+  background: rgba(147, 184, 120, 0.06);
+  font: 500 11px/1.5 var(--font-mono);
 }
 
 .ticker-list {

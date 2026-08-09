@@ -181,10 +181,16 @@
             </div>
             <div class="asset-tabs" role="group" aria-label="Demo asset">
               <button class="asset-tab active" type="button" data-asset="BTC" aria-pressed="true">BTC</button>
-              <button class="asset-tab" type="button" data-asset="TSLA" aria-pressed="false">TSLA</button>
-              <button class="asset-tab" type="button" data-asset="SPY" aria-pressed="false">SPY</button>
-              <button class="asset-tab" type="button" data-asset="NVDA" aria-pressed="false">NVDA</button>
               <button class="asset-tab" type="button" data-asset="ETH" aria-pressed="false">ETH</button>
+              <button class="asset-tab" type="button" data-asset="TSLA" aria-pressed="false">TSLA</button>
+              <button class="asset-tab" type="button" data-asset="QQQ" aria-pressed="false">QQQ</button>
+              <button class="asset-tab" type="button" data-asset="SPY" aria-pressed="false">SPY</button>
+              <button class="asset-tab" type="button" data-asset="EWY" aria-pressed="false">EWY</button>
+              <button class="asset-tab" type="button" data-asset="NVDA" aria-pressed="false">NVDA</button>
+              <button class="asset-tab" type="button" data-asset="COIN" aria-pressed="false">COIN</button>
+              <button class="asset-tab" type="button" data-asset="SPCX" aria-pressed="false">SPCX</button>
+              <button class="asset-tab" type="button" data-asset="MU" aria-pressed="false">MU</button>
+              <button class="asset-tab" type="button" data-asset="SKHY" aria-pressed="false">SKHY</button>
             </div>
             <div class="demo-controls">
               <label>
@@ -263,11 +269,12 @@
           <div><p class="eyebrow">Product breadth</p><h2 id="markets-title">Markets available in one interface.</h2></div>
           <p>Candidate availability depends on the live Callput feed, selected direction, expiry, and risk constraints.</p>
         </div>
+        <p id="liveMarketStatus" class="availability-status" role="status" aria-live="polite">Checking current Callput market availability…</p>
         <div class="market-layout">
           <div class="market-groups">
-            <div><span>Crypto</span><div class="ticker-list"><b>BTC</b><b>ETH</b></div></div>
-            <div><span>Stocks</span><div class="ticker-list"><b>TSLA</b><b>NVDA</b><b>COIN</b><b>SPCX</b><b>MU</b><b>SKHY</b></div></div>
-            <div><span>ETFs</span><div class="ticker-list"><b>QQQ</b><b>SPY</b><b>EWY</b></div></div>
+            <div><span>Crypto</span><div class="ticker-list"><b data-market-symbol="BTC">BTC</b><b data-market-symbol="ETH">ETH</b></div></div>
+            <div><span>Stocks</span><div class="ticker-list"><b data-market-symbol="TSLA">TSLA</b><b data-market-symbol="NVDA">NVDA</b><b data-market-symbol="COIN">COIN</b><b data-market-symbol="SPCX">SPCX</b><b data-market-symbol="MU">MU</b><b data-market-symbol="SKHY">SKHY</b></div></div>
+            <div><span>ETFs</span><div class="ticker-list"><b data-market-symbol="QQQ">QQQ</b><b data-market-symbol="SPY">SPY</b><b data-market-symbol="EWY">EWY</b></div></div>
           </div>
           <aside class="disclosure"><strong>Synthetic on-chain options</strong><p>Stock and ETF products are not broker-listed contracts, securities ownership, or shares. Candidate availability depends on the live feed.</p></aside>
         </div>

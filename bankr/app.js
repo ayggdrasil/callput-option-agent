@@ -17,6 +17,12 @@ const samples = {
     "neutral-bearish": { strategy: "SellCallSpread", strikes: "450 / 460", expiry: "12 days", fill: "80%", maxRisk: 4.9 },
     "neutral-bullish": { strategy: "SellPutSpread", strikes: "430 / 420", expiry: "12 days", fill: "80%", maxRisk: 4.72 }
   },
+  QQQ: {
+    bullish: { strategy: "BuyCallSpread", strikes: "725 / 730", expiry: "5 days", fill: "79%", maxRisk: 0.34 },
+    bearish: { strategy: "BuyPutSpread", strikes: "725 / 720", expiry: "5 days", fill: "79%", maxRisk: 0.38 },
+    "neutral-bearish": { strategy: "SellCallSpread", strikes: "730 / 735", expiry: "12 days", fill: "81%", maxRisk: 2.46 },
+    "neutral-bullish": { strategy: "SellPutSpread", strikes: "720 / 715", expiry: "12 days", fill: "81%", maxRisk: 2.39 }
+  },
   SPY: {
     bullish: { strategy: "BuyCallSpread", strikes: "650 / 655", expiry: "5 days", fill: "79%", maxRisk: 0.28 },
     bearish: { strategy: "BuyPutSpread", strikes: "650 / 645", expiry: "5 days", fill: "79%", maxRisk: 0.32 },
@@ -28,6 +34,36 @@ const samples = {
     bearish: { strategy: "BuyPutSpread", strikes: "215 / 205", expiry: "5 days", fill: "78%", maxRisk: 0.39 },
     "neutral-bearish": { strategy: "SellCallSpread", strikes: "225 / 235", expiry: "12 days", fill: "80%", maxRisk: 4.62 },
     "neutral-bullish": { strategy: "SellPutSpread", strikes: "205 / 195", expiry: "12 days", fill: "80%", maxRisk: 4.51 }
+  },
+  EWY: {
+    bullish: { strategy: "BuyCallSpread", strikes: "165 / 170", expiry: "5 days", fill: "78%", maxRisk: 0.29 },
+    bearish: { strategy: "BuyPutSpread", strikes: "165 / 160", expiry: "5 days", fill: "78%", maxRisk: 0.33 },
+    "neutral-bearish": { strategy: "SellCallSpread", strikes: "170 / 175", expiry: "12 days", fill: "80%", maxRisk: 2.31 },
+    "neutral-bullish": { strategy: "SellPutSpread", strikes: "160 / 155", expiry: "12 days", fill: "80%", maxRisk: 2.26 }
+  },
+  COIN: {
+    bullish: { strategy: "BuyCallSpread", strikes: "155 / 160", expiry: "5 days", fill: "78%", maxRisk: 0.41 },
+    bearish: { strategy: "BuyPutSpread", strikes: "155 / 150", expiry: "5 days", fill: "78%", maxRisk: 0.45 },
+    "neutral-bearish": { strategy: "SellCallSpread", strikes: "160 / 165", expiry: "12 days", fill: "80%", maxRisk: 2.58 },
+    "neutral-bullish": { strategy: "SellPutSpread", strikes: "150 / 145", expiry: "12 days", fill: "80%", maxRisk: 2.49 }
+  },
+  SPCX: {
+    bullish: { strategy: "BuyCallSpread", strikes: "135 / 140", expiry: "5 days", fill: "77%", maxRisk: 0.44 },
+    bearish: { strategy: "BuyPutSpread", strikes: "135 / 130", expiry: "5 days", fill: "77%", maxRisk: 0.48 },
+    "neutral-bearish": { strategy: "SellCallSpread", strikes: "140 / 145", expiry: "12 days", fill: "79%", maxRisk: 2.71 },
+    "neutral-bullish": { strategy: "SellPutSpread", strikes: "130 / 125", expiry: "12 days", fill: "79%", maxRisk: 2.63 }
+  },
+  MU: {
+    bullish: { strategy: "BuyCallSpread", strikes: "880 / 890", expiry: "5 days", fill: "78%", maxRisk: 0.52 },
+    bearish: { strategy: "BuyPutSpread", strikes: "880 / 870", expiry: "5 days", fill: "78%", maxRisk: 0.57 },
+    "neutral-bearish": { strategy: "SellCallSpread", strikes: "890 / 900", expiry: "12 days", fill: "80%", maxRisk: 4.82 },
+    "neutral-bullish": { strategy: "SellPutSpread", strikes: "870 / 860", expiry: "12 days", fill: "80%", maxRisk: 4.71 }
+  },
+  SKHY: {
+    bullish: { strategy: "BuyCallSpread", strikes: "140 / 145", expiry: "5 days", fill: "78%", maxRisk: 0.39 },
+    bearish: { strategy: "BuyPutSpread", strikes: "140 / 135", expiry: "5 days", fill: "78%", maxRisk: 0.43 },
+    "neutral-bearish": { strategy: "SellCallSpread", strikes: "145 / 150", expiry: "12 days", fill: "80%", maxRisk: 2.55 },
+    "neutral-bullish": { strategy: "SellPutSpread", strikes: "135 / 130", expiry: "12 days", fill: "80%", maxRisk: 2.47 }
   }
 };
 
@@ -39,6 +75,7 @@ const sizeSelect = document.getElementById("demoSize");
 const scanButton = document.getElementById("demoScan");
 const status = document.getElementById("demoStatus");
 const result = document.getElementById("demoResult");
+const liveMarketStatus = document.getElementById("liveMarketStatus");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function record(event, properties = {}) {
@@ -101,6 +138,33 @@ function scan() {
 
 assetButtons.forEach((button) => button.addEventListener("click", () => setAsset(button.dataset.asset)));
 scanButton.addEventListener("click", scan);
+
+async function refreshLiveMarkets() {
+  try {
+    const response = await fetch("/api/bankr/assets", { headers: { accept: "application/json" } });
+    if (!response.ok) throw new Error(`assets endpoint returned ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload.assets)) throw new Error("assets endpoint returned an invalid payload");
+
+    const liveAssets = payload.assets.filter((asset) => Number(asset.tradable_options) > 0);
+    for (const asset of payload.assets) {
+      const ticker = document.querySelector(`[data-market-symbol="${asset.symbol}"]`);
+      if (ticker) {
+        ticker.textContent = `${asset.symbol} · ${asset.tradable_options}`;
+        ticker.title = `${asset.tradable_options} tradable option contracts in the current feed`;
+      }
+      const demoButton = document.querySelector(`[data-asset="${asset.symbol}"]`);
+      if (demoButton) demoButton.title = `${asset.tradable_options} tradable option contracts in the current feed`;
+    }
+
+    const optionCount = liveAssets.reduce((sum, asset) => sum + Number(asset.tradable_options), 0);
+    liveMarketStatus.textContent = `${liveAssets.length} symbols tradable now · ${optionCount.toLocaleString()} live option contracts · Base 8453`;
+  } catch {
+    liveMarketStatus.textContent = "11 configured symbols shown · live availability could not be refreshed";
+  }
+}
+
+void refreshLiveMarkets();
 
 document.querySelectorAll("[data-copy-target]").forEach((button) => {
   button.addEventListener("click", async () => {
