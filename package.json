@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node build/src/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "npm run build && node build/src/config_test.js && node build/src/http_test.js && node build/src/vercelAdapter_test.js && node build/src/releaseOps_test.js && node build/src/bankrApi_test.js && node build/src/bankrApp_test.js && node --test build/src/core_safety_test.js build/src/core_abuse_test.js",
+    "test": "npm run build && node build/src/config_test.js && node build/src/http_test.js && node build/src/vercelAdapter_test.js && node build/src/releaseOps_test.js && node build/src/bankrApi_test.js && node build/src/bankrApp_test.js && node build/src/bankrGuide_test.js && node --test build/src/core_safety_test.js build/src/core_abuse_test.js",
     "verify": "npm test && node build/src/stock_support_test.js && node build/src/smoke_test.js",
     "verify:mcp": "npm run build && node build/src/mcp_smoke.js"
   },

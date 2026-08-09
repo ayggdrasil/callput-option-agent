@@ -33,6 +33,7 @@ This package is designed for:
 - First-trade prompt templates
 - Unsigned transaction flow by default; signing stays outside MCP
 - Frontend V1 guidance console (`frontend-v1/`)
+- Public Bankr conversion guide with a wallet-free deterministic demo (`bankr/`)
 
 ## Folder Contents
 - `src/` : MCP server implementation
@@ -47,6 +48,7 @@ This package is designed for:
 - `ARCHITECTURE_V1.md` : frontend vs agent runtime responsibilities
 - `FAQ.md` : operator FAQ
 - `frontend-v1/` : static responsive UI for V1 guidance
+- `bankr/` : public English Bankr guide, deterministic demo, and social preview asset
 - `bankr-app/` : Bankr manifest, frontend, scripts, install prompt, and QA
 - `api/` : Vercel Functions for remote MCP and Bankr endpoints
 
@@ -113,6 +115,7 @@ python3 -m http.server 4173
 ```
 
 Then visit `http://localhost:4173` or `http://localhost:4173/frontend-v1/`.
+The Bankr guide is available at `http://localhost:4173/bankr/`.
 
 V1 flow in UI:
 1. Direction setup
