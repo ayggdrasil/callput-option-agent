@@ -12,9 +12,11 @@
 ## Transaction-preparation gate
 
 - Use an operator-approved wallet.
-- Display wallet, asset, strategy, size, maximum USDC at risk, and native execution fee.
+- Display the synthetic/non-ownership disclosure, wallet, asset, strategy, positive size, maximum USDC at risk, and native execution fee in both ETH and wei.
 - Destination is `0x83B04701B227B045CBBAF921377137fF595a54af` on Base.
-- Approval, if needed, targets Base USDC with spender `0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2`.
+- Approval, if needed, shows Base USDC, spender `0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2`, and its exact USDC amount before confirmation.
+- Cancel the order confirmation after approving, then retry: the app must proceed to the order without requesting the same approval again.
+- Empty scans explain how to recover; invalid or zero size is rejected before preparation; status and errors are announced and errors move focus to the message.
 - Closing the Bankr modal broadcasts nothing and leaves the app usable.
 - Confirm no transaction during no-value QA.
 

@@ -3,7 +3,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { bankrExecuteSpreadInputSchema, resolveBankrMaxUsdcRiskRaw, validatePreparedTransaction } from "./bankrApi.js";
+import { bankrExecuteSpreadInputSchema, bankrExecuteSpreadMcpInputSchema, resolveBankrMaxUsdcRiskRaw, validatePreparedTransaction } from "./bankrApi.js";
+import { CALLPUT_SERVER_NAME, CALLPUT_VERSION } from "./version.js";
 import {
   checkRequestStatus,
   closePosition,
@@ -35,8 +36,8 @@ export const executeSpreadInputSchema = bankrExecuteSpreadInputSchema;
 
 export function createCallputMcpServer() {
 const server = new McpServer({
-  name: "callput-lite-agent-mcp",
-  version: "0.4.0"
+  name: CALLPUT_SERVER_NAME,
+  version: CALLPUT_VERSION
 });
 
 // ─── MCP Tool Registration (10 tools total) ──────────────────────────────────
@@ -87,19 +88,20 @@ server.registerTool(
   {
     description:
       "Build an unsigned spread transaction for crypto or supported stock/ETF options. Enforces the configured per-trade USDC risk cap (100 USDC by default) and validates all prepared calldata before returning it. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. Also returns usdc_approval: if sufficient=false, sign and send the bounded approve_tx first. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
-    inputSchema: executeSpreadInputSchema
+    inputSchema: bankrExecuteSpreadMcpInputSchema
   },
   async (args) => {
     try {
+      const input = executeSpreadInputSchema.parse(args);
       const result = await executeSpread({
-        strategy: args.strategy,
-        fromAddress: args.from_address,
-        longLegId: args.long_leg_id,
-        shortLegId: args.short_leg_id,
-        size: args.size,
-        minFillRatio: args.min_fill_ratio
+        strategy: input.strategy,
+        fromAddress: input.from_address,
+        longLegId: input.long_leg_id,
+        shortLegId: input.short_leg_id,
+        size: input.size,
+        minFillRatio: input.min_fill_ratio
       });
-      validatePreparedTransaction(result, args, resolveBankrMaxUsdcRiskRaw());
+      validatePreparedTransaction(result, input, resolveBankrMaxUsdcRiskRaw());
       return ok(result as Record<string, unknown>);
     } catch (e: any) {
       return fail(`execute_spread failed: ${e.message}`);

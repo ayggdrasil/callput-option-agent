@@ -33,7 +33,7 @@ async function main() {
   assert.equal(initialize.status, 200);
   const initialized = await initialize.json() as any;
   assert.equal(initialized.result.serverInfo.name, "callput-lite-agent-mcp");
-  assert.equal(initialized.result.serverInfo.version, "0.4.0");
+  assert.equal(initialized.result.serverInfo.version, "0.4.1");
 
   const toolList = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
     method: "POST",
@@ -46,6 +46,15 @@ async function main() {
   }));
   assert.equal(toolList.status, 200);
   const tools = ((await toolList.json()) as any).result.tools;
+  const executeSpreadSchema = tools.find((tool: any) => tool.name === "callput_execute_spread").inputSchema;
+  assert.deepEqual(
+    executeSpreadSchema.required,
+    ["strategy", "from_address", "long_leg_id", "short_leg_id", "size"],
+    "tools/list must advertise every required execute_spread argument"
+  );
+  for (const field of executeSpreadSchema.required) {
+    assert.ok(executeSpreadSchema.properties[field], `tools/list must describe execute_spread.${field}`);
+  }
   const closeRequired = tools.find((tool: any) => tool.name === "callput_close_position").inputSchema.required;
   assert.ok(closeRequired.includes("min_amount_out_raw"));
   assert.ok(closeRequired.includes("min_out_when_swap_raw"));

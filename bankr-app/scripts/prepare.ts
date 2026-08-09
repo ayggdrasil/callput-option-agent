@@ -15,13 +15,13 @@ const prepared = await http.fetch("https://mcp.callput.app/api/bankr/prepare", {
 });
 
 let approval = null;
-if (prepared.usdc_approval && !prepared.usdc_approval.sufficient) {
-  const tx = prepared.usdc_approval.approve_tx;
+const approvalTx = prepared.usdc_approval && !prepared.usdc_approval.sufficient ? prepared.usdc_approval.approve_tx : null;
+if (approvalTx) {
   approval = await bankr.tx.prepare({
     chain: "base",
-    to: tx.to,
-    data: tx.data,
-    value: tx.value,
+    to: approvalTx.to,
+    data: approvalTx.data,
+    value: approvalTx.value,
     label: `Approve bounded USDC allowance for Callput`
   });
 }
@@ -37,6 +37,7 @@ const transaction = await bankr.tx.prepare({
 
 return {
   approval,
+  approval_preview: approval ? { token:"USDC", spender:`0x${approvalTx.data.slice(34,74)}`, amount_usdc:Number(prepared.usdc_approval.required)/1e6 } : null,
   transaction,
   transaction_preview: {
     chain: "Base",

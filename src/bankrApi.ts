@@ -56,14 +56,16 @@ const scanSchema = z.object({
   max_results: z.number().int().min(1).max(5).optional()
 }).strict();
 
-export const bankrExecuteSpreadInputSchema = z.object({
+export const bankrExecuteSpreadMcpInputSchema = z.object({
   strategy: z.enum(["BuyCallSpread", "SellCallSpread", "BuyPutSpread", "SellPutSpread"]),
   from_address: addressSchema,
   long_leg_id: optionIdSchema,
   short_leg_id: optionIdSchema,
   size: sizeSchema,
   min_fill_ratio: z.number().min(0.01).max(1).default(DEFAULT_MIN_FILL_RATIO)
-}).strict().refine((value) => BigInt(value.long_leg_id) !== BigInt(value.short_leg_id), {
+}).strict();
+
+export const bankrExecuteSpreadInputSchema = bankrExecuteSpreadMcpInputSchema.refine((value) => BigInt(value.long_leg_id) !== BigInt(value.short_leg_id), {
   message: "Long and short leg option IDs must differ",
   path: ["short_leg_id"]
 });

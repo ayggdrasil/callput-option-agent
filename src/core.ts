@@ -111,7 +111,6 @@ type ParsedTokenId = {
   underlyingAssetIndex: number;
   expirySec: number;
   strikePrice: number;
-  optionType: OptionSide;
 };
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -177,12 +176,10 @@ export function parseOptionTokenId(optionId: string): ParsedTokenId {
   const underlyingAssetIndex = Number((id >> 240n) & 0xffffn);
   const expirySec = Number((id >> 200n) & 0xffffffffffn);
   const strikePrice = Number((id >> 152n) & 0xffffffffffffn);
-  const firstLegIsCall = ((id >> 146n) & 0x1n) === 1n;
   return {
     underlyingAssetIndex,
     expirySec,
-    strikePrice,
-    optionType: firstLegIsCall ? "Call" : "Put"
+    strikePrice
   };
 }
 
@@ -344,6 +341,7 @@ export async function getMarketSnapshot(
   if (!isRecord(spotIndices)) marketSchemaError("data.spotIndices must be an object");
 
   const options: MarketOption[] = [];
+  const seenOptionLegIds = new Map<string, string>();
   const spot = Object.fromEntries(
     UNDERLYING_ASSETS.map((asset) => [
       asset,
@@ -395,6 +393,14 @@ export async function getMarketSnapshot(
           if (typeof row.instrument !== "string" || !row.instrument) {
             marketSchemaError(`${rowPath}.instrument must be a non-empty string`);
           }
+          const instrument = row.instrument;
+          const expectedInstrumentSuffix = `-${optionSuffix(optionType)}`;
+          if (!instrument.toUpperCase().endsWith(expectedInstrumentSuffix)) {
+            throw new Error(
+              `MARKET_DATA_OPTION_SIDE_MISMATCH: ${rowPath}.instrument ${instrument} conflicts with ` +
+              `${optionType.toLowerCase()} bucket`
+            );
+          }
           const rowExpiry = requireFiniteNumber(row.expiry, `${rowPath}.expiry`, { positive: true, integer: true });
           if (rowExpiry !== expirySec) marketSchemaError(`${rowPath}.expiry does not match its expiry bucket`);
 
@@ -412,11 +418,21 @@ export async function getMarketSnapshot(
             );
           }
 
+          const optionLegKey = `${optionType}:${BigInt(optionId).toString()}`;
+          const duplicatePath = seenOptionLegIds.get(optionLegKey);
+          if (duplicatePath) {
+            throw new Error(
+              `MARKET_DATA_OPTION_ID_COLLISION: ${rowPath} and ${duplicatePath} reuse ` +
+              `${optionType.toLowerCase()} option ID ${optionId}`
+            );
+          }
+          seenOptionLegIds.set(optionLegKey, rowPath);
+
           const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIv ?? row.markIV ?? row.sigma ?? 0);
           const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
 
           options.push({
-            instrument: row.instrument,
+            instrument,
             optionId,
             strikePrice: strike,
             markPrice: mark,
@@ -503,14 +519,18 @@ function minSpreadValueForAsset(asset: UnderlyingAsset): number {
   return 0.01;
 }
 
-async function findOptionById(optionId: string): Promise<MarketOption | null> {
+async function findOptionById(optionId: string, optionType: OptionSide): Promise<MarketOption | null> {
   const snapshot = await getMarketSnapshot();
-  return snapshot.options.find((o) => o.optionId.toLowerCase() === optionId.toLowerCase()) ?? null;
+  const numericOptionId = BigInt(optionId);
+  return snapshot.options.find(
+    (o) => o.optionType === optionType && BigInt(o.optionId) === numericOptionId
+  ) ?? null;
 }
 
 export async function validateSpread(strategy: SpreadStrategy, longLegId: string, shortLegId: string) {
-  const long = await findOptionById(longLegId);
-  const short = await findOptionById(shortLegId);
+  const strategyOptionType: OptionSide = strategy.includes("Call") ? "Call" : "Put";
+  const long = await findOptionById(longLegId, strategyOptionType);
+  const short = await findOptionById(shortLegId, strategyOptionType);
 
   if (!long || !short) {
     throw new Error("One or both leg IDs are not found in current market data.");
@@ -533,7 +553,6 @@ export async function validateSpread(strategy: SpreadStrategy, longLegId: string
   const underlying = mapAssetIndexToUnderlying(longParsed.underlyingAssetIndex);
   if (!underlying) throw new Error("Unsupported underlying asset index.");
 
-  const strategyOptionType: OptionSide = strategy.includes("Call") ? "Call" : "Put";
   if (long.optionType !== strategyOptionType || short.optionType !== strategyOptionType) {
     throw new Error(`Both legs must be ${strategyOptionType} options for ${strategy}.`);
   }

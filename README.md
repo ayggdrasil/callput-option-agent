@@ -98,7 +98,7 @@ npm run verify:mcp
 
 ## Connect OpenClaw / Bankr
 1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
-2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.0/callput`.
+2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.1/callput`.
 3. Bankr MCP: add `https://mcp.callput.app/api/mcp` as HTTP with authentication `None`.
 4. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
 5. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
@@ -137,6 +137,7 @@ V1 note:
 6. Close pre-expiry, settle post-expiry.
 7. Close and settle require positive user-approved raw-unit minimum output floors; zero defaults are rejected.
 8. Public open-position builders enforce the configured per-trade USDC risk cap and validate every calldata field before returning it.
+9. A base option ID identifies asset, expiry, and strike; call/put is a separate contract flag. Treat `(option side, option ID)` as the leg identity, and keep scan-provided IDs paired with their strategy.
 
 ## Notes
 - The server fetches live crypto and stock/ETF option data from the Callput S3 feed.

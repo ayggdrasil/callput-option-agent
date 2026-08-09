@@ -113,6 +113,8 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 }
 ```
 
+Use the IDs with the `strategy` returned by the same scan candidate. Callput's base option ID encodes asset, expiry, and strike, while call/put is sent as a separate contract flag. A call and put at the same strike and expiry can therefore share an ID; do not infer side from the ID alone or move an ID between strategy sides.
+
 **Response**:
 ```javascript
 {
@@ -395,6 +397,8 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 ### 10. callput_get_option_chains
 
 **Purpose**: Fetch raw tradable options from Callput market feed. Prefer `callput_scan_spreads` for normal use; use this only for raw chain inspection or IV analysis.
+
+**Identity note**: Raw option IDs are not globally side-specific. The same ID can appear in both the call and put arrays with different quotes because the contract carries call/put separately. Treat the containing `option_type` plus `id` as the leg identity. The server rejects conflicting side metadata and duplicate IDs within one side.
 
 **Schema**:
 ```javascript

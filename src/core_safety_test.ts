@@ -3,7 +3,7 @@ import http from "node:http";
 import test from "node:test";
 import { ethers } from "ethers";
 import { CONFIG, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
-import { closePosition, getMarketSnapshot, settlePosition } from "./core.js";
+import { closePosition, getMarketSnapshot, parseOptionTokenId, settlePosition, validateSpread } from "./core.js";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
 const NOW_SEC = Math.floor(Date.now() / 1000);
@@ -138,6 +138,94 @@ test("trade core safety gates", async (t) => {
     payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0].optionId = optionId(1, NOW_SEC + 86_400, 100);
     globalThis.fetch = async () => new Response(JSON.stringify(payload));
     await assert.rejects(() => getMarketSnapshot(true), /MARKET_DATA_TOKEN_MISMATCH/);
+  });
+
+  await t.test("does not infer call or put from a base option ID", () => {
+    const expirySec = NOW_SEC + 86_400;
+    assert.deepEqual(parseOptionTokenId(optionId(3, expirySec, 100)), {
+      underlyingAssetIndex: 3,
+      expirySec,
+      strikePrice: 100
+    });
+  });
+
+  await t.test("resolves shared option IDs using the strategy option side", async () => {
+    const payload: any = marketPayload();
+    const expirySec = NOW_SEC + 86_400;
+    const bucket = payload.data.market.TSLA.options[String(expirySec)];
+    const lowerId = optionId(3, expirySec, 100);
+    const higherId = optionId(3, expirySec, 110);
+    bucket.call = [
+      { ...bucket.call[0], optionId: lowerId, strikePrice: 100, markPrice: 10, instrument: "TSLA-TEST-100-C" },
+      { ...bucket.call[0], optionId: higherId, strikePrice: 110, markPrice: 5, instrument: "TSLA-TEST-110-C" }
+    ];
+    bucket.put = [
+      { ...bucket.call[0], optionId: lowerId, strikePrice: 100, markPrice: 4, instrument: "TSLA-TEST-100-P" },
+      { ...bucket.call[0], optionId: higherId, strikePrice: 110, markPrice: 9, instrument: "TSLA-TEST-110-P" }
+    ];
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+    await getMarketSnapshot(true);
+
+    const call = await validateSpread("BuyCallSpread", lowerId, higherId);
+    assert.equal(call.details.long_leg.mark_price, 10);
+    assert.equal(call.details.short_leg.mark_price, 5);
+
+    const put = await validateSpread("BuyPutSpread", higherId, lowerId);
+    assert.equal(put.details.option_type, "Put");
+    assert.equal(put.details.long_leg.mark_price, 9);
+    assert.equal(put.details.short_leg.mark_price, 4);
+  });
+
+  await t.test("resolves equivalent decimal and hex option IDs", async () => {
+    const payload: any = marketPayload();
+    const expirySec = NOW_SEC + 86_400;
+    const bucket = payload.data.market.TSLA.options[String(expirySec)];
+    const lowerId = optionId(3, expirySec, 100);
+    const higherId = optionId(3, expirySec, 110);
+    bucket.call.push({
+      ...bucket.call[0],
+      optionId: higherId,
+      strikePrice: 110,
+      markPrice: 5,
+      instrument: "TSLA-TEST-110-C"
+    });
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+    await getMarketSnapshot(true);
+
+    const result = await validateSpread(
+      "BuyCallSpread",
+      BigInt(lowerId).toString(),
+      BigInt(higherId).toString()
+    );
+    assert.equal(result.details.long_leg.option_id, lowerId);
+    assert.equal(result.details.short_leg.option_id, higherId);
+  });
+
+  await t.test("rejects duplicate option IDs within the same side", async () => {
+    const payload: any = marketPayload();
+    const bucket = payload.data.market.TSLA.options[String(NOW_SEC + 86_400)];
+    bucket.call.push({
+      ...bucket.call[0],
+      instrument: "TSLA-ALT-100-C",
+      markPrice: 11
+    });
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+
+    await assert.rejects(
+      () => getMarketSnapshot(true),
+      /MARKET_DATA_OPTION_ID_COLLISION:.*call/i
+    );
+  });
+
+  await t.test("rejects an instrument side that conflicts with its feed bucket", async () => {
+    const payload: any = marketPayload();
+    payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0].instrument = "TSLA-TEST-100-P";
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+
+    await assert.rejects(
+      () => getMarketSnapshot(true),
+      /MARKET_DATA_OPTION_SIDE_MISMATCH:.*call/i
+    );
   });
 
   await t.test("close rejects an asset mismatch", async () => {
