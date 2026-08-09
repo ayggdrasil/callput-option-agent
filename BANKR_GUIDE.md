@@ -48,9 +48,9 @@ Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and
 2. Scan ranked, risk-defined spreads.
 3. Select one candidate and enter size.
 4. Review wallet, Base network, strategy, and maximum USDC at risk.
-5. If needed, confirm a bounded USDC approval.
-6. Confirm the Callput order in Bankr.
-7. Reconcile the confirmed transaction by transaction hash or the exact prepared intent fingerprint to read its request key and keeper status from Base.
+5. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then choose the spread again to refresh the allowance.
+6. Open the Callput order review in Bankr chat and explicitly send and approve it there.
+7. Return to the app and reconcile the exact prepared intent fingerprint to read its request key and keeper status from Base.
 
 For buy spreads, `maximum_usdc_at_risk` is the debit. For sell spreads it is the collateral amount passed into Callput. The native `execution_fee_wei` is shown separately.
 
@@ -62,6 +62,7 @@ For buy spreads, `maximum_usdc_at_risk` is the debit. For sell spreads it is the
 - Market data older than five minutes is rejected.
 - Close/settle requests require explicit positive minimum-output floors and verified position ownership/lifecycle.
 - The app cannot auto-confirm or broadcast.
+- `bankr.confirmTransaction()` is a chat handoff with a `Promise<void>` contract; the app never treats its return as a signature, broadcast, receipt, or transaction hash.
 - Stock/ETF products are synthetic on-chain options, not broker-listed contracts or stock ownership.
 
 ## Telemetry
@@ -74,9 +75,9 @@ Only allowlisted funnel events are accepted. Wallets are hashed before analytics
 | --- | --- |
 | MCP initialization fails | Confirm `/api/mcp`, Streamable HTTP, and support for JSON plus event-stream responses. |
 | No spread candidates | Try another live symbol/bias; availability comes from the market feed. |
-| Approval is shown | Confirm the bounded approval first, then the order. |
+| Approval is shown | Open the bounded approval in Bankr chat, send and approve it there, then return and choose the spread again before opening the order review. |
 | Keeper status is pending | Wait for Base confirmation and refresh. |
-| Confirmed transaction is temporarily `not_found` | Retry after the RPC provider indexes the canonical receipt/log; use the transaction hash when available. Fingerprint reconciliation scans 1,800 recent Base blocks by default and is capped by `CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS`. |
+| Keeper check is `not_found` | A chat handoff alone proves nothing was submitted. If you did send the order in Bankr, retry after the RPC provider indexes the canonical receipt/log. Fingerprint reconciliation scans 1,800 recent Base blocks by default and is capped by `CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS`. |
 
 ## Rollback
 

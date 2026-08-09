@@ -46,14 +46,14 @@
   <section id="review" class="panel hidden">
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
-    <div class="warning">This prepares an on-chain options trade. Nothing is broadcast until Bankr shows its confirmation modal and you approve it.</div>
-    <button id="confirm" class="primary">Open wallet confirmation</button>
+    <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there.</div>
+    <button id="confirm" class="primary">Open Bankr transaction review</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 
   <section class="panel">
     <h2>3. Check keeper execution</h2>
-    <button id="reconcile" disabled>Check my confirmed Callput transaction</button>
+    <button id="reconcile" disabled>Check my Callput request after sending it in Bankr</button>
     <div id="reconcileStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 </main>
@@ -62,9 +62,7 @@
   let selected = null;
   let prepared = null;
   let preparationVersion = 0;
-  let lastConfirmedTxHash = null;
-  let lastConfirmedIntentFingerprint = null;
-  let approvalConfirmedIntentFingerprint = null;
+  let lastHandoffIntentFingerprint = null;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
@@ -81,11 +79,6 @@
     $("confirm").disabled=true;
     $("review").classList.add("hidden");
   }
-  function transactionHash(result) {
-    if (typeof result === "string") return result;
-    return result?.tx_hash ?? result?.txHash ?? result?.transactionHash ?? result?.hash ?? result?.transaction?.hash ?? null;
-  }
-
   async function scan() {
     if (!(await requireSignIn())) return;
     setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; selected=null; invalidatePrepared();
@@ -137,32 +130,38 @@
     const confirmationVersion=preparationVersion;
     if (!confirmationIntent || !(await requireSignIn())) return;
     if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
+    const handoffKind=confirmationIntent.approval ? "approval" : "order";
     $("confirm").disabled=true;
     try {
-      if (confirmationIntent.approval && approvalConfirmedIntentFingerprint !== confirmationIntent.intent_fingerprint) {
-        setStatus("tradeStatus","Confirm the bounded USDC approval in Bankr…");
+      if (confirmationIntent.approval) {
+        setStatus("tradeStatus","Opening the bounded USDC approval in Bankr chat…");
         await bankr.confirmTransaction(confirmationIntent.approval);
-        if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
-        approvalConfirmedIntentFingerprint=confirmationIntent.intent_fingerprint;
+        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return and choose the spread again to refresh the allowance.");
+        $("confirm").disabled=false;
+        return;
       }
-      setStatus("tradeStatus","Confirm the Callput order in Bankr…");
-      const confirmation=await bankr.confirmTransaction(confirmationIntent.transaction);
-      const txHash=transactionHash(confirmation);
-      lastConfirmedTxHash=/^0x[0-9a-f]{64}$/i.test(txHash || "") ? txHash : null;
-      lastConfirmedIntentFingerprint=confirmationIntent.intent_fingerprint;
-      await bankr.scripts.run("track", { event:"wallet_confirmed", intent_fingerprint:confirmationIntent.intent_fingerprint, asset:confirmationIntent.risk_preview.asset, strategy:confirmationIntent.risk_preview.strategy });
-      const confirmationReference=lastConfirmedTxHash ? `${lastConfirmedTxHash.slice(0,10)}…${lastConfirmedTxHash.slice(-8)}` : `review ${lastConfirmedIntentFingerprint.slice(0,12)}…`;
-      setStatus("tradeStatus",`Transaction submitted. Check this exact ${confirmationReference} after it is mined.`,"ok");
-    } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); $("confirm").disabled=false; }
+      setStatus("tradeStatus","Opening the Callput order in Bankr chat…");
+      await bankr.confirmTransaction(confirmationIntent.transaction);
+      lastHandoffIntentFingerprint=confirmationIntent.intent_fingerprint;
+      setStatus("tradeStatus","Order review opened in Bankr chat. Nothing has been submitted by this app. Review and send it there, then use the keeper check below.","ok");
+      $("confirm").disabled=false;
+    } catch(error) {
+      const message=error.message || String(error);
+      setStatus("tradeStatus",`Bankr ${handoffKind} handoff did not complete: ${message}. Nothing was submitted by this app. Try opening the ${handoffKind} review again.`,"error");
+      $("confirm").disabled=false;
+    }
   }
 
   async function reconcile() {
     if (!(await requireSignIn())) return;
-    if (!lastConfirmedIntentFingerprint) { setStatus("reconcileStatus","Confirm a Callput order in this session first. This check only reconciles the exact confirmed transaction.","error"); return; }
-    const reconcileArgs=lastConfirmedTxHash ? { tx_hash:lastConfirmedTxHash } : { intent_fingerprint:lastConfirmedIntentFingerprint };
-    const reconciliationReference=lastConfirmedTxHash ? `${lastConfirmedTxHash.slice(0,10)}…${lastConfirmedTxHash.slice(-8)}` : `review ${lastConfirmedIntentFingerprint.slice(0,12)}…`;
-    setStatus("reconcileStatus",`Reading the Callput request created by ${reconciliationReference} on Base…`);
-    try { const result=await bankr.scripts.run("reconcile",reconcileArgs); setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · ${result.request_key || "not indexed yet"}`, result.status === "executed" ? "ok" : ""); }
+    if (!lastHandoffIntentFingerprint) { setStatus("reconcileStatus","Open a Callput order review in this session first. This check only reconciles that exact reviewed intent.","error"); return; }
+    const reconcileArgs={ intent_fingerprint:lastHandoffIntentFingerprint };
+    setStatus("reconcileStatus","Checking whether this reviewed intent was submitted on Base…");
+    try {
+      const result=await bankr.scripts.run("reconcile",reconcileArgs);
+      if (result.status === "not_found") { setStatus("reconcileStatus","No matching on-chain Callput request was found. Opening the Bankr chat handoff did not prove submission."); return; }
+      setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · request ${result.request_key}`, result.status === "executed" ? "ok" : "");
+    }
     catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
   }
 

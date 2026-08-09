@@ -29,12 +29,10 @@ function main() {
   assert.match(html, /reviewField\("Approval token",prepared\.approval_preview\.token\)/, "approval token must be reviewed before confirmation");
   assert.match(html, /reviewField\("Approval spender",prepared\.approval_preview\.spender\)/, "approval spender must be reviewed before confirmation");
   assert.match(html, /reviewField\("Approval amount",`\$\{money\(prepared\.approval_preview\.amount_usdc\)\} USDC`\)/, "approval amount must be reviewed before confirmation");
-  assert.match(html, /let approvalConfirmedIntentFingerprint = null;/, "successful approvals must be remembered for an intent");
-  assert.match(html, /if \(confirmationIntent\.approval && approvalConfirmedIntentFingerprint !== confirmationIntent\.intent_fingerprint\)/, "order retry must skip an already-confirmed approval");
-  assert.match(html, /approvalConfirmedIntentFingerprint=confirmationIntent\.intent_fingerprint;/, "approval state must be recorded only after confirmation");
+  assert.doesNotMatch(html, /approvalConfirmedIntentFingerprint/, "the void SDK handoff must not be treated as a confirmed approval");
+  assert.match(html, /await bankr\.confirmTransaction\(confirmationIntent\.approval\);[\s\S]*?Approval review opened in Bankr chat\.[\s\S]*?return;/, "an approval handoff must stop before opening the order handoff");
   assert.match(html, /bankr\.confirmTransaction\(confirmationIntent\.transaction\)/, "the order confirmation must use the reviewed intent snapshot");
   assert.doesNotMatch(html, /bankr\.confirmTransaction\(prepared\.transaction\)/, "the mutable prepared state must not be confirmed");
-  assert.match(html, /await bankr\.confirmTransaction\(confirmationIntent\.approval\);\s+if \(confirmationVersion !== preparationVersion \|\| confirmationIntent !== prepared\)/, "approval completion must revalidate the reviewed intent before opening the order confirmation");
   assert.match(html, /let preparationVersion = 0;/, "preparation must use an intent version");
   assert.match(html, /function invalidatePrepared\(\)/, "input changes must invalidate a prepared confirmation");
   assert.match(html, /const currentPreparationVersion=\+\+preparationVersion;/, "each prepare request must bind its version");
@@ -43,13 +41,16 @@ function main() {
   for (const label of ["Asset", "Size", "Expiry", "Strikes", "Destination", "Chain", "Wallet", "Maximum at risk", "Network fee", "Intent fingerprint"]) {
     assert.match(html, new RegExp(`reviewField\\("${label}"`), `review must display ${label}`);
   }
-  assert.match(html, /function transactionHash\(result\)/, "confirmation result must yield a transaction hash");
-  assert.match(html, /const txHash=transactionHash\(confirmation\);/);
-  assert.match(html, /let lastConfirmedIntentFingerprint = null;/, "the prepared fingerprint must survive a void confirmation result");
-  assert.match(html, /lastConfirmedIntentFingerprint=confirmationIntent\.intent_fingerprint;/);
-  assert.match(html, /lastConfirmedTxHash=\/\^0x\[0-9a-f\]\{64\}\$\/i\.test\(txHash \|\| ""\) \? txHash : null;/, "a confirmation hash is optional");
-  assert.doesNotMatch(html, /did not return a usable transaction hash/, "void confirmation results must still succeed");
-  assert.match(html, /const reconcileArgs=lastConfirmedTxHash \? \{ tx_hash:lastConfirmedTxHash \} : \{ intent_fingerprint:lastConfirmedIntentFingerprint \};/, "reconciliation must use the hash when available or the prepared fingerprint otherwise");
+  assert.doesNotMatch(html, /Transaction submitted\./, "opening Bankr chat must never be described as transaction submission");
+  assert.doesNotMatch(html, /wallet_confirmed/, "opening Bankr chat must never emit a wallet-confirmed event");
+  assert.match(html, /let lastHandoffIntentFingerprint = null;/, "the prepared fingerprint must be retained only as a handoff reference");
+  assert.match(html, /lastHandoffIntentFingerprint=confirmationIntent\.intent_fingerprint;/);
+  assert.match(html, /Order review opened in Bankr chat\. Nothing has been submitted by this app\./, "the app must accurately describe the SDK handoff boundary");
+  assert.match(html, /Nothing was submitted by this app\. Try opening the \$\{handoffKind\} review again\./, "failed or cancelled handoffs must give accurate recovery guidance");
+  assert.match(html, /const reconcileArgs=\{ intent_fingerprint:lastHandoffIntentFingerprint \};/, "reconciliation after handoff must remain scoped to the reviewed fingerprint");
+  assert.match(html, /Checking whether this reviewed intent was submitted on Base/, "reconciliation loading copy must not imply that a handoff created a request");
+  assert.match(html, /No matching on-chain Callput request was found\. Opening the Bankr chat handoff did not prove submission\./, "not-found reconciliation must explicitly preserve the handoff boundary");
+  assert.doesNotMatch(html, /Reading the Callput request created by/, "reconciliation must not claim an unsent handoff created a request");
   assert.match(html, /bankr\.scripts\.run\("reconcile",reconcileArgs\)/, "reconciliation must be explicitly scoped");
   assert.doesNotMatch(html, /bankr\.scripts\.run\("reconcile",\{\}\)/, "a trade must not reconcile against an arbitrary latest request");
   assert.match(html, /maximum_usdc_at_risk/);
@@ -79,7 +80,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.4\.2\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.4\.3\/bankr-app/);
   assert.match(installPrompt, /Run only `assets` and `scan`/);
   assert.match(installPrompt, /Do not run `prepare` or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

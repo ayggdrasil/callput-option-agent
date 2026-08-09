@@ -15,9 +15,10 @@
 - Display the synthetic/non-ownership disclosure, wallet, asset, strategy, positive size, maximum USDC at risk, and native execution fee in both ETH and wei.
 - Destination is `0x83B04701B227B045CBBAF921377137fF595a54af` on Base.
 - Approval, if needed, shows Base USDC, spender `0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2`, and its exact USDC amount before confirmation.
-- Cancel the order confirmation after approving, then retry: the app must proceed to the order without requesting the same approval again.
+- When approval is needed, `Open Bankr transaction review` must open only the approval handoff. Send and approve it in Bankr, then choose the spread again so the refreshed allowance can remove the approval step before opening the order handoff.
 - Empty scans explain how to recover; invalid or zero size is rejected before preparation; status and errors are announced and errors move focus to the message.
-- Closing the Bankr modal broadcasts nothing and leaves the app usable.
+- Opening or closing the Bankr chat handoff broadcasts nothing and leaves the app usable. The app must say that nothing was submitted and must never emit `wallet_confirmed` from `confirmTransaction()`, whose return value only acknowledges the handoff.
+- Open and close an order handoff without sending it, then run the keeper check. Loading and not-found messages must not imply confirmation, submission, request creation, or eventual indexing.
 - Confirm no transaction during no-value QA.
 
 ## Live canary gate
