@@ -52,6 +52,21 @@ function main() {
   assert.match(html, /https:\/\/mcp\.callput\.app\/api\/mcp/);
   assert.match(html, /callput-lite-agent-mcp/);
   assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.4\.3\/callput/);
+  for (const heading of [
+    "Getting started in Bankr",
+    "Markets, strategies, and funding",
+    "Review, approval, and execution",
+    "Safety and product boundaries",
+    "Failures and recovery",
+    "Bankr agents, MCP, and social surfaces"
+  ]) assert.match(html, new RegExp(heading));
+  for (const phrase of [
+    "Bankr Club or Max Mode",
+    "Base mainnet, chain ID <code>8453</code>",
+    "simulation revert",
+    "@bankrbot",
+    "does not automatically install"
+  ]) assert.match(html, new RegExp(phrase, "i"));
   for (const schemaType of ["WebPage", "SoftwareApplication", "HowTo", "FAQPage"]) {
     assert.match(html, new RegExp(`"@type": "${schemaType}"`), `JSON-LD must include ${schemaType}`);
   }
