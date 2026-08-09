@@ -1,12 +1,12 @@
 # Callput × Bankr Guide Page Design
 
-Date: 2026-08-09  
-Status: Approved design; implementation not started  
-Canonical route: `https://mcp.callput.app/bankr`
+Date: 2026-08-09
+Status: Approved visual design; bilingual revision pending final user review
+Canonical routes: `https://mcp.callput.app/bankr` and `https://mcp.callput.app/bankr/ko`
 
 ## 1. Summary
 
-Create a public, English-only Bankr onboarding page at `/bankr` that visually belongs to the existing `mcp.callput.app` operator-console site while prioritizing ordinary Bankr traders over developers.
+Create public English and Korean Bankr onboarding pages at `/bankr` and `/bankr/ko` that visually belong to the existing `mcp.callput.app` operator-console site while prioritizing ordinary Bankr traders over developers.
 
 The page has one primary conversion goal: send a visitor to the public Callput Bankr App through the `Open Callput in Bankr` CTA. It explains the product, demonstrates a bounded sample trade, makes the signing boundary explicit, and places MCP installation in a secondary section below the user onboarding flow.
 
@@ -16,11 +16,11 @@ The page is a static guide and interactive simulation. It never connects a walle
 
 - Primary audience: ordinary Bankr traders.
 - Secondary audience: Bankr agent operators and builders.
-- Language: English only.
+- Languages: English at `/bankr`; complete Korean translation at `/bankr/ko`.
 - Primary KPI: click on `Open Callput in Bankr`.
 - Hero demonstration: interactive, deterministic, and clearly labeled as a simulation.
 - Visual direction: Conversion Console.
-- Product route: `/bankr`, with a canonical URL ending in `/bankr`.
+- Product routes: English `/bankr`; Korean `/bankr/ko`; each route has its own canonical URL and reciprocal `hreflang` links.
 - Scope boundary: static guide assets, Vercel routing, sitemap metadata, and one `Bankr` link in the existing root navigation. No changes to MCP tools, Bankr APIs, on-chain contracts, or Bankr App transaction logic.
 
 ## 3. Goals
@@ -40,7 +40,8 @@ The page is a static guide and interactive simulation. It never connects a walle
 - No transaction preparation, calldata, approval request, signing, or broadcast.
 - No account-specific state.
 - No second trade UI competing with the public Bankr App.
-- No localization in the first release.
+- No languages beyond English and Korean in the first release.
+- No JavaScript-only language toggle that hides one language in the same document.
 - No redesign of the existing root page. Add one `Bankr` link to its top navigation so the guide is discoverable.
 
 ## 5. Positioning and Content Principles
@@ -76,6 +77,60 @@ Use these terms consistently in visible copy, metadata, structured data, tests, 
 - Network: `Base mainnet (8453)`
 - Skill URL: `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.3/callput`
 - Bankr App URL: `https://bankr.bot/apps/callput-options`
+
+### 5.4 Korean visible-copy contract
+
+The Korean page is a complete translation, not a shortened summary. Preserve product names, protocol identifiers, symbols, URLs, and code in their canonical English form.
+
+Required Korean Hero copy:
+
+- Eyebrow: `Bankr를 위해 설계 · Base · 24/7`
+- H1: `Bankr에서 바로 시작하는 손실 한정 옵션.`
+- Supporting text: `주식·ETF·암호화폐 기반 합성 옵션 스프레드를 탐색하세요. 지갑에 거래가 전달되기 전에 최대 손실을 확인하고, Bankr 채팅에서 직접 검토·승인할 수 있습니다.`
+- Primary CTA: `Bankr에서 Callput 열기 ↗`
+- Secondary CTA: `30초 데모 체험하기 ↓`
+
+Required Korean trust statements:
+
+- `개인키 미수집` — `Callput은 거래를 준비하고, 서명은 사용자의 Bankr 지갑에서만 이루어집니다.`
+- `자동 제출 없음` — `Bankr 채팅에서 사용자가 직접 전송하고 승인해야 합니다.`
+- `합성 온체인 상품` — `증권사 상장 옵션, 주식 또는 증권 소유권이 아닙니다.`
+
+Required Korean quickstart labels:
+
+1. `탐색` — `자산, 시장 전망과 수량을 선택하면 Callput이 유효한 스프레드 후보를 정렬합니다.`
+2. `검토` — `행사가, 만기, 최소 체결 비율, 네트워크 수수료와 최대 USDC 위험을 확인합니다.`
+3. `승인` — `Bankr 채팅에서 정확한 거래 내용을 열고 사용자가 직접 전송·승인합니다.`
+
+Required Korean market disclosure:
+
+> 합성 온체인 옵션입니다. 주식·ETF 상품은 증권사 상장 계약, 증권 소유권 또는 주식이 아닙니다. 후보 제공 여부는 실시간 피드 상황에 따라 달라집니다.
+
+Required Korean signing-boundary labels:
+
+- `Callput 앱` — `시장을 탐색하고, 스프레드 구조를 검증하며, 정확한 Base 거래 데이터를 준비합니다.`
+- `Bankr 채팅` — `거래 내용을 표시하고 사용자의 명시적 행동을 기다립니다.`
+- `사용자 지갑` — `사용자가 전송하고 승인한 뒤에만 서명·브로드캐스트합니다.`
+
+Required Korean agent-section heading:
+
+> Bankr 에이전트에 Callput 도구를 연결하세요.
+
+MCP configuration and the read-only prompt remain in English code blocks so they can be copied without translation errors. Add a Korean explanation above each block.
+
+Required Korean FAQ questions:
+
+1. `Bankr 거래 검토 화면을 열면 거래가 제출되나요?`
+2. `어떤 자산이 필요한가요?`
+3. `Callput이 개인키를 받거나 저장하나요?`
+4. `증권사에 상장된 주식·ETF 옵션인가요?`
+5. `스프레드 후보가 나타나지 않을 수 있는 이유는 무엇인가요?`
+6. `Bankr 에이전트는 Callput에 어떻게 연결하나요?`
+
+Required Korean final CTA:
+
+- Heading: `첫 스프레드를 탐색할 준비가 되었나요?`
+- Button: `Bankr에서 Callput 열기 ↗`
 
 ## 6. Visual System
 
@@ -124,6 +179,7 @@ Left:
 Right:
 
 - Live public-app status label
+- Language switch: `EN` on the English page and `한국어` on the Korean page; expose both links with explicit `hreflang` attributes.
 - `How it works`
 - `Markets`
 - `Safety`
@@ -285,10 +341,13 @@ Values are examples, not current quotes. The demo must include `Simulation · no
 
 Recommended static asset boundaries:
 
-- `bankr/index.html` — semantic content, metadata, structured data, and section composition.
+- `bankr/index.html` — English semantic content, English metadata and structured data, and section composition.
+- `bankr/ko/index.html` — complete Korean semantic content, Korean metadata and structured data, and identical section composition.
 - `bankr/styles.css` — design tokens, responsive layout, focus states, and reduced-motion rules.
 - `bankr/app.js` — deterministic demo state, copy buttons, and anonymous funnel events.
 - `bankr/og-callput-bankr.png` — dedicated 1200×630 social card.
+
+English and Korean documents share CSS, JavaScript, demo identifiers, URLs, and component order. Translation content is static HTML; JavaScript does not swap or inject page language.
 
 Component responsibilities:
 
@@ -359,11 +418,17 @@ The guide describes this flow but does not participate in it.
 
 ### 12.2 Metadata
 
-- Title: `Callput for Bankr | 24/7 Defined-Risk On-Chain Options`
-- Description: `Open Callput in Bankr to scan synthetic stock, ETF, and crypto option spreads, review maximum risk, and approve Base transactions in Bankr chat.`
-- Canonical: `https://mcp.callput.app/bankr`
+- English title: `Callput for Bankr | 24/7 Defined-Risk On-Chain Options`
+- English description: `Open Callput in Bankr to scan synthetic stock, ETF, and crypto option spreads, review maximum risk, and approve Base transactions in Bankr chat.`
+- English canonical: `https://mcp.callput.app/bankr`
+- Korean title: `Bankr에서 사용하는 Callput | 24/7 손실 한정 온체인 옵션`
+- Korean description: `Bankr에서 Callput을 열어 주식·ETF·암호화폐 기반 합성 옵션 스프레드를 탐색하고 최대 위험을 확인한 뒤, Bankr 채팅에서 Base 거래를 직접 승인하세요.`
+- Korean canonical: `https://mcp.callput.app/bankr/ko`
+- Both documents include reciprocal `hreflang="en"`, `hreflang="ko"`, and `hreflang="x-default"` links. `x-default` points to the English page.
+- Set `<html lang="en">` on the English page and `<html lang="ko">` on the Korean page.
 - Open Graph/Twitter title, description, canonical URL, image, and image alternative.
 - Add `/bankr` to `sitemap.xml`.
+- Add `/bankr/ko` to `sitemap.xml` with language alternates where supported by the static sitemap format.
 - Keep the page indexable in `robots.txt`.
 
 ### 12.3 Structured data
@@ -378,6 +443,8 @@ Use one JSON-LD graph containing:
 Requirements:
 
 - Visible content and JSON-LD must match in substance.
+- Set `inLanguage` to `en` on the English entities and `ko` on the Korean entities.
+- Korean JSON-LD uses Korean names and descriptions that match the Korean visible page. Canonical identifiers, URLs, product names, and code values remain unchanged.
 - The `HowTo` describes Scan → Review → Approve.
 - The application description states unsigned preparation and external signing.
 - Use the current release version rather than stale hard-coded metadata.
@@ -402,6 +469,7 @@ Allowed properties:
 - CTA source: hero, demo, sticky navigation, body, or footer.
 - Demo asset category and market-view category.
 - Viewport class.
+- Page language: `en` or `ko`.
 
 Never collect:
 
@@ -416,6 +484,7 @@ If no analytics provider is configured, the page remains fully functional and em
 ## 14. Accessibility and Responsive Behavior
 
 - Meet WCAG AA contrast for text and controls.
+- Language switch links announce their destination language; use `lang="ko"` on `한국어` and `lang="en"` on `EN` where appropriate.
 - Minimum interactive target size: 44×44 CSS px on touch layouts.
 - Use visible focus rings consistent with the gold accent.
 - Preserve a logical keyboard order from hero CTA through demo controls and page sections.
@@ -437,11 +506,12 @@ If no analytics provider is configured, the page remains fully functional and em
 
 ## 16. Routing and Deployment
 
-- Add a static route for both `/bankr` and `/bankr/` to the Bankr guide entry document.
+- Add static routes for `/bankr` and `/bankr/` to the English guide document.
+- Add static routes for `/bankr/ko` and `/bankr/ko/` to the Korean guide document.
 - Preserve all existing API, root, frontend-v1, sitemap, robots, and security-header routes.
 - Keep `X-Frame-Options: SAMEORIGIN`, HSTS, referrer policy, permissions policy, and content-type protections unchanged.
 - Validate in Vercel Preview before Production.
-- Production verification must confirm that `https://mcp.callput.app/bankr` returns HTTP 200 and the existing `/api/version` and `/api/mcp` endpoints remain unchanged.
+- Production verification must confirm that both language routes return HTTP 200 and the existing `/api/version` and `/api/mcp` endpoints remain unchanged.
 
 ## 17. Test and Verification Plan
 
@@ -450,6 +520,8 @@ If no analytics provider is configured, the page remains fully functional and em
 Assert:
 
 - Canonical URL and metadata.
+- Reciprocal English/Korean `hreflang` links and correct document `lang` attributes.
+- Complete section, CTA, safety, market, MCP, and FAQ parity between English and Korean pages.
 - Exact Bankr App, MCP, Skill, and GitHub URLs.
 - Supported symbol set.
 - Primary CTA label.
@@ -477,12 +549,12 @@ Assert:
 
 ### 17.4 Production tests
 
-- `/bankr` and `/bankr/` return 200.
+- `/bankr`, `/bankr/`, `/bankr/ko`, and `/bankr/ko/` return 200.
 - `/api/version` still returns the deployed release and commit.
 - MCP initialization and tool listing remain successful.
 - Existing security headers remain present.
 - Canonical, Open Graph, Twitter, and JSON-LD metadata validate.
-- Desktop and mobile visual regression snapshots match the approved design.
+- English and Korean desktop and mobile visual regression snapshots match the approved design without truncation or overflow.
 
 ## 18. Acceptance Criteria
 
@@ -497,5 +569,6 @@ The page is complete when:
 7. No page interaction can prepare, sign, or broadcast a transaction.
 8. The page remains useful without JavaScript.
 9. Structured data matches visible content.
-10. Accessibility, responsive, content, production-route, and existing MCP regression checks pass.
-11. The deployed route returns 200 and the primary CTA reaches the public Bankr App.
+10. The English and Korean pages contain equivalent full content, reciprocal language links, correct `lang` and `hreflang` metadata, and distinct canonical URLs.
+11. Accessibility, responsive, content, production-route, and existing MCP regression checks pass in both languages.
+12. Both deployed language routes return 200 and their primary CTAs reach the public Bankr App.
