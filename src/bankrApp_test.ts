@@ -79,7 +79,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.4\.1\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.4\.2\/bankr-app/);
   assert.match(installPrompt, /Run only `assets` and `scan`/);
   assert.match(installPrompt, /Do not run `prepare` or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

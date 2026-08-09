@@ -30,9 +30,9 @@ async function main() {
   assert.equal(packageJson.version, CALLPUT_VERSION, "package and runtime versions must match");
 
   const config = JSON.parse(await readFile(new URL("../../vercel.json", import.meta.url), "utf8"));
-  const globalHeaders = config.headers?.find((entry: { source?: string }) => entry.source === "/(.*)")?.headers;
-  assert.ok(Array.isArray(globalHeaders), "vercel.json must define global security headers");
-  const headerMap = new Map(globalHeaders.map((entry: { key: string; value: string }) => [entry.key.toLowerCase(), entry.value]));
+  const headerRoute = config.routes?.find((entry: { src?: string; continue?: boolean }) => entry.src === "/(.*)" && entry.continue === true);
+  assert.ok(headerRoute?.headers, "vercel.json must define a continuing global security-header route");
+  const headerMap = new Map(Object.entries(headerRoute.headers).map(([key, value]) => [key.toLowerCase(), String(value)]));
   assert.equal(headerMap.get("x-content-type-options"), "nosniff");
   assert.equal(headerMap.get("referrer-policy"), "strict-origin-when-cross-origin");
   assert.equal(headerMap.get("x-frame-options"), "SAMEORIGIN");
