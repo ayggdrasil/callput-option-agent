@@ -2,7 +2,7 @@
 
 Paste into a signed-in Bankr Terminal chat:
 
-> Build and install a Bankr App named **Callput — 24/7 Synthetic Options** with slug `callput-options`. Use viewer identity. It must use only `read:wallet`, `fetch:http`, and `prepare:transaction`. Copy the manifest, `index.html`, and five top-level backend scripts exactly from the immutable Callput release directory `bankr-app/`: https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.3/bankr-app . Do not add an agent invocation, secret, schedule, swap, transfer, signature, or automatic execution permission. Run only `assets` and `scan` for owner QA. Do not run `prepare` or `track` during no-value QA. Audit all permissions before publication.
+> Build and install a Bankr App named **Callput — Stock, ETF & Crypto Options** with slug `callput-options`. Use viewer identity. It must use only `read:wallet`, `fetch:http`, and `prepare:transaction`. Copy the manifest, `index.html`, and five top-level backend scripts exactly from the immutable Callput release directory `bankr-app/`: https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.3/bankr-app . Do not add an agent invocation, secret, schedule, swap, transfer, signature, or automatic execution permission. Run only `assets` and `scan` for owner QA. Do not run `prepare` or `track` during no-value QA. Audit all permissions before publication.
 
 Then ask:
 

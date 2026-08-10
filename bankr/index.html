@@ -68,7 +68,7 @@
             "applicationCategory": "FinanceApplication",
             "operatingSystem": "Web",
             "softwareVersion": "0.4.3",
-            "url": "https://bankr.bot/apps/callput-options",
+            "url": "https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options",
             "description": "A Bankr App that scans defined-risk synthetic stock, ETF, and crypto option spreads and prepares unsigned Base transactions for user-controlled review and signing."
           },
           {
@@ -88,9 +88,9 @@
             "@id": "https://mcp.callput.app/bankr#faq",
             "mainEntity": [
               { "@type": "Question", "name": "What is the Callput Bankr App?", "acceptedAnswer": { "@type": "Answer", "text": "The Callput Bankr App is a viewer-specific trade builder that scans Callput markets, shows a defined-risk spread, and prepares a Base transaction for review in Bankr chat. The app does not sign or submit the transaction by itself." } },
-              { "@type": "Question", "name": "Why does the Callput Bankr App look blank when I open its URL?", "acceptedAnswer": { "@type": "Answer", "text": "Bankr may redirect an unauthenticated visitor to its home or sign-in flow before rendering a viewer-specific app. Sign in to the intended Bankr account, then reopen https://bankr.bot/apps/callput-options." } },
+              { "@type": "Question", "name": "Why does the Callput Bankr App look blank when I open its URL?", "acceptedAnswer": { "@type": "Answer", "text": "Bankr may redirect an unauthenticated visitor to its home or sign-in flow before rendering a viewer-specific app. Sign in to the intended Bankr account, then reopen the public Callput app URL." } },
               { "@type": "Question", "name": "Do I need Bankr Club or Max Mode to use the app?", "acceptedAnswer": { "@type": "Answer", "text": "Bankr controls access to Apps and social-agent surfaces under its current account tiers. If a free account cannot open the app or receive an X reply, check the current Bankr Club or Max Mode access requirements in Bankr." } },
-              { "@type": "Question", "name": "How do I open Callput inside Bankr?", "acceptedAnswer": { "@type": "Answer", "text": "Sign in to Bankr, open https://bankr.bot/apps/callput-options, choose a supported asset, market view, and size, and run a scan. Review the exact maximum risk before opening the Bankr transaction handoff." } },
+              { "@type": "Question", "name": "How do I open Callput inside Bankr?", "acceptedAnswer": { "@type": "Answer", "text": "Sign in to Bankr, open the public Callput app URL linked on this page, choose a supported asset, market view, and size, and run a scan. The viewer-facing route avoids the owner-only Scripts panel. Review the exact maximum risk before opening the Bankr transaction handoff." } },
               { "@type": "Question", "name": "What does public mean for a Bankr App?", "acceptedAnswer": { "@type": "Answer", "text": "Public means the app can be discovered or opened by eligible Bankr users under Bankr's app access rules. It does not necessarily mean that an anonymous visitor can render the personalized viewer app without signing in." } },
               { "@type": "Question", "name": "Which assets are available in the Callput Bankr App?", "acceptedAnswer": { "@type": "Answer", "text": "The app supports BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. The page reads current contract counts from the live Callput assets endpoint because a supported symbol can temporarily have no valid candidate." } },
               { "@type": "Question", "name": "Which network does the Bankr transaction use?", "acceptedAnswer": { "@type": "Answer", "text": "Callput transactions use Base mainnet, chain ID 8453. Make sure the Bankr EVM wallet selected for the app has the required assets on Base rather than on another network." } },
@@ -137,7 +137,7 @@
         <a href="#safety">Safety</a>
         <a href="#agents">For agents</a>
         <a href="#faq">FAQ</a>
-        <a class="nav-cta" href="https://bankr.bot/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="navigation">Open Bankr ↗</a>
+        <a class="nav-cta" href="https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="navigation">Open Bankr ↗</a>
       </nav>
     </header>
 
@@ -150,7 +150,7 @@
             Scan synthetic stock, ETF, and crypto option spreads. See the <strong>maximum loss before anything reaches your wallet</strong>—then review and approve in Bankr chat.
           </p>
           <div class="hero-actions">
-            <a class="button primary" href="https://bankr.bot/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="hero">Open Callput in Bankr ↗</a>
+            <a class="button primary" href="https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="hero">Open Callput in Bankr ↗</a>
             <a class="button" href="#demo">Try the 30-second demo ↓</a>
           </div>
           <div class="trust-grid" aria-label="Callput safety boundaries">
@@ -240,7 +240,7 @@
                   <p>Open the real app to prepare an exact transaction. Nothing is signed or broadcast until you send and approve it in Bankr chat.</p>
                 </div>
               </div>
-              <a class="button primary result-cta" href="https://bankr.bot/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="demo">Open this flow in Bankr ↗</a>
+              <a class="button primary result-cta" href="https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="demo">Open this flow in Bankr ↗</a>
             </section>
             <noscript>
               <div class="noscript-example">
@@ -290,6 +290,8 @@
           <li><span>02</span><h3>Bankr Chat</h3><p>Displays transaction details and waits for explicit user action.</p></li>
           <li><span>03</span><h3>User Wallet</h3><p>Signs and broadcasts only after the user sends and approves.</p></li>
         </ol>
+        <p><strong>Canonical Base contracts:</strong> <a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a> · <a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a> · <a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a>.</p>
+        <p><strong>Public app view:</strong> the links on this page open the viewer-facing route, which does not show the owner-only Scripts panel.</p>
       </section>
 
       <section id="agents" class="panel section-block agent-section" aria-labelledby="agents-title">
@@ -320,9 +322,9 @@ Do not prepare, sign, or submit a transaction.</code></pre>
         <div class="faq-groups" aria-label="Callput for Bankr frequently asked questions">
           <section class="faq-group" aria-labelledby="faq-bankr-start"><h3 id="faq-bankr-start">Getting started in Bankr</h3><p class="faq-group-lede">Access, sign-in, and the first scan.</p><div class="faq-list">
             <details class="faq-item"><summary>What is the Callput Bankr App?</summary><p>The Callput Bankr App is a viewer-specific trade builder that scans Callput markets, shows a defined-risk spread, and prepares a Base transaction for review in Bankr chat. The app does not sign or submit the transaction by itself.</p></details>
-            <details class="faq-item"><summary>Why does the Callput Bankr App look blank when I open its URL?</summary><p>Bankr may redirect an unauthenticated visitor to its home or sign-in flow before rendering a viewer-specific app. Sign in to the intended Bankr account, then reopen https://bankr.bot/apps/callput-options.</p></details>
+            <details class="faq-item"><summary>Why does the Callput Bankr App look blank when I open its URL?</summary><p>Bankr may redirect an unauthenticated visitor to its home or sign-in flow before rendering a viewer-specific app. Sign in to the intended Bankr account, then reopen the public Callput app URL.</p></details>
             <details class="faq-item"><summary>Do I need Bankr Club or Max Mode to use the app?</summary><p>Bankr controls access to Apps and social-agent surfaces under its current account tiers. If a free account cannot open the app or receive an X reply, check the current Bankr Club or Max Mode access requirements in Bankr.</p></details>
-            <details class="faq-item"><summary>How do I open Callput inside Bankr?</summary><p>Sign in to Bankr, open https://bankr.bot/apps/callput-options, choose a supported asset, market view, and size, and run a scan. Review the exact maximum risk before opening the Bankr transaction handoff.</p></details>
+            <details class="faq-item"><summary>How do I open Callput inside Bankr?</summary><p>Sign in to Bankr, open the public Callput app URL linked on this page, choose a supported asset, market view, and size, and run a scan. The viewer-facing route avoids the owner-only Scripts panel. Review the exact maximum risk before opening the Bankr transaction handoff.</p></details>
             <details class="faq-item"><summary>What does public mean for a Bankr App?</summary><p>Public means the app can be discovered or opened by eligible Bankr users under Bankr's app access rules. It does not necessarily mean that an anonymous visitor can render the personalized viewer app without signing in.</p></details>
           </div></section>
           <section class="faq-group" aria-labelledby="faq-bankr-markets"><h3 id="faq-bankr-markets">Markets, strategies, and funding</h3><p class="faq-group-lede">Assets, direction, size, and Base funding.</p><div class="faq-list">
@@ -365,7 +367,7 @@ Do not prepare, sign, or submit a transaction.</code></pre>
 
       <section class="final-cta" aria-labelledby="cta-title">
         <div><p class="eyebrow">Public app · Base mainnet</p><h2 id="cta-title">Ready to scan your first spread?</h2><p>Open the public Callput app inside Bankr. Review before you approve.</p></div>
-        <a class="button primary" href="https://bankr.bot/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="footer">Open Callput in Bankr ↗</a>
+        <a class="button primary" href="https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options" target="_blank" rel="noopener noreferrer" data-event="bankr_app_open" data-source="footer">Open Callput in Bankr ↗</a>
       </section>
     </main>
 

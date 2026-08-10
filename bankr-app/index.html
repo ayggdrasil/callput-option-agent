@@ -19,6 +19,8 @@
     .metrics strong { color:var(--text) } .risk { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0 } .risk div { background:#0b1411; border-radius:10px; padding:10px }
     .risk span { display:block; color:var(--muted); font-size:11px } .risk strong { display:block; margin-top:3px; overflow-wrap:anywhere }
     .warning { border-left:3px solid var(--amber); padding:9px 12px; color:#ffdda2; background:#2a2111; border-radius:5px; margin:10px 0 }
+    .contract-links { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin:10px 0; color:var(--muted); font-size:12px }
+    .contract-links a,.risk a { color:var(--green); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere }
     .status { min-height:22px; margin-top:10px; color:var(--muted) } .ok { color:var(--green) } .error { color:var(--red) } .hidden { display:none }
     @media(max-width:700px){ .grid { grid-template-columns:1fr 1fr } .risk { grid-template-columns:1fr 1fr } header { flex-direction:column } }
   </style>
@@ -47,6 +49,7 @@
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
     <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
+    <div class="contract-links" aria-label="Canonical Base contracts"><strong>Verify contracts on Base:</strong><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a><a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a><a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a></div>
     <button id="confirm" class="primary">Open Bankr transaction review</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
@@ -89,6 +92,7 @@
   }
   function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[char]); }
   function reviewField(label, value) { return `<div><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`; }
+  function addressField(label, value) { const address=escapeHtml(value); return `<div><span>${label}</span><strong><a href="https://basescan.org/address/${address}" target="_blank" rel="noopener noreferrer">${address}</a></strong></div>`; }
   function invalidatePrepared() {
     preparationVersion += 1;
     prepared = null;
@@ -131,10 +135,10 @@
       $("risk").innerHTML=[
         reviewField("Asset",r.asset), reviewField("Strategy",r.strategy), reviewField("Size",size),
         reviewField("Expiry",candidate.expiry_code), reviewField("Strikes",`${candidate.long_strike} / ${candidate.short_strike}`),
-        reviewField("Destination",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
+        addressField("Callput PositionManager",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
         reviewField("Wallet",r.wallet), reviewField("Maximum at risk",`${money(r.maximum_usdc_at_risk)} USDC`),
         reviewField("Network fee",`${money(weiToEth(r.execution_fee_wei))} ETH (${r.execution_fee_wei} wei)`), reviewField("Minimum fill",`${money(r.minimum_fill_ratio * 100)}%`),
-        ...(prepared.approval_preview ? [reviewField("Approval token",prepared.approval_preview.token), reviewField("Approval spender",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
+        ...(prepared.approval_preview ? [addressField(prepared.approval_preview.token,prepared.approval_preview.token_address), addressField("Callput Router",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
         reviewField("Intent fingerprint",result.intent_fingerprint)
       ].join("");
       setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
@@ -176,8 +180,12 @@
     setStatus("reconcileStatus","Checking whether this reviewed intent was submitted on Base…");
     try {
       const result=await bankr.scripts.run("reconcile",reconcileArgs);
-      if (result.status === "not_found") { setStatus("reconcileStatus","No matching on-chain Callput request was found. Opening the Bankr chat handoff did not prove submission."); return; }
-      setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · request ${result.request_key}`, result.status === "executed" ? "ok" : "");
+      const checkedAt=new Date().toLocaleTimeString();
+      if (result.status === "not_found") { setStatus("reconcileStatus",`No matching on-chain Callput request was found. Opening the Bankr chat handoff did not prove submission. This does not prove failure. Check Bankr Activity or BaseScan for the reviewed transaction before preparing another order. Last checked ${checkedAt}.`); return; }
+      if (result.status === "pending") { setStatus("reconcileStatus",`Pending · request ${result.request_key}. USDC may already be committed. Do not resubmit this intent. Check again after the keeper processes it. Last checked ${checkedAt}.`); return; }
+      if (result.status === "cancelled") { setStatus("reconcileStatus",`Cancelled · request ${result.request_key}. Do not retry until you verify the returned USDC in your wallet or BaseScan before preparing another order. Last checked ${checkedAt}.`); return; }
+      if (result.status === "executed") { setStatus("reconcileStatus",`Executed · request ${result.request_key}. Do not resubmit this intent. Last checked ${checkedAt}.`,"ok"); return; }
+      setStatus("reconcileStatus",`Unknown status ${result.status} · request ${result.request_key}. Do not resubmit until the on-chain state is verified. Last checked ${checkedAt}.`,"error");
     }
     catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
   }
