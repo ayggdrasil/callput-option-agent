@@ -33,9 +33,9 @@
   <section class="panel">
     <h2>1. Find a spread</h2>
     <div class="grid">
-      <label>Underlying<select id="asset"><option>TSLA</option><option>QQQ</option><option>SPY</option><option>EWY</option><option>NVDA</option><option>COIN</option><option>SPCX</option><option>MU</option><option>SKHY</option><option>BTC</option><option>ETH</option></select></label>
-      <label>Market view<select id="bias"><option value="bullish">Bullish — buy call spread</option><option value="bearish">Bearish — buy put spread</option><option value="neutral-bearish">Neutral/bearish — sell call spread</option><option value="neutral-bullish">Neutral/bullish — sell put spread</option></select></label>
-      <label>Size<input id="size" type="number" value="1" min="0.000001" step="any" /></label>
+      <label for="asset">Underlying<select id="asset"><option>TSLA</option><option>QQQ</option><option>SPY</option><option>EWY</option><option>NVDA</option><option>COIN</option><option>SPCX</option><option>MU</option><option>SKHY</option><option>BTC</option><option>ETH</option></select></label>
+      <label for="bias">Market view<select id="bias"><option value="bullish">Bullish — buy call spread</option><option value="bearish">Bearish — buy put spread</option><option value="neutral-bearish">Neutral/bearish — sell call spread</option><option value="neutral-bullish">Neutral/bullish — sell put spread</option></select></label>
+      <label for="size">Size<input id="size" type="number" value="1" min="0.000001" step="any" /></label>
       <button id="scan" class="primary" disabled>Scan</button>
     </div>
     <button id="signIn" class="primary">Sign in to trade</button>
@@ -46,7 +46,7 @@
   <section id="review" class="panel hidden">
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
-    <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there.</div>
+    <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
     <button id="confirm" class="primary">Open Bankr transaction review</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
@@ -60,6 +60,7 @@
 <script>
   const $ = (id) => document.getElementById(id);
   let selected = null;
+  let scannedCandidates = [];
   let prepared = null;
   let preparationVersion = 0;
   let lastHandoffIntentFingerprint = null;
@@ -71,6 +72,21 @@
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
+  function candidatePremiumLabel(candidate) {
+    const unitValue = candidate.spread_cost != null ? candidate.spread_cost : candidate.spread_credit;
+    const size = Number($("size").value);
+    if (!Number.isFinite(Number(unitValue)) || !Number.isFinite(size) || size <= 0) return "Enter a positive size to estimate this quote.";
+    const estimatedValue = Number(unitValue) * size;
+    return candidate.spread_cost != null
+      ? `estimated cost <strong>${money(estimatedValue)} USDC</strong> <span>(${money(unitValue)} per 1 unit)</span>`
+      : `estimated credit <strong>${money(estimatedValue)} USDC</strong> <span>(${money(unitValue)} per 1 unit)</span>`;
+  }
+  function refreshCandidatePricing() {
+    scannedCandidates.forEach((candidate,index) => {
+      const premium=$("cards").querySelector(`[data-candidate-index="${index}"] .premium`);
+      if (premium) premium.innerHTML=candidatePremiumLabel(candidate);
+    });
+  }
   function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[char]); }
   function reviewField(label, value) { return `<div><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`; }
   function invalidatePrepared() {
@@ -81,15 +97,16 @@
   }
   async function scan() {
     if (!(await requireSignIn())) return;
-    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; selected=null; invalidatePrepared();
+    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; scannedCandidates=[]; selected=null; invalidatePrepared();
     try {
       const result = await bankr.scripts.run("scan", { underlying_asset:$("asset").value, bias:$("bias").value, max_results:3 });
       if (!result.candidates?.length) { setStatus("scanStatus","No live spreads found. Try another asset or market view, then scan again."); return; }
       setStatus("scanStatus",`${result.asset} spot ${money(result.spot_price)} · ${result.strategy}`,"ok");
-      result.candidates.forEach((candidate) => {
+      scannedCandidates=result.candidates;
+      scannedCandidates.forEach((candidate,index) => {
         const card=document.createElement("button"); card.className="card"; card.type="button";
-        const premiumLabel=candidate.spread_cost != null ? `cost <strong>${money(candidate.spread_cost)} USDC</strong>` : `credit <strong>${money(candidate.spread_credit)} USDC</strong>`;
-        card.innerHTML=`<div style="text-align:left"><strong>#${candidate.rank} ${candidate.expiry_code}</strong><div class="metrics"><span>strikes <strong>${candidate.long_strike} / ${candidate.short_strike}</strong></span><span>${premiumLabel}</span><span>DTE <strong>${candidate.days_to_expiry}</strong></span><span>ATM IV <strong>${candidate.atm_iv ?? "—"}</strong></span></div></div><span>Choose →</span>`;
+        card.dataset.candidateIndex=String(index);
+        card.innerHTML=`<div style="text-align:left"><strong>#${candidate.rank} ${candidate.expiry_code}</strong><div class="metrics"><span>strikes <strong>${candidate.long_strike} / ${candidate.short_strike}</strong></span><span class="premium">${candidatePremiumLabel(candidate)}</span><span>DTE <strong>${candidate.days_to_expiry}</strong></span><span>ATM IV <strong>${candidate.atm_iv ?? "—"}</strong></span></div></div><span>Choose →</span>`;
         card.onclick=()=>{ if (!validSize()) { setStatus("scanStatus","Enter a positive size before choosing a spread.","error"); return; } document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected")); card.classList.add("selected"); selected=candidate; invalidatePrepared(); prepare(); };
         $("cards").appendChild(card);
       });
@@ -166,8 +183,8 @@
   }
 
   ["asset","bias","size"].forEach(id=>$(id).addEventListener("change",invalidatePrepared));
-  ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
-  $("size").addEventListener("input",invalidatePrepared);
+  ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; scannedCandidates=[]; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
+  $("size").addEventListener("input",()=>{ invalidatePrepared(); refreshCandidatePricing(); });
   $("size").addEventListener("change",()=>{ if (selected) prepare(); });
   $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile;
   $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };

@@ -20,9 +20,19 @@ function main() {
   assert.match(html, /id="reconcileStatus" class="status" role="status" aria-live="polite"/, "reconciliation progress must be announced");
   assert.match(html, /function setStatus\(id, text, cls=""\) \{[\s\S]*?el\.setAttribute\("role","alert"\);[\s\S]*?el\.focus\(\);/, "errors must be announced urgently and receive focus");
   assert.match(html, /function validSize\(\) \{ return Number\.isFinite\(Number\(\$\("size"\)\.value\)\) && Number\(\$\("size"\)\.value\) > 0; \}/, "size must be strictly positive before preparing");
+  for (const [id, label] of [["asset", "Underlying"], ["bias", "Market view"], ["size", "Size"]]) {
+    assert.match(html, new RegExp(`<label for="${id}">${label}`), `${label} must be explicitly associated with its control`);
+  }
   assert.match(html, /Enter a positive size before choosing a spread\./, "invalid size must give clear guidance");
   assert.match(html, /No live spreads found\. Try another asset or market view, then scan again\./, "empty scans must give recovery guidance");
-  assert.match(html, /candidate\.spread_cost != null \? `cost <strong>\$\{money\(candidate\.spread_cost\)\} USDC<\/strong>` : `credit <strong>\$\{money\(candidate\.spread_credit\)\} USDC<\/strong>`/, "candidate pricing must distinguish buy cost from sell credit in USDC");
+  assert.match(html, /candidate\.spread_cost != null \? candidate\.spread_cost : candidate\.spread_credit/, "candidate pricing must distinguish buy cost from sell credit");
+  assert.match(html, /Number\(unitValue\) \* size/, "candidate pricing must scale the numeric unit quote by the selected size");
+  assert.match(html, /estimated (?:cost|credit)/, "candidate pricing must identify the scaled value as an estimate");
+  assert.match(html, /per 1 unit/, "candidate pricing must retain the unit quote for context");
+  assert.match(html, /function refreshCandidatePricing\(\)/, "candidate pricing must be refreshable after a size edit");
+  assert.match(html, /\$\("size"\)\.addEventListener\("input",\(\)=>\{ invalidatePrepared\(\); refreshCandidatePricing\(\); \}\);/, "size edits must immediately refresh candidate pricing");
+  assert.match(html, /Bankr chat message or credit/, "the review must disclose the Bankr message prerequisite");
+  assert.match(html, /enough USDC for the maximum risk and ETH for the network fee/, "the review must disclose wallet funding prerequisites");
   assert.match(html, /reviewField\("Network fee",`\$\{money\(weiToEth\(r\.execution_fee_wei\)\)\} ETH \(\$\{r\.execution_fee_wei\} wei\)`\)/, "network fee must display ETH and exact wei");
   assert.match(prepareScript, /const approvalTx = prepared\.usdc_approval && !prepared\.usdc_approval\.sufficient \? prepared\.usdc_approval\.approve_tx : null;/, "approval review must retain the actual approval transaction");
   assert.match(prepareScript, /spender:`0x\$\{approvalTx\.data\.slice\(34,74\)\}`/, "approval spender must come from the approval calldata address argument");
