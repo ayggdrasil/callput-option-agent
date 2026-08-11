@@ -41,6 +41,11 @@ function main() {
   const publicBankrAppUrl = "https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options";
   assert.match(html, new RegExp(publicBankrAppUrl), "all users must be sent to the public app surface without owner Scripts controls");
   assert.doesNotMatch(html, /https:\/\/bankr\.bot\/apps\/callput-options/, "the guide must not send users to the owner-oriented app route");
+  assert.match(
+    html,
+    /Why does the Callput Bankr App look blank when I open its URL\?[\s\S]{0,600}owner-scoped public link/i,
+    "the blank-page FAQ must direct users to the owner-scoped public link"
+  );
   for (const address of [
     "0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913",
     "0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2",
