@@ -156,6 +156,8 @@ callput_portfolio_summary({ address, request_keys: agent_state.request_keys })
 | `callput_portfolio_summary` | USDC balance + positions + P&L (pass request_keys) |
 | `callput_close_position` | Build unsigned close-position tx |
 | `callput_settle_position` | Build unsigned settle tx for expired positions |
+| `callput_close_all_positions` | Build one reviewed full-close tx per unexpired wallet position |
+| `callput_settle_all_positions` | Build one reviewed settlement tx per expired wallet position |
 | `callput_list_positions_by_wallet` | Recover request_keys from on-chain events |
 | `callput_get_settled_pnl` | Realized payout history from SettlePosition events |
 | `callput_get_option_chains` | Raw crypto/stock chain data + IV (use scan_spreads first) |

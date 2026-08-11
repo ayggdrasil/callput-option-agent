@@ -3,7 +3,7 @@
 Callput can be used in Bankr in two complementary ways:
 
 1. **Callput Bankr App** — the lowest-friction visual trade builder for users.
-2. **Remote MCP** — exposes all ten Callput tools to the Bankr agent.
+2. **Remote MCP** — exposes all twelve Callput tools to the Bankr agent.
 
 Both integrations build unsigned Base transactions. Callput never receives a private key and never broadcasts a trade. Bankr displays the final transaction and requires the signed-in user to confirm it.
 
@@ -11,7 +11,7 @@ Both integrations build unsigned Base transactions. Callput never receives a pri
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.0/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.0/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 
@@ -51,6 +51,15 @@ Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and
 5. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then choose the spread again to refresh the allowance.
 6. Open the Callput order review in Bankr chat and explicitly send and approve it there.
 7. Return to the app and reconcile the exact prepared intent fingerprint to read its request key and keeper status from Base.
+
+## Position lifecycle
+
+- **Close one position before expiry:** refresh positions, enter explicit positive raw-USDC minimum output floors, choose the unexpired position, and review `callput_close_position` in Bankr chat.
+- **Settle one position after expiry:** refresh positions, enter an explicit positive raw swap floor, choose the expired position, and review `callput_settle_position`.
+- **Close all open positions:** `callput_close_all_positions` discovers every unexpired Callput token in the signed-in wallet and builds one full-close transaction per position.
+- **Settle all expired positions:** `callput_settle_all_positions` discovers every expired Callput token and builds one settlement transaction per position.
+
+Each batch item requires its own Bankr transaction review and explicit approval. The app prepares a queue but never loops through confirmations, signs, broadcasts, or treats a chat handoff as proof of submission. Refresh the portfolio after completing the reviews; close requests can also be reconciled by their exact intent fingerprint.
 
 For buy spreads, `maximum_usdc_at_risk` is the debit. For sell spreads it is the collateral amount passed into Callput. The native `execution_fee_wei` is shown separately.
 

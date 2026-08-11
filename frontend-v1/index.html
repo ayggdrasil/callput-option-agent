@@ -80,7 +80,7 @@
             ],
             "applicationCategory": "DeveloperApplication",
             "operatingSystem": "Node.js",
-            "softwareVersion": "0.2.0",
+            "softwareVersion": "0.5.0",
             "codeRepository": "https://github.com/ayggdrasil/callput-option-agent",
             "programmingLanguage": [
               "TypeScript",
@@ -471,7 +471,7 @@ npm install
 npm run build
 npm run verify
 npm run verify:mcp</code></pre>
-            <p class="expected">Expected: build succeeds, 10 MCP tools register, stock-option support test passes.</p>
+            <p class="expected">Expected: build succeeds, 12 MCP tools register, stock-option support test passes.</p>
           </article>
           <article class="setup-step">
             <div class="step-top">
@@ -511,7 +511,7 @@ npm run verify:mcp</code></pre>
         </div>
         <div class="link-strip" aria-label="Repository links">
           <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Source repo</a>
-          <a href="https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.0/callput" target="_blank" rel="noreferrer">Install Bankr Skill</a>
+          <a href="https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.0/callput" target="_blank" rel="noreferrer">Install Bankr Skill</a>
           <a href="https://callput.app" target="_blank" rel="noreferrer">Callput.app</a>
         </div>
       </section>
@@ -725,7 +725,7 @@ npm run verify:mcp</code></pre>
           <article class="flow-card">
             <span>Step 6</span>
             <h3>Manage Position</h3>
-            <p>Read P&amp;L, close before expiry when needed, and settle after expiry.</p>
+            <p>Read P&amp;L, use <code>callput_close_position</code> or <code>callput_settle_position</code> for one position, and use <code>callput_close_all_positions</code> or <code>callput_settle_all_positions</code> for an explicitly reviewed wallet-wide queue.</p>
           </article>
         </div>
       </section>

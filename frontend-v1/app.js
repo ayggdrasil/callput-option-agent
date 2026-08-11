@@ -79,6 +79,18 @@ const contractItems = [
     trigger: "After expiry",
   },
   {
+    tool: "callput_close_all_positions",
+    component: "CloseAllReviewQueue",
+    io: "Input: address + per-position raw output floors | Output: unsigned full-close tx bundle",
+    trigger: "Explicit wallet-wide close request",
+  },
+  {
+    tool: "callput_settle_all_positions",
+    component: "SettleAllReviewQueue",
+    io: "Input: address + per-position raw swap floor | Output: unsigned settlement tx bundle",
+    trigger: "Explicit wallet-wide settlement request",
+  },
+  {
     tool: "callput_get_settled_pnl",
     component: "PnLHistoryCard",
     io: "Input: address + optional from_block | Output: realized settlement history",

@@ -1089,6 +1089,89 @@ export async function settlePosition(params: {
   };
 }
 
+export type LifecyclePosition = {
+  underlying: string;
+  token_id: string;
+  size: number;
+  expiry_sec: number;
+  [key: string]: unknown;
+};
+
+export function planPositionLifecycle<T extends LifecyclePosition>(positions: T[], nowSec = Math.floor(Date.now() / 1000)) {
+  if (!Number.isSafeInteger(nowSec) || nowSec < 0) throw new Error(`Invalid lifecycle timestamp: ${nowSec}`);
+  const normalized = positions.map((position) => ({ ...position, size: Math.abs(position.size) }));
+  return {
+    closable: normalized.filter((position) => position.expiry_sec > nowSec),
+    settleable: normalized.filter((position) => position.expiry_sec <= nowSec)
+  };
+}
+
+const MAX_LIFECYCLE_BATCH_POSITIONS = 25;
+
+function assertLifecycleBatchSize(action: string, positions: LifecyclePosition[]): void {
+  if (positions.length > MAX_LIFECYCLE_BATCH_POSITIONS) {
+    throw new Error(`${action} exceeds maximum ${MAX_LIFECYCLE_BATCH_POSITIONS} positions; split the request into smaller reviewed batches`);
+  }
+}
+
+export async function closeAllPositions(params: {
+  fromAddress: string;
+  minAmountOutRaw?: string;
+  minOutWhenSwapRaw?: string;
+}) {
+  parsePositiveRawAmount(params.minAmountOutRaw, "minAmountOutRaw");
+  parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
+  const positionData = await getPositions(params.fromAddress);
+  const plan = planPositionLifecycle(positionData.positions as LifecyclePosition[]);
+  assertLifecycleBatchSize("close all", plan.closable);
+  const transactions = [];
+  for (const position of plan.closable) {
+    transactions.push(await closePosition({
+      underlyingAsset: position.underlying,
+      fromAddress: params.fromAddress,
+      optionTokenId: position.token_id,
+      size: position.size,
+      minAmountOutRaw: params.minAmountOutRaw,
+      minOutWhenSwapRaw: params.minOutWhenSwapRaw
+    }));
+  }
+  return {
+    action: "close_all",
+    account: ethers.getAddress(params.fromAddress),
+    eligible_count: transactions.length,
+    skipped_count: plan.settleable.length,
+    transactions,
+    confirmation_mode: "one_bankr_review_per_transaction"
+  };
+}
+
+export async function settleAllPositions(params: {
+  fromAddress: string;
+  minOutWhenSwapRaw?: string;
+}) {
+  parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
+  const positionData = await getPositions(params.fromAddress);
+  const plan = planPositionLifecycle(positionData.positions as LifecyclePosition[]);
+  assertLifecycleBatchSize("settle all", plan.settleable);
+  const transactions = [];
+  for (const position of plan.settleable) {
+    transactions.push(await settlePosition({
+      underlyingAsset: position.underlying,
+      fromAddress: params.fromAddress,
+      optionTokenId: position.token_id,
+      minOutWhenSwapRaw: params.minOutWhenSwapRaw
+    }));
+  }
+  return {
+    action: "settle_all",
+    account: ethers.getAddress(params.fromAddress),
+    eligible_count: transactions.length,
+    skipped_count: plan.closable.length,
+    transactions,
+    confirmation_mode: "one_bankr_review_per_transaction"
+  };
+}
+
 export async function getPositions(address: string) {
   const provider = await getValidatedProvider();
   if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
@@ -1131,6 +1214,8 @@ export async function getPositions(address: string) {
         strike: decoded.nakedStrike,
         pair_strike: decoded.pairStrike || null,
         expiry_code: decoded.expiryCode,
+        expiry_sec: decoded.expirySec,
+        lifecycle: decoded.expirySec <= Math.floor(Date.now() / 1000) ? "settleable" : "closable",
         option_type: decoded.optionType,
         mark_price: matched?.markPrice ?? null
       });
@@ -1638,6 +1723,8 @@ export async function getPortfolioSummary(params: {
       naked_strike: pos.strike,
       pair_strike: pos.pair_strike,
       expiry_code: pos.expiry_code,
+      expiry_sec: pos.expiry_sec,
+      lifecycle: pos.lifecycle,
       days_to_expiry: daysToExpiry,
       size: absSize,
       // Mark-to-market (fair mid price)

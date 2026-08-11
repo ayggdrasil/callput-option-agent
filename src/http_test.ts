@@ -33,7 +33,7 @@ async function main() {
   assert.equal(initialize.status, 200);
   const initialized = await initialize.json() as any;
   assert.equal(initialized.result.serverInfo.name, "callput-lite-agent-mcp");
-  assert.equal(initialized.result.serverInfo.version, "0.4.4");
+  assert.equal(initialized.result.serverInfo.version, "0.5.0");
 
   const toolList = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
     method: "POST",
@@ -60,6 +60,12 @@ async function main() {
   assert.ok(closeRequired.includes("min_out_when_swap_raw"));
   const settleRequired = tools.find((tool: any) => tool.name === "callput_settle_position").inputSchema.required;
   assert.ok(settleRequired.includes("min_out_when_swap_raw"));
+  const closeAll = tools.find((tool: any) => tool.name === "callput_close_all_positions");
+  assert.ok(closeAll, "tools/list must advertise close-all position management");
+  assert.deepEqual(closeAll.inputSchema.required, ["from_address", "min_amount_out_raw", "min_out_when_swap_raw"]);
+  const settleAll = tools.find((tool: any) => tool.name === "callput_settle_all_positions");
+  assert.ok(settleAll, "tools/list must advertise settle-all position management");
+  assert.deepEqual(settleAll.inputSchema.required, ["from_address", "min_out_when_swap_raw"]);
 
   let limitedStatus = 0;
   for (let index = 0; index < 61; index += 1) {

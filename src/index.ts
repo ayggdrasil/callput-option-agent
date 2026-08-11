@@ -7,6 +7,7 @@ import { bankrExecuteSpreadInputSchema, bankrExecuteSpreadMcpInputSchema, resolv
 import { CALLPUT_SERVER_NAME, CALLPUT_VERSION } from "./version.js";
 import {
   checkRequestStatus,
+  closeAllPositions,
   closePosition,
   executeSpread,
   getOptionChains,
@@ -15,6 +16,7 @@ import {
   getSettledPnl,
   listPositionsByWallet,
   scanSpreads,
+  settleAllPositions,
   settlePosition
 } from "./core.js";
 
@@ -40,7 +42,7 @@ const server = new McpServer({
   version: CALLPUT_VERSION
 });
 
-// ─── MCP Tool Registration (10 tools total) ──────────────────────────────────
+// ─── MCP Tool Registration (12 tools total) ──────────────────────────────────
 // 1. callput_scan_spreads          – Market scan with pre-ranked spread candidates
 // 2. callput_execute_spread        – Build unsigned spread transaction
 // 3. callput_get_request_key_from_tx – Extract request_key from tx receipt
@@ -48,9 +50,11 @@ const server = new McpServer({
 // 5. callput_portfolio_summary     – USDC balance + positions + P&L
 // 6. callput_close_position        – Build unsigned close transaction
 // 7. callput_settle_position       – Build unsigned settle transaction
-// 8. callput_list_positions_by_wallet – Recover request_keys from events
-// 9. callput_get_settled_pnl       – Query realized payout history
-// 10. callput_get_option_chains    – Raw tradable options from market feed
+// 8. callput_close_all_positions   – Build reviewed close txs for every unexpired position
+// 9. callput_settle_all_positions  – Build reviewed settle txs for every expired position
+// 10. callput_list_positions_by_wallet – Recover request_keys from events
+// 11. callput_get_settled_pnl      – Query realized payout history
+// 12. callput_get_option_chains    – Raw tradable options from market feed
 //
 // Note: validateSpread, getPositions, and bootstrap are core functions but not
 // exposed as separate tools—validateSpread is called internally by executeSpread,
@@ -233,7 +237,57 @@ server.registerTool(
   }
 );
 
-// ── 8. callput_list_positions_by_wallet ───────────────────────────────────────
+// ── 8. callput_close_all_positions ───────────────────────────────────────────
+server.registerTool(
+  "callput_close_all_positions",
+  {
+    description:
+      "Discover every wallet-owned unexpired Callput position and build one unsigned full-close transaction per position. The positive raw minimum floors apply to each transaction, not the aggregate. Every transaction requires a separate external wallet review; nothing is signed or broadcast by MCP.",
+    inputSchema: z.object({
+      from_address: z.string(),
+      min_amount_out_raw: z.string().regex(/^[1-9]\d*$/).max(78),
+      min_out_when_swap_raw: z.string().regex(/^[1-9]\d*$/).max(78)
+    })
+  },
+  async (args) => {
+    try {
+      const out = await closeAllPositions({
+        fromAddress: args.from_address,
+        minAmountOutRaw: args.min_amount_out_raw,
+        minOutWhenSwapRaw: args.min_out_when_swap_raw
+      });
+      return ok(out as Record<string, unknown>);
+    } catch (e: any) {
+      return fail(`close_all_positions failed: ${e.message}`);
+    }
+  }
+);
+
+// ── 9. callput_settle_all_positions ──────────────────────────────────────────
+server.registerTool(
+  "callput_settle_all_positions",
+  {
+    description:
+      "Discover every wallet-owned expired Callput position and build one unsigned settlement transaction per position. The positive raw swap floor applies to each transaction. Every transaction requires a separate external wallet review; nothing is signed or broadcast by MCP.",
+    inputSchema: z.object({
+      from_address: z.string(),
+      min_out_when_swap_raw: z.string().regex(/^[1-9]\d*$/).max(78)
+    })
+  },
+  async (args) => {
+    try {
+      const out = await settleAllPositions({
+        fromAddress: args.from_address,
+        minOutWhenSwapRaw: args.min_out_when_swap_raw
+      });
+      return ok(out as Record<string, unknown>);
+    } catch (e: any) {
+      return fail(`settle_all_positions failed: ${e.message}`);
+    }
+  }
+);
+
+// ── 10. callput_list_positions_by_wallet ──────────────────────────────────────
 server.registerTool(
   "callput_list_positions_by_wallet",
   {
@@ -257,7 +311,7 @@ server.registerTool(
   }
 );
 
-// ── 9. callput_get_settled_pnl ────────────────────────────────────────────────
+// ── 11. callput_get_settled_pnl ───────────────────────────────────────────────
 server.registerTool(
   "callput_get_settled_pnl",
   {
@@ -281,7 +335,7 @@ server.registerTool(
   }
 );
 
-// ── 10. callput_get_option_chains ─────────────────────────────────────────────
+// ── 12. callput_get_option_chains ─────────────────────────────────────────────
 server.registerTool(
   "callput_get_option_chains",
   {

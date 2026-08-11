@@ -1,14 +1,14 @@
 {
   "slug": "callput-options",
   "title": "Callput — Stock, ETF & Crypto Options",
-  "description": "Trade risk-defined synthetic on-chain crypto, stock, and ETF option spreads on Base. Not broker-listed securities or ownership.",
+  "description": "Open, close, and settle risk-defined synthetic on-chain crypto, stock, and ETF option spreads on Base. Not broker-listed securities or ownership.",
   "tags": ["options", "crypto", "stocks", "etf", "base", "trading"],
   "permissions": [
     "read:wallet",
     "fetch:http",
     "prepare:transaction"
   ],
-  "scripts": ["assets", "scan", "prepare", "reconcile", "track"],
+  "scripts": ["assets", "scan", "prepare", "reconcile", "positions", "close", "settle", "close-all", "settle-all", "track"],
   "schedule": [],
   "secrets": [],
   "publicDataKeys": [],

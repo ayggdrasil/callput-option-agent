@@ -4,11 +4,16 @@ import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import {
   DEFAULT_MIN_FILL_RATIO,
   checkRequestStatus,
+  closeAllPositions,
+  closePosition,
   executeSpread,
   findRequestKeyByIntentFingerprint,
   getMarketSnapshot,
+  getPortfolioSummary,
   getRequestKeyFromTx,
   scanSpreads,
+  settleAllPositions,
+  settlePosition,
   transactionIntentFingerprint
 } from "./core.js";
 import { anonymousWalletId, captureTelemetry, type TelemetryEvent } from "./telemetry.js";
@@ -83,6 +88,32 @@ const reconcileSchema = z.object({
   message: "tx_hash, request_key, or intent_fingerprint is required"
 });
 
+const positiveRawSchema = z.string().regex(/^[1-9]\d*$/).max(78);
+const positionsSchema = z.object({ wallet_address: addressSchema }).strict();
+const closeSchema = z.object({
+  wallet_address: addressSchema,
+  underlying_asset: z.string().min(1).max(16),
+  option_token_id: optionIdSchema,
+  size: sizeSchema,
+  min_amount_out_raw: positiveRawSchema,
+  min_out_when_swap_raw: positiveRawSchema
+}).strict();
+const settleSchema = z.object({
+  wallet_address: addressSchema,
+  underlying_asset: z.string().min(1).max(16),
+  option_token_id: optionIdSchema,
+  min_out_when_swap_raw: positiveRawSchema
+}).strict();
+const closeAllSchema = z.object({
+  wallet_address: addressSchema,
+  min_amount_out_raw: positiveRawSchema,
+  min_out_when_swap_raw: positiveRawSchema
+}).strict();
+const settleAllSchema = z.object({
+  wallet_address: addressSchema,
+  min_out_when_swap_raw: positiveRawSchema
+}).strict();
+
 const eventSchema = z.object({
   event: z.enum(CLIENT_TELEMETRY_EVENTS),
   wallet_address: z.string().refine((value) => ethers.isAddress(value), "Invalid wallet_address").optional(),
@@ -105,6 +136,11 @@ export type BankrDependencies = {
   getRequestKeyFromTx: typeof getRequestKeyFromTx;
   findRequestKeyByIntentFingerprint: typeof findRequestKeyByIntentFingerprint;
   checkRequestStatus: typeof checkRequestStatus;
+  getPortfolioSummary: typeof getPortfolioSummary;
+  closePosition: typeof closePosition;
+  settlePosition: typeof settlePosition;
+  closeAllPositions: typeof closeAllPositions;
+  settleAllPositions: typeof settleAllPositions;
   captureTelemetry: typeof captureTelemetry;
 };
 
@@ -115,6 +151,11 @@ const defaultDependencies: BankrDependencies = {
   getRequestKeyFromTx,
   findRequestKeyByIntentFingerprint,
   checkRequestStatus,
+  getPortfolioSummary,
+  closePosition,
+  settlePosition,
+  closeAllPositions,
+  settleAllPositions,
   captureTelemetry
 };
 
@@ -151,6 +192,32 @@ function intentFingerprint(prepared: Prepared): string {
     value: tx.value,
     data: tx.data
   });
+}
+
+function lifecycleIntentFingerprint(tx: { chain_id: number; from: string; to: string; value: string; data: string }): string {
+  return transactionIntentFingerprint({
+    chainId: tx.chain_id,
+    from: tx.from,
+    to: tx.to,
+    value: tx.value,
+    data: tx.data
+  });
+}
+
+function lifecycleTransactionResponse(action: "close" | "settle", built: any) {
+  const tx = built.unsigned_tx;
+  return {
+    ...built,
+    action,
+    intent_fingerprint: lifecycleIntentFingerprint(tx),
+    transaction_preview: {
+      chain: "Base",
+      chain_id: tx.chain_id,
+      destination: tx.to,
+      value_wei: tx.value,
+      wallet: tx.from
+    }
+  };
 }
 
 function parseUint256(value: unknown, label: string): bigint {
@@ -361,7 +428,7 @@ async function telemetry(deps: BankrDependencies, event: TelemetryEvent, wallet:
 }
 
 export async function handleBankrApiRequest(
-  action: "assets" | "scan" | "prepare" | "reconcile" | "events",
+  action: "assets" | "scan" | "prepare" | "reconcile" | "positions" | "close" | "settle" | "close-all" | "settle-all" | "events",
   request: Request,
   deps: BankrDependencies = defaultDependencies
 ): Promise<Response> {
@@ -440,6 +507,61 @@ export async function handleBankrApiRequest(
           approval_required: !prepared.usdc_approval.sufficient
         }
       }, origin);
+    }
+
+    if (action === "positions") {
+      const input = positionsSchema.parse(raw);
+      const portfolio = await deps.getPortfolioSummary({ address: input.wallet_address });
+      return response(200, portfolio, origin);
+    }
+
+    if (action === "close") {
+      const input = closeSchema.parse(raw);
+      const built = await deps.closePosition({
+        underlyingAsset: input.underlying_asset,
+        fromAddress: input.wallet_address,
+        optionTokenId: input.option_token_id,
+        size: input.size,
+        minAmountOutRaw: input.min_amount_out_raw,
+        minOutWhenSwapRaw: input.min_out_when_swap_raw
+      });
+      const result = lifecycleTransactionResponse("close", built);
+      await telemetry(deps, "transaction_prepared", input.wallet_address, { intent_fingerprint: result.intent_fingerprint, action: "close" });
+      return response(200, result, origin);
+    }
+
+    if (action === "settle") {
+      const input = settleSchema.parse(raw);
+      const built = await deps.settlePosition({
+        underlyingAsset: input.underlying_asset,
+        fromAddress: input.wallet_address,
+        optionTokenId: input.option_token_id,
+        minOutWhenSwapRaw: input.min_out_when_swap_raw
+      });
+      const result = lifecycleTransactionResponse("settle", built);
+      await telemetry(deps, "transaction_prepared", input.wallet_address, { intent_fingerprint: result.intent_fingerprint, action: "settle" });
+      return response(200, result, origin);
+    }
+
+    if (action === "close-all") {
+      const input = closeAllSchema.parse(raw);
+      const batch = await deps.closeAllPositions({
+        fromAddress: input.wallet_address,
+        minAmountOutRaw: input.min_amount_out_raw,
+        minOutWhenSwapRaw: input.min_out_when_swap_raw
+      });
+      const transactions = batch.transactions.map((built: any) => lifecycleTransactionResponse("close", built));
+      return response(200, { ...batch, transactions }, origin);
+    }
+
+    if (action === "settle-all") {
+      const input = settleAllSchema.parse(raw);
+      const batch = await deps.settleAllPositions({
+        fromAddress: input.wallet_address,
+        minOutWhenSwapRaw: input.min_out_when_swap_raw
+      });
+      const transactions = batch.transactions.map((built: any) => lifecycleTransactionResponse("settle", built));
+      return response(200, { ...batch, transactions }, origin);
     }
 
     if (action === "reconcile") {

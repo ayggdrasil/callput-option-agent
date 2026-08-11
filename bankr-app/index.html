@@ -21,8 +21,11 @@
     .warning { border-left:3px solid var(--amber); padding:9px 12px; color:#ffdda2; background:#2a2111; border-radius:5px; margin:10px 0 }
     .contract-links { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin:10px 0; color:var(--muted); font-size:12px }
     .contract-links a,.risk a { color:var(--green); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere }
+    .lifecycle-controls { display:grid; grid-template-columns:1fr 1fr auto auto auto; gap:10px; align-items:end; margin-bottom:12px }
+    .position-card { border:1px solid var(--line); border-radius:12px; padding:14px; background:#0d1613; display:grid; gap:10px }
+    .position-actions { display:flex; flex-wrap:wrap; gap:8px }
     .status { min-height:22px; margin-top:10px; color:var(--muted) } .ok { color:var(--green) } .error { color:var(--red) } .hidden { display:none }
-    @media(max-width:700px){ .grid { grid-template-columns:1fr 1fr } .risk { grid-template-columns:1fr 1fr } header { flex-direction:column } }
+    @media(max-width:700px){ .grid,.lifecycle-controls { grid-template-columns:1fr 1fr } .risk { grid-template-columns:1fr 1fr } header { flex-direction:column } }
   </style>
 </head>
 <body>
@@ -59,6 +62,22 @@
     <button id="reconcile" disabled>Check my Callput request after sending it in Bankr</button>
     <div id="reconcileStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
+
+  <section class="panel">
+    <h2>4. Manage positions</h2>
+    <p>Close unexpired positions or settle expired positions. Minimum outputs are positive raw USDC floors that you explicitly approve.</p>
+    <div class="lifecycle-controls">
+      <label for="closeMinAmount">Close minimum received (raw USDC)<input id="closeMinAmount" inputmode="numeric" placeholder="required" /></label>
+      <label for="swapMinAmount">Swap minimum received (raw USDC)<input id="swapMinAmount" inputmode="numeric" placeholder="required" /></label>
+      <button id="refreshPositions" disabled>Refresh positions</button>
+      <button id="closeAll" disabled>Close all open</button>
+      <button id="settleAll" disabled>Settle all expired</button>
+    </div>
+    <div class="warning">Close all and settle all are reviewed batches, not one atomic transaction. Each position opens a separate Bankr transaction review and requires your explicit send and approval. Returning to the app does not prove submission.</div>
+    <div id="positions" class="cards"></div>
+    <button id="reviewNextLifecycle" class="primary hidden">Open next Bankr review</button>
+    <div id="positionsStatus" class="status" role="status" aria-live="polite" tabindex="-1">Sign in, then refresh your wallet positions.</div>
+  </section>
 </main>
 <script>
   const $ = (id) => document.getElementById(id);
@@ -67,11 +86,13 @@
   let prepared = null;
   let preparationVersion = 0;
   let lastHandoffIntentFingerprint = null;
+  let lifecycleQueue = [];
+  let lifecycleQueueTotal = 0;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
   async function requireSignIn() { if (!signedIn()) { await bankr.auth.requireSignIn(); return false; } return true; }
-  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); }
+  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("refreshPositions").disabled=!authenticated; $("closeAll").disabled=!authenticated; $("settleAll").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); }
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
@@ -190,11 +211,81 @@
     catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
   }
 
+  function positiveRaw(id) { const value=$(id).value.trim(); return /^[1-9]\d*$/.test(value) ? value : null; }
+  function lifecycleArgs(position) {
+    return {
+      underlying_asset:position.underlying,
+      option_token_id:position.token_id,
+      size:Math.abs(Number(position.size)),
+      min_amount_out_raw:positiveRaw("closeMinAmount"),
+      min_out_when_swap_raw:positiveRaw("swapMinAmount")
+    };
+  }
+  function renderPositions(result) {
+    const root=$("positions"); root.innerHTML="";
+    if (!result.positions?.length) { root.innerHTML='<div class="position-card"><strong>No active Callput position tokens found.</strong></div>'; return; }
+    result.positions.forEach((position,index)=>{
+      const card=document.createElement("article"); card.className="position-card";
+      const action=position.lifecycle === "settleable" ? "Settle" : "Close";
+      card.innerHTML=`<div><strong>${escapeHtml(position.underlying)} ${escapeHtml(position.option_type)} spread</strong><div class="metrics"><span>${escapeHtml(position.naked_strike)} / ${escapeHtml(position.pair_strike)}</span><span>${escapeHtml(position.expiry_code)}</span><span>size <strong>${escapeHtml(position.size)}</strong></span><span>${escapeHtml(position.lifecycle)}</span></div></div><div class="position-actions"><button class="primary" data-position-action="${action.toLowerCase()}" data-position-index="${index}">${action} this position</button></div>`;
+      root.appendChild(card);
+    });
+    root.querySelectorAll("[data-position-action]").forEach(button=>button.addEventListener("click",()=>prepareLifecycle(button.dataset.positionAction,result.positions[Number(button.dataset.positionIndex)])));
+  }
+  async function refreshPositions() {
+    if (!(await requireSignIn())) return;
+    setStatus("positionsStatus","Reading Callput position tokens from Base…");
+    try {
+      const result=await bankr.scripts.run("positions",{});
+      renderPositions(result);
+      const closable=result.positions?.filter(position=>position.lifecycle === "closable").length || 0;
+      const settleable=result.positions?.filter(position=>position.lifecycle === "settleable").length || 0;
+      setStatus("positionsStatus",`${result.total_positions || 0} positions · ${closable} closable · ${settleable} settleable`,"ok");
+    } catch(error) { setStatus("positionsStatus",error.message || String(error),"error"); }
+  }
+  async function prepareLifecycle(action,position) {
+    if (!(await requireSignIn())) return;
+    const args=lifecycleArgs(position);
+    if (!args.min_out_when_swap_raw || (action === "close" && !args.min_amount_out_raw)) { setStatus("positionsStatus","Enter positive raw USDC minimum outputs before preparing this action.","error"); return; }
+    setStatus("positionsStatus",`Preparing ${action} review for ${position.underlying}…`);
+    try {
+      const result=action === "close" ? await bankr.scripts.run("close",args) : await bankr.scripts.run("settle",args);
+      await bankr.confirmTransaction(result.transaction);
+      if (action === "close") lastHandoffIntentFingerprint=result.intent_fingerprint;
+      setStatus("positionsStatus",`${action === "close" ? "Close" : "Settlement"} review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then refresh positions.`,"ok");
+    } catch(error) { setStatus("positionsStatus",`${action} handoff failed: ${error.message || String(error)}. Nothing was submitted by this app.`,"error"); }
+  }
+  async function prepareLifecycleBatch(action) {
+    if (!(await requireSignIn())) return;
+    const minSwap=positiveRaw("swapMinAmount"); const minClose=positiveRaw("closeMinAmount");
+    if (!minSwap || (action === "close-all" && !minClose)) { setStatus("positionsStatus","Enter positive raw USDC minimum outputs before preparing the batch.","error"); return; }
+    setStatus("positionsStatus",`Building the ${action === "close-all" ? "close" : "settlement"} review queue…`);
+    try {
+      const batchArgs={ min_amount_out_raw:minClose, min_out_when_swap_raw:minSwap };
+      const result=action === "close-all" ? await bankr.scripts.run("close-all",batchArgs) : await bankr.scripts.run("settle-all",batchArgs);
+      lifecycleQueue=Array.from(result.transactions || []); lifecycleQueueTotal=lifecycleQueue.length;
+      if (!lifecycleQueueTotal) { $("reviewNextLifecycle").classList.add("hidden"); setStatus("positionsStatus",`No ${action === "close-all" ? "unexpired" : "expired"} positions are eligible.`); return; }
+      $("reviewNextLifecycle").classList.remove("hidden");
+      setStatus("positionsStatus",`${lifecycleQueueTotal} reviews prepared. Each position requires a separate click and Bankr approval; no transaction has been submitted.`,"ok");
+    } catch(error) { setStatus("positionsStatus",error.message || String(error),"error"); }
+  }
+  async function reviewNextLifecycle() {
+    if (!lifecycleQueue.length) { $("reviewNextLifecycle").classList.add("hidden"); return; }
+    const item=lifecycleQueue.shift(); const current=lifecycleQueueTotal-lifecycleQueue.length;
+    try {
+      await bankr.confirmTransaction(item.transaction);
+      if (item.action === "close") lastHandoffIntentFingerprint=item.intent_fingerprint;
+      $("reviewNextLifecycle").textContent=lifecycleQueue.length ? `Open next Bankr review (${current + 1}/${lifecycleQueueTotal})` : "All reviews opened";
+      $("reviewNextLifecycle").classList.toggle("hidden",!lifecycleQueue.length);
+      setStatus("positionsStatus",`Review ${current}/${lifecycleQueueTotal} opened. Nothing has been submitted by this app. Complete it in Bankr chat${lifecycleQueue.length ? ", then return for the next review" : ", then refresh positions"}.`,"ok");
+    } catch(error) { lifecycleQueue.unshift(item); setStatus("positionsStatus",`Review ${current}/${lifecycleQueueTotal} did not open: ${error.message || String(error)}. Nothing was submitted.`,"error"); }
+  }
+
   ["asset","bias","size"].forEach(id=>$(id).addEventListener("change",invalidatePrepared));
   ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; scannedCandidates=[]; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
   $("size").addEventListener("input",()=>{ invalidatePrepared(); refreshCandidatePricing(); });
   $("size").addEventListener("change",()=>{ if (selected) prepare(); });
-  $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile;
+  $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile; $("refreshPositions").onclick=refreshPositions; $("closeAll").onclick=()=>prepareLifecycleBatch("close-all"); $("settleAll").onclick=()=>prepareLifecycleBatch("settle-all"); $("reviewNextLifecycle").onclick=reviewNextLifecycle;
   $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };
   bankr.on("ready", async () => {
     syncAuthUi();

@@ -59,7 +59,7 @@ This package is designed for:
 - Live tradability is determined by the market feed. If a symbol has no available contracts, `callput_scan_spreads` returns no candidates.
 - Stock options are synthetic on-chain options. They are not broker-listed options, shares, ETFs, or tokenized stock ownership.
 
-## MCP Tool Set (10 tools)
+## MCP Tool Set (12 tools)
 - `callput_scan_spreads` — Market scan with ranked spread candidates
 - `callput_execute_spread` — Build unsigned spread transaction
 - `callput_get_request_key_from_tx` — Extract request_key from receipt
@@ -67,6 +67,8 @@ This package is designed for:
 - `callput_portfolio_summary` — USDC balance + positions + P&L
 - `callput_close_position` — Build unsigned close transaction
 - `callput_settle_position` — Build unsigned settle transaction
+- `callput_close_all_positions` — Build one reviewed full-close transaction per unexpired wallet position
+- `callput_settle_all_positions` — Build one reviewed settlement transaction per expired wallet position
 - `callput_list_positions_by_wallet` — Recover request_keys from events
 - `callput_get_settled_pnl` — Realized payout history
 - `callput_get_option_chains` — Raw option chains from market feed
@@ -100,7 +102,7 @@ npm run verify:mcp
 
 ## Connect OpenClaw / Bankr
 1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
-2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.4/callput`.
+2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.0/callput`.
 3. Bankr MCP: add `https://mcp.callput.app/api/mcp` as HTTP with authentication `None`.
 4. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
 5. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
