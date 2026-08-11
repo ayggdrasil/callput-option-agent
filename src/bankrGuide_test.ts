@@ -51,7 +51,11 @@ function main() {
     "0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2",
     "0x83B04701B227B045CBBAF921377137fF595a54af"
   ]) assert.match(html, new RegExp(`https://basescan.org/address/${address}`, "i"), `guide must link ${address} to BaseScan`);
-  assert.match(html, /Public app view[\s\S]*does not show the owner-only Scripts panel/i, "the guide must explain why it uses the public app route");
+  assert.match(
+    html,
+    /Public app view[\s\S]*Bankr host may still display its Scripts drawer[\s\S]*viewer identity/i,
+    "the guide must describe the Bankr host UI without weakening viewer-identity guarantees"
+  );
   assert.match(html, /No private keys/);
   assert.match(html, /Not auto-submitted/);
   assert.match(html, /Synthetic on-chain/);
