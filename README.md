@@ -129,7 +129,7 @@ V1 note:
 ## Execution Model
 - MCP preview/build mode: tools return unsigned transactions only. Nothing is signed or broadcast by the MCP server.
 - Live execution: the external agent runtime signs and broadcasts `unsigned_tx` using its own wallet, HSM, Bankr signer, Ledger, or equivalent signer.
-- If `usdc_approval.sufficient == false`, the agent signs and broadcasts `usdc_approval.approve_tx` before the main transaction.
+- If `usdc_approval.sufficient == false`, the agent signs and broadcasts `usdc_approval.approve_tx` before the main transaction. The approval is bounded to the exact `required` raw USDC amount for that prepared order; agents must reject any larger approval.
 
 ## Mandatory Trading Rules
 1. Spread-only execution across crypto and supported stock/ETF symbols.

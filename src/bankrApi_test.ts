@@ -86,7 +86,7 @@ function prepared(
       required: amountInRaw.toString(),
       approve_tx: {
         to: CONFIG.CONTRACTS.USDC,
-        data: erc20.encodeFunctionData("approve", [CONFIG.CONTRACTS.ROUTER, amountInRaw * 2n]),
+        data: erc20.encodeFunctionData("approve", [CONFIG.CONTRACTS.ROUTER, amountInRaw]),
         value: "0",
         chain_id: 8453
       }
@@ -266,7 +266,7 @@ async function main() {
 
   const approvalAmountMismatch = prepared();
   approvalAmountMismatch.usdc_approval.approve_tx.data = new ethers.Interface(ERC20_ABI)
-    .encodeFunctionData("approve", [CONFIG.CONTRACTS.ROUTER, 4_000_001n]);
+    .encodeFunctionData("approve", [CONFIG.CONTRACTS.ROUTER, 2_000_001n]);
   assert.throws(() => validate(approvalAmountMismatch), /approval amount/i);
 
   const approvalValueMismatch = prepared();

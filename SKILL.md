@@ -49,7 +49,7 @@ Trade Callput crypto and synthetic stock/ETF spreads autonomously. MCP builds un
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
 6. MCP never holds or requires a private key — agent signs externally.
-7. If `usdc_approval.sufficient == false`, send approve_tx before the main tx.
+7. If `usdc_approval.sufficient == false`, verify that approve_tx grants exactly `usdc_approval.required` raw USDC, then send it before the main tx. Reject any larger approval.
 8. **Save every `request_key` from `get_request_key_from_tx`** — required for P&L.
 9. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them.
 10. Check `atm_iv` from scan output: high IV favors sell spreads. Use ETH/BTC thresholds only for ETH/BTC; evaluate stock IV relative to that symbol's regime.

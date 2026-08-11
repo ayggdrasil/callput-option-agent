@@ -126,10 +126,10 @@ Use the IDs with the `strategy` returned by the same scan candidate. Callput's b
   },
   usdc_approval: {
     sufficient: boolean,           // Is USDC allowance >= required cost?
-    required: number,              // Required approval amount in wei
+    required: number,              // Exact required raw USDC approval amount
     approve_tx: {                  // Only if sufficient == false
       to: string,                  // USDC token contract
-      data: string,                // approve() calldata
+      data: string,                // approve() calldata for exactly `required`
       value: string                // "0"
     }
   },
