@@ -5,6 +5,7 @@ const read = (path: string) => fs.readFileSync(path, "utf8");
 
 function main() {
   const manifest = JSON.parse(read("bankr-app/manifest.json"));
+  assert.match(manifest.title, /Crypto/, "the Bankr app title must advertise crypto support");
   assert.deepEqual(manifest.permissions, ["read:wallet", "fetch:http", "prepare:transaction"]);
   assert.equal(manifest.frontendIdentity, "viewer");
   assert.deepEqual(manifest.scripts, ["assets", "scan", "prepare", "reconcile", "track"]);
@@ -20,36 +21,60 @@ function main() {
   assert.match(html, /id="reconcileStatus" class="status" role="status" aria-live="polite"/, "reconciliation progress must be announced");
   assert.match(html, /function setStatus\(id, text, cls=""\) \{[\s\S]*?el\.setAttribute\("role","alert"\);[\s\S]*?el\.focus\(\);/, "errors must be announced urgently and receive focus");
   assert.match(html, /function validSize\(\) \{ return Number\.isFinite\(Number\(\$\("size"\)\.value\)\) && Number\(\$\("size"\)\.value\) > 0; \}/, "size must be strictly positive before preparing");
+  for (const [id, label] of [["asset", "Underlying"], ["bias", "Market view"], ["size", "Size"]]) {
+    assert.match(html, new RegExp(`<label for="${id}">${label}`), `${label} must be explicitly associated with its control`);
+  }
   assert.match(html, /Enter a positive size before choosing a spread\./, "invalid size must give clear guidance");
   assert.match(html, /No live spreads found\. Try another asset or market view, then scan again\./, "empty scans must give recovery guidance");
-  assert.match(html, /candidate\.spread_cost != null \? `cost <strong>\$\{money\(candidate\.spread_cost\)\} USDC<\/strong>` : `credit <strong>\$\{money\(candidate\.spread_credit\)\} USDC<\/strong>`/, "candidate pricing must distinguish buy cost from sell credit in USDC");
+  assert.match(html, /candidate\.spread_cost != null \? candidate\.spread_cost : candidate\.spread_credit/, "candidate pricing must distinguish buy cost from sell credit");
+  assert.match(html, /Number\(unitValue\) \* size/, "candidate pricing must scale the numeric unit quote by the selected size");
+  assert.match(html, /estimated (?:cost|credit)/, "candidate pricing must identify the scaled value as an estimate");
+  assert.match(html, /per 1 unit/, "candidate pricing must retain the unit quote for context");
+  assert.match(html, /function refreshCandidatePricing\(\)/, "candidate pricing must be refreshable after a size edit");
+  assert.match(html, /\$\("size"\)\.addEventListener\("input",\(\)=>\{ invalidatePrepared\(\); refreshCandidatePricing\(\); \}\);/, "size edits must immediately refresh candidate pricing");
+  assert.match(html, /Bankr chat message or credit/, "the review must disclose the Bankr message prerequisite");
+  assert.match(html, /enough USDC for the maximum risk and ETH for the network fee/, "the review must disclose wallet funding prerequisites");
+  for (const [label, address] of [
+    ["Base USDC", "0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913"],
+    ["Callput Router", "0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2"],
+    ["Callput PositionManager", "0x83B04701B227B045CBBAF921377137fF595a54af"]
+  ]) {
+    assert.match(html, new RegExp(`href="https:\\/\\/basescan\\.org\\/address\\/${address}"[^>]*>${label}`, "i"), `${label} must link to its canonical BaseScan address`);
+  }
   assert.match(html, /reviewField\("Network fee",`\$\{money\(weiToEth\(r\.execution_fee_wei\)\)\} ETH \(\$\{r\.execution_fee_wei\} wei\)`\)/, "network fee must display ETH and exact wei");
   assert.match(prepareScript, /const approvalTx = prepared\.usdc_approval && !prepared\.usdc_approval\.sufficient \? prepared\.usdc_approval\.approve_tx : null;/, "approval review must retain the actual approval transaction");
   assert.match(prepareScript, /spender:`0x\$\{approvalTx\.data\.slice\(34,74\)\}`/, "approval spender must come from the approval calldata address argument");
-  assert.match(html, /reviewField\("Approval token",prepared\.approval_preview\.token\)/, "approval token must be reviewed before confirmation");
-  assert.match(html, /reviewField\("Approval spender",prepared\.approval_preview\.spender\)/, "approval spender must be reviewed before confirmation");
+  assert.match(prepareScript, /token_address:approvalTx\.to/, "approval preview must expose the canonical token address");
+  assert.match(html, /addressField\(prepared\.approval_preview\.token,prepared\.approval_preview\.token_address\)/, "approval token address must be reviewed before confirmation");
+  assert.match(html, /addressField\("Callput Router",prepared\.approval_preview\.spender\)/, "approval spender must be reviewed before confirmation");
   assert.match(html, /reviewField\("Approval amount",`\$\{money\(prepared\.approval_preview\.amount_usdc\)\} USDC`\)/, "approval amount must be reviewed before confirmation");
-  assert.match(html, /let approvalConfirmedIntentFingerprint = null;/, "successful approvals must be remembered for an intent");
-  assert.match(html, /if \(confirmationIntent\.approval && approvalConfirmedIntentFingerprint !== confirmationIntent\.intent_fingerprint\)/, "order retry must skip an already-confirmed approval");
-  assert.match(html, /approvalConfirmedIntentFingerprint=confirmationIntent\.intent_fingerprint;/, "approval state must be recorded only after confirmation");
+  assert.doesNotMatch(html, /approvalConfirmedIntentFingerprint/, "the void SDK handoff must not be treated as a confirmed approval");
+  assert.match(html, /await bankr\.confirmTransaction\(confirmationIntent\.approval\);[\s\S]*?Approval review opened in Bankr chat\.[\s\S]*?return;/, "an approval handoff must stop before opening the order handoff");
   assert.match(html, /bankr\.confirmTransaction\(confirmationIntent\.transaction\)/, "the order confirmation must use the reviewed intent snapshot");
   assert.doesNotMatch(html, /bankr\.confirmTransaction\(prepared\.transaction\)/, "the mutable prepared state must not be confirmed");
-  assert.match(html, /await bankr\.confirmTransaction\(confirmationIntent\.approval\);\s+if \(confirmationVersion !== preparationVersion \|\| confirmationIntent !== prepared\)/, "approval completion must revalidate the reviewed intent before opening the order confirmation");
   assert.match(html, /let preparationVersion = 0;/, "preparation must use an intent version");
   assert.match(html, /function invalidatePrepared\(\)/, "input changes must invalidate a prepared confirmation");
   assert.match(html, /const currentPreparationVersion=\+\+preparationVersion;/, "each prepare request must bind its version");
   assert.match(html, /if \(currentPreparationVersion !== preparationVersion\) return;/, "late prepare results must be ignored");
   assert.match(html, /\["asset","bias","size"\]\.forEach\(id=>\$\(id\)\.addEventListener\("change",invalidatePrepared\)\);/);
-  for (const label of ["Asset", "Size", "Expiry", "Strikes", "Destination", "Chain", "Wallet", "Maximum at risk", "Network fee", "Intent fingerprint"]) {
+  for (const label of ["Asset", "Size", "Expiry", "Strikes", "Chain", "Wallet", "Maximum at risk", "Network fee", "Intent fingerprint"]) {
     assert.match(html, new RegExp(`reviewField\\("${label}"`), `review must display ${label}`);
   }
-  assert.match(html, /function transactionHash\(result\)/, "confirmation result must yield a transaction hash");
-  assert.match(html, /const txHash=transactionHash\(confirmation\);/);
-  assert.match(html, /let lastConfirmedIntentFingerprint = null;/, "the prepared fingerprint must survive a void confirmation result");
-  assert.match(html, /lastConfirmedIntentFingerprint=confirmationIntent\.intent_fingerprint;/);
-  assert.match(html, /lastConfirmedTxHash=\/\^0x\[0-9a-f\]\{64\}\$\/i\.test\(txHash \|\| ""\) \? txHash : null;/, "a confirmation hash is optional");
-  assert.doesNotMatch(html, /did not return a usable transaction hash/, "void confirmation results must still succeed");
-  assert.match(html, /const reconcileArgs=lastConfirmedTxHash \? \{ tx_hash:lastConfirmedTxHash \} : \{ intent_fingerprint:lastConfirmedIntentFingerprint \};/, "reconciliation must use the hash when available or the prepared fingerprint otherwise");
+  assert.match(html, /addressField\("Callput PositionManager",txPreview\.destination\)/, "review must link the Callput destination");
+  assert.doesNotMatch(html, /Transaction submitted\./, "opening Bankr chat must never be described as transaction submission");
+  assert.doesNotMatch(html, /wallet_confirmed/, "opening Bankr chat must never emit a wallet-confirmed event");
+  assert.match(html, /let lastHandoffIntentFingerprint = null;/, "the prepared fingerprint must be retained only as a handoff reference");
+  assert.match(html, /lastHandoffIntentFingerprint=confirmationIntent\.intent_fingerprint;/);
+  assert.match(html, /Order review opened in Bankr chat\. Nothing has been submitted by this app\./, "the app must accurately describe the SDK handoff boundary");
+  assert.match(html, /Nothing was submitted by this app\. Try opening the \$\{handoffKind\} review again\./, "failed or cancelled handoffs must give accurate recovery guidance");
+  assert.match(html, /const reconcileArgs=\{ intent_fingerprint:lastHandoffIntentFingerprint \};/, "reconciliation after handoff must remain scoped to the reviewed fingerprint");
+  assert.match(html, /Checking whether this reviewed intent was submitted on Base/, "reconciliation loading copy must not imply that a handoff created a request");
+  assert.match(html, /No matching on-chain Callput request was found\. Opening the Bankr chat handoff did not prove submission\./, "not-found reconciliation must explicitly preserve the handoff boundary");
+  assert.match(html, /This does not prove failure\.[\s\S]*Check Bankr Activity or BaseScan[\s\S]*before preparing another order/, "not-found reconciliation must prevent blind resubmission");
+  assert.match(html, /Pending[\s\S]*USDC may already be committed[\s\S]*Do not resubmit/, "pending reconciliation must warn against duplicate submission");
+  assert.match(html, /Cancelled[\s\S]*verify the returned USDC[\s\S]*before preparing another order/, "cancelled reconciliation must require a funds check before retrying");
+  assert.match(html, /Last checked/, "reconciliation must show when status was checked");
+  assert.doesNotMatch(html, /Reading the Callput request created by/, "reconciliation must not claim an unsent handoff created a request");
   assert.match(html, /bankr\.scripts\.run\("reconcile",reconcileArgs\)/, "reconciliation must be explicitly scoped");
   assert.doesNotMatch(html, /bankr\.scripts\.run\("reconcile",\{\}\)/, "a trade must not reconcile against an arbitrary latest request");
   assert.match(html, /maximum_usdc_at_risk/);
@@ -79,7 +104,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.4\.2\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.4\.3\/bankr-app/);
   assert.match(installPrompt, /Run only `assets` and `scan`/);
   assert.match(installPrompt, /Do not run `prepare` or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

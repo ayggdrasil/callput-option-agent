@@ -90,6 +90,7 @@ const marketGrid = document.getElementById("marketGrid");
 const symbolTabs = document.getElementById("symbolTabs");
 const scanTable = document.getElementById("scanTable");
 const contractList = document.getElementById("contractList");
+const liveAvailabilityStatus = document.getElementById("liveAvailabilityStatus");
 const defaultSymbol = "TSLA";
 const copyButtons = document.querySelectorAll("[data-copy-target]");
 
@@ -116,7 +117,8 @@ for (const button of copyButtons) {
 for (const market of markets) {
   const card = document.createElement("article");
   card.className = `market-card${market.live ? " live" : ""}`;
-  card.innerHTML = `<strong>${market.symbol}</strong><span>${market.live ? "feed live" : market.type}</span>`;
+  card.dataset.marketSymbol = market.symbol;
+  card.innerHTML = `<strong>${market.symbol}</strong><span data-market-count>${market.live ? "checking live feed" : market.type}</span>`;
   marketGrid.appendChild(card);
 
   const tab = document.createElement("button");
@@ -177,6 +179,34 @@ function renderScanTable(symbol) {
 }
 
 renderScanTable(defaultSymbol);
+
+async function refreshLiveAvailability() {
+  try {
+    const response = await fetch("/api/bankr/assets", { headers: { accept: "application/json" } });
+    if (!response.ok) throw new Error(`assets endpoint returned ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload.assets)) throw new Error("assets endpoint returned an invalid payload");
+
+    const liveAssets = payload.assets.filter((asset) => Number(asset.tradable_options) > 0);
+    for (const asset of payload.assets) {
+      const market = markets.find((item) => item.symbol === asset.symbol);
+      if (!market) continue;
+      market.live = Number(asset.tradable_options) > 0;
+      const card = marketGrid.querySelector(`[data-market-symbol="${asset.symbol}"]`);
+      if (!card) continue;
+      card.classList.toggle("live", market.live);
+      const count = card.querySelector("[data-market-count]");
+      if (count) count.textContent = market.live ? `${asset.tradable_options} options live` : "no live contracts";
+    }
+
+    const optionCount = liveAssets.reduce((sum, asset) => sum + Number(asset.tradable_options), 0);
+    liveAvailabilityStatus.textContent = `${liveAssets.length} symbols tradable now · ${optionCount.toLocaleString()} live option contracts · Base 8453`;
+  } catch {
+    liveAvailabilityStatus.textContent = "11 configured symbols shown · live availability could not be refreshed";
+  }
+}
+
+void refreshLiveAvailability();
 
 for (const item of contractItems) {
   const el = document.createElement("article");

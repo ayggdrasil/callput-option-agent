@@ -166,9 +166,10 @@ The App never auto-confirms a transaction.
    chain ID, contract destination, calldata, value, and preparation block.
 4. The Bankr App stores only `flow_id`, `intent_fingerprint`, and minimum
    reconciliation metadata in viewer-scoped App storage.
-5. After `confirmTransaction` resolves, the App calls `reconcile`.
-6. Reconciliation validates Base receipts/events rather than trusting a client
-   claim. If no transaction hash is available from the Bankr SDK, it scans a
+5. `confirmTransaction` only opens a Bankr chat handoff and returns `void`; its
+   resolution is never treated as confirmation, signature, submission, or a receipt.
+6. After the user sends the order in Bankr, a manual reconciliation check validates
+   Base receipts/events rather than trusting a client claim. It scans a
    tightly bounded block window for `GenerateRequestKey(account, key, isOpen)`
    and checks the related position request account and transaction destination.
 7. Keeper status is polled with bounded retries and may be refreshed manually.
@@ -183,7 +184,6 @@ Allow-listed events:
 - `app_view`
 - `scan_success`
 - `transaction_prepared`
-- `wallet_confirmed`
 - `onchain_detected`
 - `keeper_executed`
 - `cancelled`
@@ -198,7 +198,7 @@ authorization header, or full calldata is sent to analytics.
 The authoritative metrics are:
 
 - Activated Bankr trader: first `keeper_executed` per verified wallet.
-- Attempted trade: `wallet_confirmed`.
+- Prepared trade: `transaction_prepared`; opening a chat handoff is not counted as confirmation or submission.
 - Submitted/on-chain trade: `onchain_detected`.
 - Failed trade: confirmed intent that ends in cancellation, timeout, or a
   categorized reconciliation failure.

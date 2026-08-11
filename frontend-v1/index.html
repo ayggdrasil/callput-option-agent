@@ -127,50 +127,242 @@
             "mainEntity": [
               {
                 "@type": "Question",
-                "name": "Which GitHub repository should external agents clone for Callput Lite MCP?",
+                "name": "What is Callput Lite MCP?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "External agents should clone https://github.com/ayggdrasil/callput-option-agent.git. The repository contains the MCP server, skill documentation, frontend guidance page, and setup templates."
+                  "text": "Callput Lite MCP is a public Model Context Protocol server and agent skill for scanning and managing defined-risk synthetic option spreads on Base. It provides market data, validation, unsigned transaction preparation, request tracking, position closing, and settlement tools."
                 }
               },
               {
                 "@type": "Question",
-                "name": "What MCP server id should be used in agent config?",
+                "name": "What does the Callput MCP server do?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Use callput-lite-agent-mcp as the MCP server id inside mcpServers."
+                  "text": "The server reads the Callput market feed, validates option structures, ranks spread candidates, checks Base transaction constraints, and returns structured results to an agent. It does not hold a private key or sign a transaction."
                 }
               },
               {
                 "@type": "Question",
-                "name": "What is the package name?",
+                "name": "What is the Callput MCP endpoint?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "The npm package name in package.json is callput-lite-mcp-skill."
+                  "text": "Use https://mcp.callput.app/api/mcp as a Streamable HTTP MCP endpoint. The public endpoint does not require an API key, although clients must still follow the server's origin, rate-limit, and safety policies."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Does Callput Lite MCP sign or broadcast transactions?",
+                "name": "Which repository, package, and server ID should I use?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. Callput Lite MCP returns unsigned transaction payloads. Private keys, signing, broadcast, and wallet policy remain in the external agent runtime or signer."
+                  "text": "Clone https://github.com/ayggdrasil/callput-option-agent.git, use the package name callput-lite-mcp-skill, and configure the server ID callput-lite-agent-mcp. These identifiers belong to the same integration package."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Which markets are supported?",
+                "name": "Is Callput Lite MCP a wallet, broker, or exchange?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Callput Lite MCP supports the currently tradable crypto, stock, and ETF symbols BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. Live tradability depends on current feed availability."
+                  "text": "No. It is an MCP server and skill package that prepares data and unsigned transactions for Callput's on-chain protocol. Wallet custody, signing, broadcast, and user authorization stay outside the MCP."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Can agents build stock option spreads with this MCP?",
+                "name": "How does an agent connect to Callput MCP?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Yes. Agents can scan, validate, and build unsigned transactions for supported synthetic stock and ETF option spreads, including buy and sell call/put spreads that can be composed into butterfly and iron condor structures."
+                  "text": "Add https://mcp.callput.app/api/mcp as an HTTP MCP server with no authentication, then list the available tools before attempting a scan. Begin with a read-only prompt and do not prepare or submit a transaction until the user explicitly chooses a candidate."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which AI agents and MCP clients can use Callput?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Any client that supports Streamable HTTP MCP and the advertised tool schemas can connect. The repository also contains skill instructions for compatible coding agents and agent runtimes."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do I need a Callput API key?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No API key is required for the public MCP endpoint. The server still applies request ceilings, input validation, market-data freshness checks, and transaction safety limits."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can Bankr or OpenClaw use the same Callput tools?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes, when the runtime supports the Callput MCP or installs the Callput skill. Each runtime remains responsible for its own wallet identity, authorization policy, signing, and broadcast."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How can I verify that Callput MCP is installed correctly?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "List the tools, call the market scan for one supported symbol, and confirm that the response includes ranked spread candidates or a clear availability error. A first test should remain read-only and should not call transaction preparation."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which blockchain does Callput use?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Callput transaction preparation targets Base mainnet, chain ID 8453. Wallet funds, token approvals, gas handling, and transaction review must therefore use Base-compatible assets and addresses."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which assets can Callput currently scan?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. Live candidates depend on the current feed, expiry set, direction, and option availability."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Are Callput stock and ETF options broker-listed securities?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY products are synthetic on-chain options. They do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which option spread strategies are supported?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Agents can scan and prepare BuyCallSpread, BuyPutSpread, SellCallSpread, and SellPutSpread verticals. Those capped-risk legs can also be composed into structures such as butterflies or iron condors when the agent and user manage every leg explicitly."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does a configured symbol always have a tradable spread?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. A configured symbol can return no candidates when contracts are unavailable, expired, stale, structurally invalid, or outside the selected constraints. Agents should query the live feed instead of assuming availability from the symbol list."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Callput MCP automatically execute trades?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. The MCP returns unsigned transaction data and cannot sign or broadcast it. A user-controlled wallet or authorized external signer must review and approve every on-chain action."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is an `unsigned_tx` response?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "It is a transaction payload containing the destination, calldata, native value, and Base chain ID needed for external review. Receiving it does not mean that a transaction was signed, submitted, mined, or executed."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why can a Callput trade require USDC approval?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Premium or collateral may require the Base USDC allowance for the exact Callput spender. When allowance is insufficient, the response can include a bounded approval transaction that must be reviewed and confirmed before the option transaction."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How are maximum risk and minimum fill handled?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Callput enforces a configured per-trade USDC risk ceiling and returns the calculated maximum amount at risk for the requested size. It also encodes a minimum-fill constraint so an execution below the user's accepted threshold can be rejected."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why does the transaction include a Base ETH value?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Callput's request flow can require a native execution fee paid in Base ETH. The prepared transaction shows both the exact wei value and its ETH representation so the signer can verify it before approval."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What should an agent do after broadcasting a Callput transaction?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Wait for a successful receipt, extract the Callput request key, verify the destination and event provenance, and poll the request status. Broadcast success alone does not prove that the keeper executed the option request."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is a Callput request key?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "A request key is the protocol identifier emitted for an open or close request. Agents should persist it with the wallet, transaction hash, intent, and timestamps so later status checks can reconcile the correct request."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can an agent close a Callput position before expiry?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes, if the wallet owns the position token and the position has not expired. Closing requires an explicit size and user-approved output floors, and the MCP again returns an unsigned transaction."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How is a Callput position handled after expiry?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "An expired position is settled rather than closed through the pre-expiry path. Settlement validates the asset, wallet ownership, expiry state, and user-approved swap floor before returning unsigned transaction data."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can Callput MCP show positions and realized PnL?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. The portfolio and history tools can summarize balances, recover wallet-linked request keys, inspect positions, and retrieve settled results within configured event-lookback limits."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does Callput receive or store private keys?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Callput MCP does not request, receive, or store a seed phrase or private key. Signing policy and key custody remain with Bankr, another external wallet, or the user's authorized agent runtime."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why did a Callput scan return no candidates?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The selected symbol, direction, expiry, size, or risk constraint may not match any valid live spread. Retry with another supported symbol or direction after confirming that the market endpoint reports current tradable contracts."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What happens when market data is stale or Base RPC fails?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The MCP rejects stale or malformed market data and rejects RPC responses from the wrong chain. Agents should surface the error, avoid transaction preparation, and retry only after the upstream feed or Base RPC is healthy."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why can an externally submitted transaction simulation revert?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Common causes include insufficient Base USDC, insufficient allowance, insufficient Base ETH for the execution fee, expired calldata, changed market state, or contract-level validation. The agent should recheck balances and rebuild fresh transaction data instead of replaying a stale payload."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is the safest first Callput workflow?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Start with a read-only scan, choose a small defined-risk spread, inspect maximum risk and minimum fill, then prepare an unsigned transaction. Sign only after verifying the Base chain, destination, calldata intent, USDC approval, and native execution fee."
                 }
               }
             ]
@@ -193,6 +385,7 @@
         <a href="#flows">Flows</a>
         <a href="#contracts">Tools</a>
         <a href="#security">Security</a>
+        <a href="/bankr">Bankr</a>
         <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
     </header>
@@ -298,7 +491,7 @@ npm run verify:mcp</code></pre>
     }
   }
 }</code></pre>
-            <p class="expected">Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as Base chain 8453.</p>
+            <p class="expected">Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as Base mainnet, chain ID <code>8453</code>.</p>
           </article>
           <article class="setup-step">
             <div class="step-top">
@@ -360,27 +553,67 @@ npm run verify:mcp</code></pre>
             <p>Agents can build buy/sell call spreads and buy/sell put spreads, then compose butterfly and iron condor structures.</p>
           </article>
         </div>
-        <div class="faq-list" aria-label="Callput Lite MCP frequently asked questions">
-          <details open>
-            <summary>Which GitHub should an external agent use?</summary>
-            <p>Use <code>https://github.com/ayggdrasil/callput-option-agent.git</code>. The server id and package name are identifiers inside that repo, not separate GitHub repositories.</p>
-          </details>
-          <details>
-            <summary>What does the MCP actually do?</summary>
-            <p>It reads Callput market data, verifies Base RPC, ranks spread candidates, validates spread structure, and returns unsigned transaction payloads for the signer.</p>
-          </details>
-          <details>
-            <summary>Can it trade stock options?</summary>
-            <p>It supports the currently tradable Callput synthetic stock and ETF option symbols TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY when live contracts are available.</p>
-          </details>
-          <details>
-            <summary>Is this a wallet or broker?</summary>
-            <p>No. It is a Model Context Protocol server and skill package. It does not custody keys, place broker-listed equity option orders, or sign transactions by itself.</p>
-          </details>
-          <details>
-            <summary>What should an agent do after broadcast?</summary>
-            <p>Parse the request key from the receipt, poll request status, persist the request key, then close before expiry or settle after expiry when appropriate.</p>
-          </details>
+        <div class="faq-groups" aria-label="Callput Lite MCP frequently asked questions">
+          <section class="faq-group" aria-labelledby="faq-root-basics">
+            <h3 id="faq-root-basics">Callput and MCP basics</h3><p class="faq-group-lede">Definitions and canonical integration identifiers.</p>
+            <div class="faq-list">
+              <details class="faq-item"><summary>What is Callput Lite MCP?</summary><p>Callput Lite MCP is a public Model Context Protocol server and agent skill for scanning and managing defined-risk synthetic option spreads on Base. It provides market data, validation, unsigned transaction preparation, request tracking, position closing, and settlement tools.</p></details>
+              <details class="faq-item"><summary>What does the Callput MCP server do?</summary><p>The server reads the Callput market feed, validates option structures, ranks spread candidates, checks Base transaction constraints, and returns structured results to an agent. It does not hold a private key or sign a transaction.</p></details>
+              <details class="faq-item"><summary>What is the Callput MCP endpoint?</summary><p>Use https://mcp.callput.app/api/mcp as a Streamable HTTP MCP endpoint. The public endpoint does not require an API key, although clients must still follow the server's origin, rate-limit, and safety policies.</p></details>
+              <details class="faq-item"><summary>Which repository, package, and server ID should I use?</summary><p>Clone https://github.com/ayggdrasil/callput-option-agent.git, use the package name callput-lite-mcp-skill, and configure the server ID callput-lite-agent-mcp. These identifiers belong to the same integration package.</p></details>
+              <details class="faq-item"><summary>Is Callput Lite MCP a wallet, broker, or exchange?</summary><p>No. It is an MCP server and skill package that prepares data and unsigned transactions for Callput's on-chain protocol. Wallet custody, signing, broadcast, and user authorization stay outside the MCP.</p></details>
+            </div>
+          </section>
+          <section class="faq-group" aria-labelledby="faq-root-install">
+            <h3 id="faq-root-install">Installation and agent compatibility</h3><p class="faq-group-lede">Connection requirements and read-only verification.</p>
+            <div class="faq-list">
+              <details class="faq-item"><summary>How does an agent connect to Callput MCP?</summary><p>Add https://mcp.callput.app/api/mcp as an HTTP MCP server with no authentication, then list the available tools before attempting a scan. Begin with a read-only prompt and do not prepare or submit a transaction until the user explicitly chooses a candidate.</p></details>
+              <details class="faq-item"><summary>Which AI agents and MCP clients can use Callput?</summary><p>Any client that supports Streamable HTTP MCP and the advertised tool schemas can connect. The repository also contains skill instructions for compatible coding agents and agent runtimes.</p></details>
+              <details class="faq-item"><summary>Do I need a Callput API key?</summary><p>No API key is required for the public MCP endpoint. The server still applies request ceilings, input validation, market-data freshness checks, and transaction safety limits.</p></details>
+              <details class="faq-item"><summary>Can Bankr or OpenClaw use the same Callput tools?</summary><p>Yes, when the runtime supports the Callput MCP or installs the Callput skill. Each runtime remains responsible for its own wallet identity, authorization policy, signing, and broadcast.</p></details>
+              <details class="faq-item"><summary>How can I verify that Callput MCP is installed correctly?</summary><p>List the tools, call the market scan for one supported symbol, and confirm that the response includes ranked spread candidates or a clear availability error. A first test should remain read-only and should not call transaction preparation.</p></details>
+            </div>
+          </section>
+          <section class="faq-group" aria-labelledby="faq-root-markets">
+            <h3 id="faq-root-markets">Supported markets and strategies</h3><p class="faq-group-lede">Assets, synthetic products, and defined-risk structures.</p>
+            <div class="faq-list">
+              <details class="faq-item"><summary>Which blockchain does Callput use?</summary><p>Callput transaction preparation targets Base mainnet, chain ID 8453. Wallet funds, token approvals, gas handling, and transaction review must therefore use Base-compatible assets and addresses.</p></details>
+              <details class="faq-item"><summary>Which assets can Callput currently scan?</summary><p>The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. Live candidates depend on the current feed, expiry set, direction, and option availability.</p></details>
+              <details class="faq-item"><summary>Are Callput stock and ETF options broker-listed securities?</summary><p>No. TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY products are synthetic on-chain options. They do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights.</p></details>
+              <details class="faq-item"><summary>Which option spread strategies are supported?</summary><p>Agents can scan and prepare BuyCallSpread, BuyPutSpread, SellCallSpread, and SellPutSpread verticals. Those capped-risk legs can also be composed into structures such as butterflies or iron condors when the agent and user manage every leg explicitly.</p></details>
+              <details class="faq-item"><summary>Does a configured symbol always have a tradable spread?</summary><p>No. A configured symbol can return no candidates when contracts are unavailable, expired, stale, structurally invalid, or outside the selected constraints. Agents should query the live feed instead of assuming availability from the symbol list.</p></details>
+            </div>
+          </section>
+          <section class="faq-group" aria-labelledby="faq-root-transactions">
+            <h3 id="faq-root-transactions">Transaction preparation and wallet control</h3><p class="faq-group-lede">Unsigned payloads, approval, risk, and fees.</p>
+            <div class="faq-list">
+              <details class="faq-item"><summary>Does Callput MCP automatically execute trades?</summary><p>No. The MCP returns unsigned transaction data and cannot sign or broadcast it. A user-controlled wallet or authorized external signer must review and approve every on-chain action.</p></details>
+              <details class="faq-item"><summary>What is an `unsigned_tx` response?</summary><p>It is a transaction payload containing the destination, calldata, native value, and Base chain ID needed for external review. Receiving it does not mean that a transaction was signed, submitted, mined, or executed.</p></details>
+              <details class="faq-item"><summary>Why can a Callput trade require USDC approval?</summary><p>Premium or collateral may require the Base USDC allowance for the exact Callput spender. When allowance is insufficient, the response can include a bounded approval transaction that must be reviewed and confirmed before the option transaction.</p></details>
+              <details class="faq-item"><summary>How are maximum risk and minimum fill handled?</summary><p>Callput enforces a configured per-trade USDC risk ceiling and returns the calculated maximum amount at risk for the requested size. It also encodes a minimum-fill constraint so an execution below the user's accepted threshold can be rejected.</p></details>
+              <details class="faq-item"><summary>Why does the transaction include a Base ETH value?</summary><p>Callput's request flow can require a native execution fee paid in Base ETH. The prepared transaction shows both the exact wei value and its ETH representation so the signer can verify it before approval.</p></details>
+            </div>
+          </section>
+          <section class="faq-group" aria-labelledby="faq-root-lifecycle">
+            <h3 id="faq-root-lifecycle">Position lifecycle and monitoring</h3><p class="faq-group-lede">Receipts, request keys, closing, settlement, and history.</p>
+            <div class="faq-list">
+              <details class="faq-item"><summary>What should an agent do after broadcasting a Callput transaction?</summary><p>Wait for a successful receipt, extract the Callput request key, verify the destination and event provenance, and poll the request status. Broadcast success alone does not prove that the keeper executed the option request.</p></details>
+              <details class="faq-item"><summary>What is a Callput request key?</summary><p>A request key is the protocol identifier emitted for an open or close request. Agents should persist it with the wallet, transaction hash, intent, and timestamps so later status checks can reconcile the correct request.</p></details>
+              <details class="faq-item"><summary>Can an agent close a Callput position before expiry?</summary><p>Yes, if the wallet owns the position token and the position has not expired. Closing requires an explicit size and user-approved output floors, and the MCP again returns an unsigned transaction.</p></details>
+              <details class="faq-item"><summary>How is a Callput position handled after expiry?</summary><p>An expired position is settled rather than closed through the pre-expiry path. Settlement validates the asset, wallet ownership, expiry state, and user-approved swap floor before returning unsigned transaction data.</p></details>
+              <details class="faq-item"><summary>Can Callput MCP show positions and realized PnL?</summary><p>Yes. The portfolio and history tools can summarize balances, recover wallet-linked request keys, inspect positions, and retrieve settled results within configured event-lookback limits.</p></details>
+            </div>
+          </section>
+          <section class="faq-group" aria-labelledby="faq-root-safety">
+            <h3 id="faq-root-safety">Safety, limits, and troubleshooting</h3><p class="faq-group-lede">Custody boundary, availability, and failure recovery.</p>
+            <div class="faq-list">
+              <details class="faq-item"><summary>Does Callput receive or store private keys?</summary><p>No. Callput MCP does not request, receive, or store a seed phrase or private key. Signing policy and key custody remain with Bankr, another external wallet, or the user's authorized agent runtime.</p></details>
+              <details class="faq-item"><summary>Why did a Callput scan return no candidates?</summary><p>The selected symbol, direction, expiry, size, or risk constraint may not match any valid live spread. Retry with another supported symbol or direction after confirming that the market endpoint reports current tradable contracts.</p></details>
+              <details class="faq-item"><summary>What happens when market data is stale or Base RPC fails?</summary><p>The MCP rejects stale or malformed market data and rejects RPC responses from the wrong chain. Agents should surface the error, avoid transaction preparation, and retry only after the upstream feed or Base RPC is healthy.</p></details>
+              <details class="faq-item"><summary>Why can an externally submitted transaction simulation revert?</summary><p>Common causes include insufficient Base USDC, insufficient allowance, insufficient Base ETH for the execution fee, expired calldata, changed market state, or contract-level validation. The agent should recheck balances and rebuild fresh transaction data instead of replaying a stale payload.</p></details>
+              <details class="faq-item"><summary>What is the safest first Callput workflow?</summary><p>Start with a read-only scan, choose a small defined-risk spread, inspect maximum risk and minimum fill, then prepare an unsigned transaction. Sign only after verifying the Base chain, destination, calldata intent, USDC approval, and native execution fee.</p></details>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -389,6 +622,7 @@ npm run verify:mcp</code></pre>
           <h2>Supported Markets</h2>
           <p>Live tradability depends on the Callput feed. The MCP can still normalize configured symbols and aliases.</p>
         </div>
+        <p id="liveAvailabilityStatus" class="availability-status" role="status" aria-live="polite">Checking current Callput market availability…</p>
         <div class="scan-card" aria-label="Example market scan">
           <div class="scan-head">
             <span>Example scan result</span>

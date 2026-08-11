@@ -41,6 +41,6 @@
 
 ## 6. Measure real adoption
 
-- Record `app_view`, `scan_success`, `transaction_prepared`, `wallet_confirmed`, `onchain_detected`, `keeper_executed`, and `cancelled`.
+- Record `app_view`, `scan_success`, `transaction_prepared`, `onchain_detected`, `keeper_executed`, and `cancelled`; never infer `wallet_confirmed` from the void chat-handoff return.
 - Treat on-chain `GenerateRequestKey` and keeper state as authoritative.
 - Report the first 50–100 genuine trade funnel; do not manufacture activity.

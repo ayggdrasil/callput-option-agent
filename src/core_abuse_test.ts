@@ -44,7 +44,9 @@ function freshMarketPayload() {
 
 type RpcState = {
   eventFromBlocks: number[];
+  eventToBlocks: number[];
   eventLogs: any[];
+  optionTokenIds: bigint[];
   openRequestCalls: string[];
   maxOpenRequestsPerBatch: number;
   executionFee: bigint;
@@ -58,7 +60,9 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
   const optionToken = new ethers.Interface(OPTIONS_TOKEN_ABI);
   const state: RpcState = {
     eventFromBlocks: [],
+    eventToBlocks: [],
     eventLogs: [],
+    optionTokenIds: [],
     openRequestCalls: [],
     maxOpenRequestsPerBatch: 0,
     executionFee: CONFIG.EXECUTION_FEE_FALLBACK,
@@ -85,6 +89,7 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
         result = ethers.toQuantity(100_000);
       } else if (rpc.method === "eth_getLogs") {
         state.eventFromBlocks.push(Number(rpc.params?.[0]?.fromBlock));
+        state.eventToBlocks.push(Number(rpc.params?.[0]?.toBlock));
         result = state.eventLogs;
       } else if (rpc.method === "eth_getTransactionReceipt") {
         result = state.receipts[String(rpc.params?.[0]).toLowerCase()] ?? null;
@@ -93,9 +98,12 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
       } else if (rpc.method === "eth_call") {
         const data = String(rpc.params?.[0]?.data ?? "");
         if (data.startsWith(optionToken.getFunction("tokensByAccount")!.selector)) {
-          result = optionToken.encodeFunctionResult("tokensByAccount", [[]]);
+          const target = String(rpc.params?.[0]?.to ?? "").toLowerCase();
+          const btcOptionsToken = CONFIG.UNDERLYINGS.BTC.optionsToken.toLowerCase();
+          result = optionToken.encodeFunctionResult("tokensByAccount", [target === btcOptionsToken ? state.optionTokenIds : []]);
         } else if (data.startsWith(optionToken.getFunction("balanceOfBatch")!.selector)) {
-          result = optionToken.encodeFunctionResult("balanceOfBatch", [[100_000_000n]]);
+          const tokenIds = Array.from(optionToken.decodeFunctionData("balanceOfBatch", data)[1]);
+          result = optionToken.encodeFunctionResult("balanceOfBatch", [tokenIds.map(() => 100_000_000n)]);
         } else if (data.startsWith(erc20.getFunction("balanceOf")!.selector)) {
           result = erc20.encodeFunctionResult("balanceOf", [1_000_000n]);
         } else if (data.startsWith(pm.getFunction("executionFee")!.selector)) {
@@ -256,11 +264,30 @@ test("core public-launch abuse controls", async (t) => {
     await new Promise<void>((resolve, reject) => rpc.server.close((error) => error ? reject(error) : resolve()));
   });
 
-  await t.test("clamps caller-supplied event lookback for both history queries", async () => {
-    process.env.CALLPUT_MAX_EVENT_LOOKBACK_BLOCKS = "100";
+  await t.test("chunks both history queries within the Base RPC 10,000-block limit", async () => {
+    process.env.CALLPUT_MAX_EVENT_LOOKBACK_BLOCKS = "25000";
+    rpc.state.eventFromBlocks.length = 0;
+    rpc.state.eventToBlocks.length = 0;
     await listPositionsByWallet({ address: ACCOUNT, fromBlock: 0 });
     await getSettledPnl({ address: ACCOUNT, fromBlock: 0 });
-    assert.deepEqual(rpc.state.eventFromBlocks.slice(-2), [99_900, 99_900]);
+    assert.equal(rpc.state.eventFromBlocks.length, 6);
+    assert.deepEqual(rpc.state.eventFromBlocks.slice(0, 3), [75_000, 85_000, 95_000]);
+    assert.deepEqual(rpc.state.eventToBlocks.slice(0, 3), [84_999, 94_999, 100_000]);
+    for (let i = 0; i < rpc.state.eventFromBlocks.length; i++) {
+      assert.ok(rpc.state.eventToBlocks[i] - rpc.state.eventFromBlocks[i] + 1 <= 10_000);
+    }
+  });
+
+  await t.test("handles non-empty read-only token ID results in portfolio summary", async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify(freshMarketPayload()));
+    rpc.state.optionTokenIds = [BigInt(spreadTokenId(CONFIG.UNDERLYINGS.BTC.index, NOW_SEC + 3_600))];
+    try {
+      const result = await getPortfolioSummary({ address: ACCOUNT });
+      assert.equal(result.total_positions, 1);
+      assert.equal(result.positions[0].underlying, "BTC");
+    } finally {
+      rpc.state.optionTokenIds = [];
+    }
   });
 
   await t.test("deduplicates, bounds, and wallet-scopes portfolio request keys", async () => {

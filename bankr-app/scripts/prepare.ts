@@ -37,7 +37,7 @@ const transaction = await bankr.tx.prepare({
 
 return {
   approval,
-  approval_preview: approval ? { token:"USDC", spender:`0x${approvalTx.data.slice(34,74)}`, amount_usdc:Number(prepared.usdc_approval.required)/1e6 } : null,
+  approval_preview: approval ? { token:"Base USDC", token_address:approvalTx.to, spender:`0x${approvalTx.data.slice(34,74)}`, amount_usdc:Number(prepared.usdc_approval.required)/1e6 } : null,
   transaction,
   transaction_preview: {
     chain: "Base",

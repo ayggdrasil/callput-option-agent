@@ -33,6 +33,7 @@ This package is designed for:
 - First-trade prompt templates
 - Unsigned transaction flow by default; signing stays outside MCP
 - Frontend V1 guidance console (`frontend-v1/`)
+- Public Bankr conversion guide with a wallet-free deterministic demo (`bankr/`)
 
 ## Folder Contents
 - `src/` : MCP server implementation
@@ -47,6 +48,7 @@ This package is designed for:
 - `ARCHITECTURE_V1.md` : frontend vs agent runtime responsibilities
 - `FAQ.md` : operator FAQ
 - `frontend-v1/` : static responsive UI for V1 guidance
+- `bankr/` : public English Bankr guide, deterministic demo, and social preview asset
 - `bankr-app/` : Bankr manifest, frontend, scripts, install prompt, and QA
 - `api/` : Vercel Functions for remote MCP and Bankr endpoints
 
@@ -98,7 +100,7 @@ npm run verify:mcp
 
 ## Connect OpenClaw / Bankr
 1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
-2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.2/callput`.
+2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.4.3/callput`.
 3. Bankr MCP: add `https://mcp.callput.app/api/mcp` as HTTP with authentication `None`.
 4. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
 5. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
@@ -113,6 +115,7 @@ python3 -m http.server 4173
 ```
 
 Then visit `http://localhost:4173` or `http://localhost:4173/frontend-v1/`.
+The Bankr guide is available at `http://localhost:4173/bankr/`.
 
 V1 flow in UI:
 1. Direction setup
@@ -126,7 +129,7 @@ V1 note:
 ## Execution Model
 - MCP preview/build mode: tools return unsigned transactions only. Nothing is signed or broadcast by the MCP server.
 - Live execution: the external agent runtime signs and broadcasts `unsigned_tx` using its own wallet, HSM, Bankr signer, Ledger, or equivalent signer.
-- If `usdc_approval.sufficient == false`, the agent signs and broadcasts `usdc_approval.approve_tx` before the main transaction.
+- If `usdc_approval.sufficient == false`, the agent signs and broadcasts `usdc_approval.approve_tx` before the main transaction. The approval is bounded to the exact `required` raw USDC amount for that prepared order; agents must reject any larger approval.
 
 ## Mandatory Trading Rules
 1. Spread-only execution across crypto and supported stock/ETF symbols.

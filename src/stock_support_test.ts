@@ -234,10 +234,29 @@ async function main() {
   assert.match(frontendApp, /symbol: "SKHY", type: "stock", live: true/);
   assert.doesNotMatch(frontendApp, /symbol: "HYNIX"/);
   assert.doesNotMatch(frontendApp, /symbol: "SAMSUNG"/);
+  assert.match(frontendApp, /fetch\("\/api\/bankr\/assets"/, "the root console must refresh live tradability from the public assets endpoint");
+  assert.match(frontendApp, /tradable_options/, "the root console must render live tradable option counts");
 
   const frontendHtml = readProjectFile("frontend-v1/index.html");
   assert.match(frontendHtml, /TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY/);
   assert.match(frontendHtml, /<strong>11<\/strong> <span>currently tradable/);
+  assert.match(frontendHtml, /id="liveAvailabilityStatus"[^>]*role="status"/, "the root console must expose live market availability status");
+  for (const heading of [
+    "Callput and MCP basics",
+    "Installation and agent compatibility",
+    "Supported markets and strategies",
+    "Transaction preparation and wallet control",
+    "Position lifecycle and monitoring",
+    "Safety, limits, and troubleshooting"
+  ]) assert.match(frontendHtml, new RegExp(heading));
+
+  for (const phrase of [
+    "Streamable HTTP MCP endpoint",
+    "Base mainnet, chain ID <code>8453</code>",
+    "request key",
+    "settled results",
+    "simulation revert"
+  ]) assert.match(frontendHtml, new RegExp(phrase, "i"));
 
   await getMarketSnapshot(true);
 

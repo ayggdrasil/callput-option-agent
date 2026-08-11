@@ -344,9 +344,8 @@ export function validatePreparedTransaction(
   if (decoded?.name !== "approve") throw new Error("Approval has unexpected calldata");
   sameAddress(String(decoded.args[0]), CONFIG.CONTRACTS.ROUTER, "USDC approval spender");
   const approvalAmount = BigInt(decoded.args[1]);
-  const expectedApprovalAmount = amountInRaw * 2n;
-  if (approvalAmount !== expectedApprovalAmount || approvalAmount > maxUsdcRiskRaw * 2n) {
-    throw new Error("USDC approval amount must equal twice the quoted risk and stay within twice the risk cap");
+  if (approvalAmount !== amountInRaw || approvalAmount > maxUsdcRiskRaw) {
+    throw new Error("USDC approval amount must equal the quoted risk and stay within the risk cap");
   }
   const canonicalApprovalData = erc20.encodeFunctionData("approve", Array.from(decoded.args));
   if (canonicalApprovalData.toLowerCase() !== approval.data.toLowerCase()) {

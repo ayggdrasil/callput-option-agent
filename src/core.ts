@@ -378,8 +378,9 @@ export async function getMarketSnapshot(
           if (mark < 0) marketSchemaError(`${rowPath}.markPrice must be >= 0`);
           const rpBuy = requireFiniteNumber(row.riskPremiumRateForBuy, `${rowPath}.riskPremiumRateForBuy`);
           const rpSell = requireFiniteNumber(row.riskPremiumRateForSell, `${rowPath}.riskPremiumRateForSell`);
-          if (rpBuy < 0 || rpBuy > 1 || rpSell < 0 || rpSell > 1) {
-            marketSchemaError(`${rowPath} risk premium rates must be between 0 and 1`);
+          if (rpBuy < 0) marketSchemaError(`${rowPath} risk premium rate for buy must be >= 0`);
+          if (rpSell < 0 || rpSell > 1) {
+            marketSchemaError(`${rowPath} risk premium rate for sell must be between 0 and 1`);
           }
           const strike = requireFiniteNumber(row.strikePrice, `${rowPath}.strikePrice`, { positive: true, integer: true });
           if (typeof row.optionId !== "string" || !/^(0x[0-9a-fA-F]+|[1-9]\d*)$/.test(row.optionId)) {
@@ -430,14 +431,22 @@ export async function getMarketSnapshot(
 
           const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIv ?? row.markIV ?? row.sigma ?? 0);
           const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
+          const bid = mark * (1 - rpSell);
+          const ask = mark * (1 + rpBuy);
+          if (!Number.isFinite(bid) || bid < 0) {
+            marketSchemaError(`${rowPath} derived bid must be finite and >= 0`);
+          }
+          if (!Number.isFinite(ask) || ask < 0) {
+            marketSchemaError(`${rowPath} derived ask must be finite and >= 0`);
+          }
 
           options.push({
             instrument,
             optionId,
             strikePrice: strike,
             markPrice: mark,
-            bid: mark * (1 - rpSell),
-            ask: mark * (1 + rpBuy),
+            bid,
+            ask,
             underlying: asset,
             optionType,
             expirySec,
@@ -667,9 +676,8 @@ async function checkAllowance(
   if (allowance >= amountIn) {
     return { sufficient: true, current_allowance: allowance.toString(), required: amountIn.toString() };
   }
-  const approveAmount = amountIn * 2n;
   const iface = new ethers.Interface(ERC20_ABI);
-  const data = iface.encodeFunctionData("approve", [CONFIG.CONTRACTS.ROUTER, approveAmount]);
+  const data = iface.encodeFunctionData("approve", [CONFIG.CONTRACTS.ROUTER, amountIn]);
   return {
     sufficient: false,
     current_allowance: allowance.toString(),
@@ -792,7 +800,7 @@ export async function findRequestKeyByIntentFingerprint(params: {
   const latestBlock = await provider.getBlockNumber();
   const fromBlock = getBoundedIntentReconcileFromBlock(params.fromBlock, latestBlock);
   const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
-  const logs = await pm.queryFilter(pm.filters.GenerateRequestKey(account), fromBlock, latestBlock);
+  const logs = await queryFilterInChunks(pm, pm.filters.GenerateRequestKey(account), fromBlock, latestBlock);
 
   for (const candidate of [...logs].reverse()) {
     if (ethers.getAddress(candidate.address) !== ethers.getAddress(CONFIG.CONTRACTS.POSITION_MANAGER)) continue;
@@ -1093,11 +1101,11 @@ export async function getPositions(address: string) {
     const tokenAddress = CONFIG.UNDERLYINGS[asset].optionsToken;
     if (!tokenAddress) continue;
     const token = new ethers.Contract(tokenAddress, OPTIONS_TOKEN_ABI, provider);
-    const tokenIds: bigint[] = (await token.tokensByAccount(account)) as bigint[];
+    const tokenIds = Array.from(await token.tokensByAccount(account), (value) => BigInt(String(value)));
     if (!tokenIds.length) continue;
 
     const accounts = tokenIds.map(() => account);
-    const balances: bigint[] = (await token.balanceOfBatch(accounts, tokenIds)) as bigint[];
+    const balances = Array.from(await token.balanceOfBatch(accounts, tokenIds), (value) => BigInt(String(value)));
 
     for (let i = 0; i < tokenIds.length; i++) {
       const bal = balances[i];
@@ -1155,6 +1163,22 @@ function getBoundedEventFromBlock(requestedFromBlock: number | undefined, latest
   return Math.max(requestedFromBlock ?? defaultFromBlock, minimumAllowedFromBlock);
 }
 
+const MAX_EVENT_QUERY_BLOCKS = 10_000;
+
+async function queryFilterInChunks(
+  contract: ethers.Contract,
+  filter: any,
+  fromBlock: number,
+  toBlock: number
+): Promise<Array<ethers.EventLog | ethers.Log>> {
+  const logs: Array<ethers.EventLog | ethers.Log> = [];
+  for (let start = fromBlock; start <= toBlock; start += MAX_EVENT_QUERY_BLOCKS) {
+    const end = Math.min(start + MAX_EVENT_QUERY_BLOCKS - 1, toBlock);
+    logs.push(...await contract.queryFilter(filter, start, end));
+  }
+  return logs;
+}
+
 export async function listPositionsByWallet(params: {
   address: string;
   fromBlock?: number;
@@ -1168,7 +1192,7 @@ export async function listPositionsByWallet(params: {
   const fromBlock = getBoundedEventFromBlock(params.fromBlock, latestBlock);
 
   const filter = pm.filters.GenerateRequestKey(account);
-  const logs = await pm.queryFilter(filter, fromBlock, latestBlock);
+  const logs = await queryFilterInChunks(pm, filter, fromBlock, latestBlock);
 
   const openKeys: string[] = [];
   const closeKeys: string[] = [];
@@ -1210,7 +1234,7 @@ export async function getSettledPnl(params: {
   const fromBlock = getBoundedEventFromBlock(params.fromBlock, latestBlock);
 
   const filter = settle.filters.SettlePosition(account);
-  const logs = await settle.queryFilter(filter, fromBlock, latestBlock);
+  const logs = await queryFilterInChunks(settle, filter, fromBlock, latestBlock);
 
   let totalAmountOutUsd = 0;
   const settlements: Record<string, unknown>[] = [];

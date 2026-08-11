@@ -411,6 +411,15 @@ pre {
   grid-template-columns: repeat(11, minmax(0, 1fr));
 }
 
+.availability-status {
+  margin: 0 0 12px;
+  border-left: 2px solid var(--green);
+  padding: 8px 11px;
+  color: var(--muted);
+  background: rgba(65, 231, 125, 0.05);
+  font: 500 11px/1.5 var(--font-mono);
+}
+
 .market-card,
 .flow-card,
 .contract-item,
@@ -728,6 +737,33 @@ pre {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+}
+
+.faq-groups {
+  display: grid;
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.faq-group {
+  min-width: 0;
+}
+
+.faq-group > h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.faq-group-lede {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.faq-item summary:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
 }
 
 .faq-list details {

@@ -133,6 +133,32 @@ test("trade core safety gates", async (t) => {
     await assert.rejects(() => getMarketSnapshot(true), /MARKET_DATA_SCHEMA/);
   });
 
+  await t.test("accepts an unbounded non-negative buy risk premium while bounding sell risk", async () => {
+    const payload: any = marketPayload();
+    const row = payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0];
+    row.riskPremiumRateForBuy = 1.25;
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+
+    const snapshot = await getMarketSnapshot(true);
+    assert.equal(snapshot.options[0].ask, 22.5);
+
+    row.riskPremiumRateForBuy = -0.01;
+    await assert.rejects(() => getMarketSnapshot(true), /risk premium rate for buy must be >= 0/);
+
+    row.riskPremiumRateForBuy = 0.01;
+    row.riskPremiumRateForSell = 1.01;
+    await assert.rejects(() => getMarketSnapshot(true), /risk premium rate for sell must be between 0 and 1/);
+  });
+
+  await t.test("rejects a non-finite derived ask from finite market inputs", async () => {
+    const payload: any = marketPayload();
+    const row = payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0];
+    row.riskPremiumRateForBuy = Number.MAX_VALUE;
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+
+    await assert.rejects(() => getMarketSnapshot(true), /derived ask must be finite and >= 0/);
+  });
+
   await t.test("rejects feed rows whose option token encoding disagrees with the row", async () => {
     const payload: any = marketPayload();
     payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0].optionId = optionId(1, NOW_SEC + 86_400, 100);

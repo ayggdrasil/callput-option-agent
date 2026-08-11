@@ -19,6 +19,8 @@
     .metrics strong { color:var(--text) } .risk { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0 } .risk div { background:#0b1411; border-radius:10px; padding:10px }
     .risk span { display:block; color:var(--muted); font-size:11px } .risk strong { display:block; margin-top:3px; overflow-wrap:anywhere }
     .warning { border-left:3px solid var(--amber); padding:9px 12px; color:#ffdda2; background:#2a2111; border-radius:5px; margin:10px 0 }
+    .contract-links { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin:10px 0; color:var(--muted); font-size:12px }
+    .contract-links a,.risk a { color:var(--green); text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere }
     .status { min-height:22px; margin-top:10px; color:var(--muted) } .ok { color:var(--green) } .error { color:var(--red) } .hidden { display:none }
     @media(max-width:700px){ .grid { grid-template-columns:1fr 1fr } .risk { grid-template-columns:1fr 1fr } header { flex-direction:column } }
   </style>
@@ -33,9 +35,9 @@
   <section class="panel">
     <h2>1. Find a spread</h2>
     <div class="grid">
-      <label>Underlying<select id="asset"><option>TSLA</option><option>QQQ</option><option>SPY</option><option>EWY</option><option>NVDA</option><option>COIN</option><option>SPCX</option><option>MU</option><option>SKHY</option><option>BTC</option><option>ETH</option></select></label>
-      <label>Market view<select id="bias"><option value="bullish">Bullish — buy call spread</option><option value="bearish">Bearish — buy put spread</option><option value="neutral-bearish">Neutral/bearish — sell call spread</option><option value="neutral-bullish">Neutral/bullish — sell put spread</option></select></label>
-      <label>Size<input id="size" type="number" value="1" min="0.000001" step="any" /></label>
+      <label for="asset">Underlying<select id="asset"><option>TSLA</option><option>QQQ</option><option>SPY</option><option>EWY</option><option>NVDA</option><option>COIN</option><option>SPCX</option><option>MU</option><option>SKHY</option><option>BTC</option><option>ETH</option></select></label>
+      <label for="bias">Market view<select id="bias"><option value="bullish">Bullish — buy call spread</option><option value="bearish">Bearish — buy put spread</option><option value="neutral-bearish">Neutral/bearish — sell call spread</option><option value="neutral-bullish">Neutral/bullish — sell put spread</option></select></label>
+      <label for="size">Size<input id="size" type="number" value="1" min="0.000001" step="any" /></label>
       <button id="scan" class="primary" disabled>Scan</button>
     </div>
     <button id="signIn" class="primary">Sign in to trade</button>
@@ -46,25 +48,25 @@
   <section id="review" class="panel hidden">
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
-    <div class="warning">This prepares an on-chain options trade. Nothing is broadcast until Bankr shows its confirmation modal and you approve it.</div>
-    <button id="confirm" class="primary">Open wallet confirmation</button>
+    <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
+    <div class="contract-links" aria-label="Canonical Base contracts"><strong>Verify contracts on Base:</strong><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a><a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a><a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a></div>
+    <button id="confirm" class="primary">Open Bankr transaction review</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 
   <section class="panel">
     <h2>3. Check keeper execution</h2>
-    <button id="reconcile" disabled>Check my confirmed Callput transaction</button>
+    <button id="reconcile" disabled>Check my Callput request after sending it in Bankr</button>
     <div id="reconcileStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 </main>
 <script>
   const $ = (id) => document.getElementById(id);
   let selected = null;
+  let scannedCandidates = [];
   let prepared = null;
   let preparationVersion = 0;
-  let lastConfirmedTxHash = null;
-  let lastConfirmedIntentFingerprint = null;
-  let approvalConfirmedIntentFingerprint = null;
+  let lastHandoffIntentFingerprint = null;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
@@ -73,30 +75,42 @@
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
+  function candidatePremiumLabel(candidate) {
+    const unitValue = candidate.spread_cost != null ? candidate.spread_cost : candidate.spread_credit;
+    const size = Number($("size").value);
+    if (!Number.isFinite(Number(unitValue)) || !Number.isFinite(size) || size <= 0) return "Enter a positive size to estimate this quote.";
+    const estimatedValue = Number(unitValue) * size;
+    return candidate.spread_cost != null
+      ? `estimated cost <strong>${money(estimatedValue)} USDC</strong> <span>(${money(unitValue)} per 1 unit)</span>`
+      : `estimated credit <strong>${money(estimatedValue)} USDC</strong> <span>(${money(unitValue)} per 1 unit)</span>`;
+  }
+  function refreshCandidatePricing() {
+    scannedCandidates.forEach((candidate,index) => {
+      const premium=$("cards").querySelector(`[data-candidate-index="${index}"] .premium`);
+      if (premium) premium.innerHTML=candidatePremiumLabel(candidate);
+    });
+  }
   function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[char]); }
   function reviewField(label, value) { return `<div><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`; }
+  function addressField(label, value) { const address=escapeHtml(value); return `<div><span>${label}</span><strong><a href="https://basescan.org/address/${address}" target="_blank" rel="noopener noreferrer">${address}</a></strong></div>`; }
   function invalidatePrepared() {
     preparationVersion += 1;
     prepared = null;
     $("confirm").disabled=true;
     $("review").classList.add("hidden");
   }
-  function transactionHash(result) {
-    if (typeof result === "string") return result;
-    return result?.tx_hash ?? result?.txHash ?? result?.transactionHash ?? result?.hash ?? result?.transaction?.hash ?? null;
-  }
-
   async function scan() {
     if (!(await requireSignIn())) return;
-    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; selected=null; invalidatePrepared();
+    setStatus("scanStatus","Scanning live Callput markets…"); $("cards").innerHTML=""; scannedCandidates=[]; selected=null; invalidatePrepared();
     try {
       const result = await bankr.scripts.run("scan", { underlying_asset:$("asset").value, bias:$("bias").value, max_results:3 });
       if (!result.candidates?.length) { setStatus("scanStatus","No live spreads found. Try another asset or market view, then scan again."); return; }
       setStatus("scanStatus",`${result.asset} spot ${money(result.spot_price)} · ${result.strategy}`,"ok");
-      result.candidates.forEach((candidate) => {
+      scannedCandidates=result.candidates;
+      scannedCandidates.forEach((candidate,index) => {
         const card=document.createElement("button"); card.className="card"; card.type="button";
-        const premiumLabel=candidate.spread_cost != null ? `cost <strong>${money(candidate.spread_cost)} USDC</strong>` : `credit <strong>${money(candidate.spread_credit)} USDC</strong>`;
-        card.innerHTML=`<div style="text-align:left"><strong>#${candidate.rank} ${candidate.expiry_code}</strong><div class="metrics"><span>strikes <strong>${candidate.long_strike} / ${candidate.short_strike}</strong></span><span>${premiumLabel}</span><span>DTE <strong>${candidate.days_to_expiry}</strong></span><span>ATM IV <strong>${candidate.atm_iv ?? "—"}</strong></span></div></div><span>Choose →</span>`;
+        card.dataset.candidateIndex=String(index);
+        card.innerHTML=`<div style="text-align:left"><strong>#${candidate.rank} ${candidate.expiry_code}</strong><div class="metrics"><span>strikes <strong>${candidate.long_strike} / ${candidate.short_strike}</strong></span><span class="premium">${candidatePremiumLabel(candidate)}</span><span>DTE <strong>${candidate.days_to_expiry}</strong></span><span>ATM IV <strong>${candidate.atm_iv ?? "—"}</strong></span></div></div><span>Choose →</span>`;
         card.onclick=()=>{ if (!validSize()) { setStatus("scanStatus","Enter a positive size before choosing a spread.","error"); return; } document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected")); card.classList.add("selected"); selected=candidate; invalidatePrepared(); prepare(); };
         $("cards").appendChild(card);
       });
@@ -121,10 +135,10 @@
       $("risk").innerHTML=[
         reviewField("Asset",r.asset), reviewField("Strategy",r.strategy), reviewField("Size",size),
         reviewField("Expiry",candidate.expiry_code), reviewField("Strikes",`${candidate.long_strike} / ${candidate.short_strike}`),
-        reviewField("Destination",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
+        addressField("Callput PositionManager",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
         reviewField("Wallet",r.wallet), reviewField("Maximum at risk",`${money(r.maximum_usdc_at_risk)} USDC`),
         reviewField("Network fee",`${money(weiToEth(r.execution_fee_wei))} ETH (${r.execution_fee_wei} wei)`), reviewField("Minimum fill",`${money(r.minimum_fill_ratio * 100)}%`),
-        ...(prepared.approval_preview ? [reviewField("Approval token",prepared.approval_preview.token), reviewField("Approval spender",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
+        ...(prepared.approval_preview ? [addressField(prepared.approval_preview.token,prepared.approval_preview.token_address), addressField("Callput Router",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
         reviewField("Intent fingerprint",result.intent_fingerprint)
       ].join("");
       setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
@@ -137,38 +151,48 @@
     const confirmationVersion=preparationVersion;
     if (!confirmationIntent || !(await requireSignIn())) return;
     if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
+    const handoffKind=confirmationIntent.approval ? "approval" : "order";
     $("confirm").disabled=true;
     try {
-      if (confirmationIntent.approval && approvalConfirmedIntentFingerprint !== confirmationIntent.intent_fingerprint) {
-        setStatus("tradeStatus","Confirm the bounded USDC approval in Bankr…");
+      if (confirmationIntent.approval) {
+        setStatus("tradeStatus","Opening the bounded USDC approval in Bankr chat…");
         await bankr.confirmTransaction(confirmationIntent.approval);
-        if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
-        approvalConfirmedIntentFingerprint=confirmationIntent.intent_fingerprint;
+        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return and choose the spread again to refresh the allowance.");
+        $("confirm").disabled=false;
+        return;
       }
-      setStatus("tradeStatus","Confirm the Callput order in Bankr…");
-      const confirmation=await bankr.confirmTransaction(confirmationIntent.transaction);
-      const txHash=transactionHash(confirmation);
-      lastConfirmedTxHash=/^0x[0-9a-f]{64}$/i.test(txHash || "") ? txHash : null;
-      lastConfirmedIntentFingerprint=confirmationIntent.intent_fingerprint;
-      await bankr.scripts.run("track", { event:"wallet_confirmed", intent_fingerprint:confirmationIntent.intent_fingerprint, asset:confirmationIntent.risk_preview.asset, strategy:confirmationIntent.risk_preview.strategy });
-      const confirmationReference=lastConfirmedTxHash ? `${lastConfirmedTxHash.slice(0,10)}…${lastConfirmedTxHash.slice(-8)}` : `review ${lastConfirmedIntentFingerprint.slice(0,12)}…`;
-      setStatus("tradeStatus",`Transaction submitted. Check this exact ${confirmationReference} after it is mined.`,"ok");
-    } catch(error) { setStatus("tradeStatus",error.message || String(error),"error"); $("confirm").disabled=false; }
+      setStatus("tradeStatus","Opening the Callput order in Bankr chat…");
+      await bankr.confirmTransaction(confirmationIntent.transaction);
+      lastHandoffIntentFingerprint=confirmationIntent.intent_fingerprint;
+      setStatus("tradeStatus","Order review opened in Bankr chat. Nothing has been submitted by this app. Review and send it there, then use the keeper check below.","ok");
+      $("confirm").disabled=false;
+    } catch(error) {
+      const message=error.message || String(error);
+      setStatus("tradeStatus",`Bankr ${handoffKind} handoff did not complete: ${message}. Nothing was submitted by this app. Try opening the ${handoffKind} review again.`,"error");
+      $("confirm").disabled=false;
+    }
   }
 
   async function reconcile() {
     if (!(await requireSignIn())) return;
-    if (!lastConfirmedIntentFingerprint) { setStatus("reconcileStatus","Confirm a Callput order in this session first. This check only reconciles the exact confirmed transaction.","error"); return; }
-    const reconcileArgs=lastConfirmedTxHash ? { tx_hash:lastConfirmedTxHash } : { intent_fingerprint:lastConfirmedIntentFingerprint };
-    const reconciliationReference=lastConfirmedTxHash ? `${lastConfirmedTxHash.slice(0,10)}…${lastConfirmedTxHash.slice(-8)}` : `review ${lastConfirmedIntentFingerprint.slice(0,12)}…`;
-    setStatus("reconcileStatus",`Reading the Callput request created by ${reconciliationReference} on Base…`);
-    try { const result=await bankr.scripts.run("reconcile",reconcileArgs); setStatus("reconcileStatus",result.status === "executed" ? `Executed · request ${result.request_key}` : `${result.status} · ${result.request_key || "not indexed yet"}`, result.status === "executed" ? "ok" : ""); }
+    if (!lastHandoffIntentFingerprint) { setStatus("reconcileStatus","Open a Callput order review in this session first. This check only reconciles that exact reviewed intent.","error"); return; }
+    const reconcileArgs={ intent_fingerprint:lastHandoffIntentFingerprint };
+    setStatus("reconcileStatus","Checking whether this reviewed intent was submitted on Base…");
+    try {
+      const result=await bankr.scripts.run("reconcile",reconcileArgs);
+      const checkedAt=new Date().toLocaleTimeString();
+      if (result.status === "not_found") { setStatus("reconcileStatus",`No matching on-chain Callput request was found. Opening the Bankr chat handoff did not prove submission. This does not prove failure. Check Bankr Activity or BaseScan for the reviewed transaction before preparing another order. Last checked ${checkedAt}.`); return; }
+      if (result.status === "pending") { setStatus("reconcileStatus",`Pending · request ${result.request_key}. USDC may already be committed. Do not resubmit this intent. Check again after the keeper processes it. Last checked ${checkedAt}.`); return; }
+      if (result.status === "cancelled") { setStatus("reconcileStatus",`Cancelled · request ${result.request_key}. Do not retry until you verify the returned USDC in your wallet or BaseScan before preparing another order. Last checked ${checkedAt}.`); return; }
+      if (result.status === "executed") { setStatus("reconcileStatus",`Executed · request ${result.request_key}. Do not resubmit this intent. Last checked ${checkedAt}.`,"ok"); return; }
+      setStatus("reconcileStatus",`Unknown status ${result.status} · request ${result.request_key}. Do not resubmit until the on-chain state is verified. Last checked ${checkedAt}.`,"error");
+    }
     catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
   }
 
   ["asset","bias","size"].forEach(id=>$(id).addEventListener("change",invalidatePrepared));
-  ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
-  $("size").addEventListener("input",invalidatePrepared);
+  ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; scannedCandidates=[]; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
+  $("size").addEventListener("input",()=>{ invalidatePrepared(); refreshCandidatePricing(); });
   $("size").addEventListener("change",()=>{ if (selected) prepare(); });
   $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile;
   $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };
