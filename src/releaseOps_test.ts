@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import versionHandler from "../api/version.js";
+import healthHandler from "../api/health.js";
 import { CALLPUT_VERSION } from "./version.js";
 
 async function main() {
@@ -26,6 +27,17 @@ async function main() {
   assert.equal(payload.version, CALLPUT_VERSION);
   assert.equal(payload.commit, null);
 
+  const healthResult: { status?: number; body?: string } = {};
+  await healthHandler({ method: "POST" }, {
+    statusCode: 0,
+    setHeader() {},
+    end(value?: string) {
+      healthResult.status = this.statusCode;
+      healthResult.body = value ?? "";
+    }
+  });
+  assert.equal(healthResult.status, 405, "health endpoint must be read-only");
+
   const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
   assert.equal(packageJson.version, CALLPUT_VERSION, "package and runtime versions must match");
 
@@ -38,6 +50,11 @@ async function main() {
   assert.equal(headerMap.get("x-frame-options"), "SAMEORIGIN");
   assert.match(headerMap.get("permissions-policy") ?? "", /camera=\(\)/);
   assert.match(headerMap.get("strict-transport-security") ?? "", /max-age=/);
+
+  const workflow = await readFile(new URL("../../.github/workflows/production-smoke.yml", import.meta.url), "utf8");
+  assert.match(workflow, /cron:\s*['"]17 2 \* \* \*['"]/, "production smoke must run daily");
+  assert.match(workflow, /npm run smoke:production/, "scheduled monitoring must execute the production smoke suite");
+  assert.match(workflow, /workflow_dispatch:/, "production smoke must support manual verification");
 
   console.log("Release operations tests passed.");
 }
