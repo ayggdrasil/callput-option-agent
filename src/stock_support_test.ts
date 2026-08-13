@@ -84,7 +84,7 @@ function readProjectFile(filePath: string) {
 function assertFrontendDeployConfig() {
   const coreSource = readProjectFile("src/core.ts");
   assert.equal(
-    coreSource.match(/const provider = getProvider\(\)/g)?.length,
+    coreSource.match(/const provider = getProvider\(options\)/g)?.length,
     1,
     "direct getProvider use must stay isolated to getValidatedProvider"
   );
