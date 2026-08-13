@@ -11,7 +11,7 @@ Both integrations build unsigned Base transactions. Callput never receives a pri
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.10/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.11/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 
@@ -61,7 +61,7 @@ Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and
 
 Each batch item requires its own Bankr transaction review and explicit approval. The app prepares a queue but never loops through confirmations, signs, broadcasts, or treats a chat handoff as proof of submission. Refresh the portfolio after completing the reviews; close requests can also be reconciled by their exact intent fingerprint.
 
-For buy spreads, `maximum_usdc_at_risk` is the debit. For sell spreads it is the collateral amount passed into Callput. The native `execution_fee_wei` is shown separately.
+For buy spreads, `maximum_usdc_at_risk` is the prepared debit including the live risk-premium execution estimate and capped combo-position fee. For sell spreads it is the collateral plus the capped combo-position fee passed into Callput. The native `execution_fee_wei` is shown separately.
 
 ## Safety boundaries
 

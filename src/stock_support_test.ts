@@ -283,6 +283,10 @@ async function main() {
   assert.equal(scan.candidates[0].long_leg_id, tslaOptionIds.call440);
   assert.equal(scan.candidates[0].short_leg_id, tslaOptionIds.call450);
   assert.equal(scan.candidates[0].atm_iv, 40.5);
+  assert.ok(
+    scan.candidates[0].estimated_amount_in_per_unit > scan.candidates[0].spread_cost,
+    "ranked buy candidates must expose the RP-and-fee-aware amount-in estimate"
+  );
 
   const validation = await validateSpread("BuyCallSpread", tslaOptionIds.call440, tslaOptionIds.call445);
   assert.equal(validation.details.asset, "TSLA");

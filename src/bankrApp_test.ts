@@ -32,7 +32,8 @@ function main() {
   }
   assert.match(html, /Enter a positive size before choosing a spread\./, "invalid size must give clear guidance");
   assert.match(html, /No live spreads found\. Try another asset or market view, then scan again\./, "empty scans must give recovery guidance");
-  assert.match(html, /candidate\.spread_cost != null \? candidate\.spread_cost : candidate\.spread_credit/, "candidate pricing must distinguish buy cost from sell credit");
+  assert.match(html, /candidate\.estimated_amount_in_per_unit != null \? candidate\.estimated_amount_in_per_unit : candidate\.spread_cost/, "buy candidate pricing must prefer the RP-and-fee-aware amount-in estimate");
+  assert.match(html, /candidate\.spread_cost != null \? buyEstimate : candidate\.spread_credit/, "candidate pricing must distinguish buy cost from sell credit");
   assert.match(html, /Number\(unitValue\) \* size/, "candidate pricing must scale the numeric unit quote by the selected size");
   assert.match(html, /estimated (?:cost|credit)/, "candidate pricing must identify the scaled value as an estimate");
   assert.match(html, /per 1 unit/, "candidate pricing must retain the unit quote for context");
@@ -147,7 +148,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.10\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.11\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

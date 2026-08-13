@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import {
   DEFAULT_MIN_FILL_RATIO,
+  calculateSpreadOpenQuote,
   checkRequestStatus,
   closeAllPositions,
   closePosition,
@@ -333,10 +334,32 @@ export function validatePreparedTransaction(
   if (unitsFromNumber(quote.amount_in_usdc, USDC_DECIMALS, "Prepared quote USDC risk") !== amountInRaw) {
     throw new Error("Prepared quote USDC risk does not match its amount in");
   }
-  const riskBasis = request.strategy.startsWith("Buy") ? details.spread_cost : details.strike_diff;
-  const expectedAmountIn = unitsFromNumber(Number(riskBasis) * request.size, USDC_DECIMALS, "Prepared validation risk");
+  const expectedOpenQuote = calculateSpreadOpenQuote({
+    strategy: request.strategy,
+    size: request.size,
+    spotPrice: Number(details.spot_price),
+    spreadMarkPrice: Number(details.spread_cost),
+    strikeDiff: Number(details.strike_diff),
+    longRiskPremiumRateForBuy: Number(details.long_leg?.risk_premium_rate_for_buy),
+    longRiskPremiumRateForSell: Number(details.long_leg?.risk_premium_rate_for_sell),
+    shortRiskPremiumRateForBuy: Number(details.short_leg?.risk_premium_rate_for_buy),
+    shortRiskPremiumRateForSell: Number(details.short_leg?.risk_premium_rate_for_sell)
+  });
+  const expectedAmountIn = unitsFromNumber(expectedOpenQuote.amount_in_usdc, USDC_DECIMALS, "Prepared validation risk");
   if (amountInRaw !== expectedAmountIn) {
     throw new Error("Prepared quote amount in does not match the validated spread risk");
+  }
+  if (quote.pricing_model !== expectedOpenQuote.pricing_model) {
+    throw new Error("Prepared quote pricing model does not match the validated spread risk");
+  }
+  for (const [label, actual, expected] of [
+    ["risk premium rate", quote.risk_premium_rate, expectedOpenQuote.risk_premium_rate],
+    ["execution price", quote.estimated_execution_price, expectedOpenQuote.estimated_execution_price],
+    ["open fee", quote.estimated_open_fee_usdc, expectedOpenQuote.estimated_open_fee_usdc]
+  ] as const) {
+    if (!Number.isFinite(actual) || Math.abs(actual - expected) > Math.max(1e-12, Math.abs(expected) * 1e-12)) {
+      throw new Error(`Prepared quote ${label} does not match the validated spread risk`);
+    }
   }
   if (amountInRaw > maxUsdcRiskRaw) {
     const configured = ethers.formatUnits(maxUsdcRiskRaw, USDC_DECIMALS).replace(/\.0$/, "");

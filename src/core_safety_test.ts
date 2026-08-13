@@ -3,7 +3,7 @@ import http from "node:http";
 import test from "node:test";
 import { ethers } from "ethers";
 import { CONFIG, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
-import { closePosition, getMarketSnapshot, parseOptionTokenId, planPositionLifecycle, settlePosition, validateSpread } from "./core.js";
+import { calculateSpreadOpenQuote, closePosition, getMarketSnapshot, parseOptionTokenId, planPositionLifecycle, settlePosition, validateSpread } from "./core.js";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
 const NOW_SEC = Math.floor(Date.now() / 1000);
@@ -240,6 +240,25 @@ test("trade core safety gates", async (t) => {
     );
     assert.equal(result.details.long_leg.option_id, lowerId);
     assert.equal(result.details.short_leg.option_id, higherId);
+  });
+
+  await t.test("quotes buy spread amount-in with execution risk premium and the protocol fee cap", () => {
+    const quote = calculateSpreadOpenQuote({
+      strategy: "BuyCallSpread",
+      size: 0.01,
+      spotPrice: 774,
+      spreadMarkPrice: 0.5356,
+      strikeDiff: 15,
+      longRiskPremiumRateForBuy: 0.2,
+      longRiskPremiumRateForSell: 0.19,
+      shortRiskPremiumRateForBuy: 0.21,
+      shortRiskPremiumRateForSell: 0.19
+    });
+
+    assert.equal(quote.risk_premium_rate, 0.2, "a spread uses the relevant side's rate, not the sum of both legs");
+    assert.equal(quote.estimated_execution_price, 0.64272);
+    assert.equal(quote.estimated_open_fee_usdc, 0.0008034, "the 12.5% premium cap is below the notional fee here");
+    assert.equal(quote.amount_in_usdc, 0.0072306);
   });
 
   await t.test("rejects duplicate option IDs within the same side", async () => {

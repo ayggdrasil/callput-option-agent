@@ -133,14 +133,20 @@ Use the IDs with the `strategy` returned by the same scan candidate. Callput's b
       value: string                // "0"
     }
   },
-  estimate: {
-    cost_usd: number,              // For buy spreads
-    collateral_usd: number,        // For sell spreads
-    max_profit: number,
-    max_loss: number
+  quote: {
+    amount_in_usdc: number,        // Prepared debit/collateral + capped fee
+    amount_in_raw: string,         // Exact raw USDC used in calldata/approval
+    min_fill_ratio: number,
+    min_size_raw: string,
+    pricing_model: string,
+    risk_premium_rate: number,
+    estimated_execution_price: number,
+    estimated_open_fee_usdc: number
   }
 }
 ```
+
+For buy spreads, `amount_in_usdc` uses the live spread mark plus the relevant market-feed risk-premium estimate and the protocol's capped combo-position fee. For sell spreads it uses spread-width collateral plus the capped fee. The prepared raw amount is authoritative; a scan's raw `spread_cost` is only the mark-price component.
 
 **Flow**:
 1. If `usdc_approval.sufficient == false`, sign and broadcast `approve_tx` first

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ethers } from "ethers";
 import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import { handleBankrApiRequest, validatePreparedTransaction, type BankrDependencies } from "./bankrApi.js";
+import { calculateSpreadOpenQuote } from "./core.js";
 import { executeSpreadInputSchema } from "./index.js";
 
 const wallet = "0x1111111111111111111111111111111111111111";
@@ -45,16 +46,43 @@ function prepared(
   const sizeRaw = ethers.parseUnits(decimalString(request.size, 18), 18);
   const minSize = (sizeRaw * BigInt(Math.floor(request.min_fill_ratio * 10_000))) / 10_000n;
   const amountInUsdc = Number(ethers.formatUnits(amountInRaw, CONFIG.ASSETS.USDC.decimals));
+  const spotPrice = 440;
+  const spreadMarkPrice = 5;
+  const openFee = Math.min(
+    spotPrice * request.size * 0.0003,
+    spreadMarkPrice * request.size * 0.125
+  );
+  const riskBasis = (amountInUsdc - openFee) / request.size;
+  const quoteModel = calculateSpreadOpenQuote({
+    strategy: request.strategy,
+    size: request.size,
+    spotPrice,
+    spreadMarkPrice: isBuy ? riskBasis : spreadMarkPrice,
+    strikeDiff: isBuy ? 5 : riskBasis,
+    longRiskPremiumRateForBuy: 0,
+    longRiskPremiumRateForSell: 0,
+    shortRiskPremiumRateForBuy: 0,
+    shortRiskPremiumRateForSell: 0
+  });
   return {
     validation: {
       status: "Valid",
       details: {
         asset: "TSLA",
         option_type: isCall ? "Call" : "Put",
-        long_leg: { option_id: request.long_leg_id },
-        short_leg: { option_id: request.short_leg_id },
-        spread_cost: isBuy ? amountInUsdc / request.size : 1,
-        strike_diff: isBuy ? 5 : amountInUsdc / request.size
+        long_leg: {
+          option_id: request.long_leg_id,
+          risk_premium_rate_for_buy: 0,
+          risk_premium_rate_for_sell: 0
+        },
+        short_leg: {
+          option_id: request.short_leg_id,
+          risk_premium_rate_for_buy: 0,
+          risk_premium_rate_for_sell: 0
+        },
+        spread_cost: isBuy ? riskBasis : spreadMarkPrice,
+        strike_diff: isBuy ? 5 : riskBasis,
+        spot_price: spotPrice
       }
     },
     unsigned_tx: {
@@ -99,7 +127,11 @@ function prepared(
       min_fill_ratio: request.min_fill_ratio,
       amount_in_usdc: amountInUsdc,
       amount_in_raw: amountInRaw.toString(),
-      underlying_decimals: 18
+      underlying_decimals: 18,
+      pricing_model: quoteModel.pricing_model,
+      risk_premium_rate: quoteModel.risk_premium_rate,
+      estimated_execution_price: quoteModel.estimated_execution_price,
+      estimated_open_fee_usdc: quoteModel.estimated_open_fee_usdc
     },
     next_steps: []
   };

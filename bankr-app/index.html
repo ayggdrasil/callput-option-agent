@@ -99,7 +99,8 @@
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
   function candidatePremiumLabel(candidate) {
-    const unitValue = candidate.spread_cost != null ? candidate.spread_cost : candidate.spread_credit;
+    const buyEstimate = candidate.estimated_amount_in_per_unit != null ? candidate.estimated_amount_in_per_unit : candidate.spread_cost;
+    const unitValue = candidate.spread_cost != null ? buyEstimate : candidate.spread_credit;
     const size = Number($("size").value);
     if (!Number.isFinite(Number(unitValue)) || !Number.isFinite(size) || size <= 0) return "Enter a positive size to estimate this quote.";
     const estimatedValue = Number(unitValue) * size;

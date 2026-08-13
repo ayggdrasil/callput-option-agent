@@ -17,6 +17,8 @@ export const DEFAULT_PORTFOLIO_REQUEST_CONCURRENCY = 4;
 export const DEFAULT_MAX_EXECUTION_FEE_WEI = 300_000_000_000_000n;
 export const DEFAULT_INTENT_RECONCILE_LOOKBACK_BLOCKS = 1_800;
 export const DEFAULT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS = 7_200;
+export const OPEN_COMBO_POSITION_FEE_RATE = 0.0003;
+export const TRADE_FEE_CALCULATION_LIMIT_RATE = 0.125;
 
 const HARD_MAX_EVENT_LOOKBACK_BLOCKS = 500_000;
 const HARD_MAX_NETWORK_TIMEOUT_MS = 60_000;
@@ -87,6 +89,8 @@ type MarketOption = {
   markPrice: number;
   bid: number;
   ask: number;
+  riskPremiumRateForBuy: number;
+  riskPremiumRateForSell: number;
   underlying: UnderlyingAsset;
   optionType: OptionSide;
   expirySec: number;
@@ -446,6 +450,8 @@ export async function getMarketSnapshot(
             markPrice: mark,
             bid,
             ask,
+            riskPremiumRateForBuy: rpBuy,
+            riskPremiumRateForSell: rpSell,
             underlying: asset,
             optionType,
             expirySec,
@@ -588,17 +594,64 @@ export async function validateSpread(strategy: SpreadStrategy, longLegId: string
         option_id: long.optionId,
         instrument: long.instrument,
         strike: long.strikePrice,
-        mark_price: long.markPrice
+        mark_price: long.markPrice,
+        risk_premium_rate_for_buy: long.riskPremiumRateForBuy,
+        risk_premium_rate_for_sell: long.riskPremiumRateForSell
       },
       short_leg: {
         option_id: short.optionId,
         instrument: short.instrument,
         strike: short.strikePrice,
-        mark_price: short.markPrice
+        mark_price: short.markPrice,
+        risk_premium_rate_for_buy: short.riskPremiumRateForBuy,
+        risk_premium_rate_for_sell: short.riskPremiumRateForSell
       },
       spread_cost: spreadCost,
-      strike_diff: Math.abs(long.strikePrice - short.strikePrice)
+      strike_diff: Math.abs(long.strikePrice - short.strikePrice),
+      spot_price: (await getMarketSnapshot()).spot[underlying]
     }
+  };
+}
+
+export function calculateSpreadOpenQuote(params: {
+  strategy: SpreadStrategy;
+  size: number;
+  spotPrice: number;
+  spreadMarkPrice: number;
+  strikeDiff: number;
+  longRiskPremiumRateForBuy: number;
+  longRiskPremiumRateForSell: number;
+  shortRiskPremiumRateForBuy: number;
+  shortRiskPremiumRateForSell: number;
+}) {
+  for (const [name, value] of Object.entries(params)) {
+    if (name === "strategy") continue;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      throw new Error(`${name} must be a finite non-negative number`);
+    }
+  }
+  if (params.size <= 0) throw new Error("size must be > 0");
+  if (params.spotPrice <= 0) throw new Error("spotPrice must be > 0");
+  if (params.spreadMarkPrice <= 0) throw new Error("spreadMarkPrice must be > 0");
+  if (params.strikeDiff <= 0) throw new Error("strikeDiff must be > 0");
+
+  const isBuy = params.strategy.startsWith("Buy");
+  const riskPremiumRate = isBuy
+    ? Math.max(params.longRiskPremiumRateForBuy, params.shortRiskPremiumRateForSell)
+    : Math.max(params.longRiskPremiumRateForSell, params.shortRiskPremiumRateForBuy);
+  const estimatedExecutionPrice = params.spreadMarkPrice * Math.max(0, isBuy ? 1 + riskPremiumRate : 1 - riskPremiumRate);
+  const executionPremium = estimatedExecutionPrice * params.size;
+  const notionalFee = params.spotPrice * params.size * OPEN_COMBO_POSITION_FEE_RATE;
+  const premiumFeeCap = executionPremium * TRADE_FEE_CALCULATION_LIMIT_RATE;
+  const estimatedOpenFeeUsdc = Math.min(notionalFee, premiumFeeCap);
+  const amountInUsdc = (isBuy ? executionPremium : params.strikeDiff * params.size) + estimatedOpenFeeUsdc;
+
+  return {
+    pricing_model: "spread-risk-premium-plus-protocol-fee-v1",
+    risk_premium_rate: riskPremiumRate,
+    estimated_execution_price: estimatedExecutionPrice,
+    estimated_open_fee_usdc: estimatedOpenFeeUsdc,
+    amount_in_usdc: amountInUsdc
   };
 }
 
@@ -893,7 +946,18 @@ export async function executeSpread(params: {
 
   const spreadCost = Number(details.spread_cost);
   const strikeDiff = Number(details.strike_diff);
-  const amountInUsdc = isBuy ? spreadCost * params.size : strikeDiff * params.size;
+  const openQuote = calculateSpreadOpenQuote({
+    strategy: params.strategy,
+    size: params.size,
+    spotPrice: Number(details.spot_price),
+    spreadMarkPrice: spreadCost,
+    strikeDiff,
+    longRiskPremiumRateForBuy: Number(details.long_leg.risk_premium_rate_for_buy),
+    longRiskPremiumRateForSell: Number(details.long_leg.risk_premium_rate_for_sell),
+    shortRiskPremiumRateForBuy: Number(details.short_leg.risk_premium_rate_for_buy),
+    shortRiskPremiumRateForSell: Number(details.short_leg.risk_premium_rate_for_sell)
+  });
+  const amountInUsdc = openQuote.amount_in_usdc;
   const amountIn = toUsdcRaw(amountInUsdc);
 
   const sizeRaw = toSizeRaw(params.size, asset);
@@ -955,7 +1019,11 @@ export async function executeSpread(params: {
       min_size_raw: minSize.toString(),
       amount_in_usdc: amountInUsdc,
       amount_in_raw: amountIn.toString(),
-      underlying_decimals: underlyingDecimals
+      underlying_decimals: underlyingDecimals,
+      pricing_model: openQuote.pricing_model,
+      risk_premium_rate: openQuote.risk_premium_rate,
+      estimated_execution_price: openQuote.estimated_execution_price,
+      estimated_open_fee_usdc: openQuote.estimated_open_fee_usdc
     },
     next_steps: nextSteps
   };
@@ -1546,6 +1614,21 @@ export async function scanSpreads(params: {
 
       if (spreadValue < minSpreadValue || strikeDiff <= 0) continue;
 
+      const openQuote = calculateSpreadOpenQuote({
+        strategy,
+        size: 1,
+        spotPrice: spot,
+        spreadMarkPrice: spreadValue,
+        strikeDiff,
+        longRiskPremiumRateForBuy: longLeg.riskPremiumRateForBuy,
+        longRiskPremiumRateForSell: longLeg.riskPremiumRateForSell,
+        shortRiskPremiumRateForBuy: shortLeg.riskPremiumRateForBuy,
+        shortRiskPremiumRateForSell: shortLeg.riskPremiumRateForSell
+      });
+      const estimatedAmountInPerUnit = Math.round(openQuote.amount_in_usdc * 1_000_000) / 1_000_000;
+      const estimatedExecutionPrice = Math.round(openQuote.estimated_execution_price * 1_000_000) / 1_000_000;
+      const estimatedOpenFeePerUnit = Math.round(openQuote.estimated_open_fee_usdc * 1_000_000) / 1_000_000;
+
       if (isBuy) {
         // Buy spread: pay premium, profit if spread widens
         candidates.push({
@@ -1555,8 +1638,13 @@ export async function scanSpreads(params: {
           long_strike: longLeg.strikePrice,
           short_strike: shortLeg.strikePrice,
           spread_cost: Math.round(spreadValue * 100) / 100,
+          estimated_execution_price: estimatedExecutionPrice,
+          estimated_open_fee_per_unit: estimatedOpenFeePerUnit,
+          estimated_amount_in_per_unit: estimatedAmountInPerUnit,
+          risk_premium_rate: openQuote.risk_premium_rate,
+          pricing_model: openQuote.pricing_model,
           max_payout: strikeDiff,
-          cost_pct_of_max: Math.round((spreadValue / strikeDiff) * 10000) / 100,
+          cost_pct_of_max: Math.round((openQuote.amount_in_usdc / strikeDiff) * 10000) / 100,
           atm_iv: atmIv,
           expiry_code: expiryCode,
           days_to_expiry: daysToExpiry
@@ -1572,6 +1660,11 @@ export async function scanSpreads(params: {
           long_strike: longLeg.strikePrice,
           short_strike: shortLeg.strikePrice,
           spread_credit: Math.round(spreadValue * 100) / 100,
+          estimated_execution_price: estimatedExecutionPrice,
+          estimated_open_fee_per_unit: estimatedOpenFeePerUnit,
+          estimated_amount_in_per_unit: estimatedAmountInPerUnit,
+          risk_premium_rate: openQuote.risk_premium_rate,
+          pricing_model: openQuote.pricing_model,
           max_risk: Math.round(Math.max(0, maxRisk) * 100) / 100,
           max_payout: strikeDiff,
           credit_pct_of_max: Math.round((spreadValue / strikeDiff) * 10000) / 100,
