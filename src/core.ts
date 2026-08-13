@@ -1120,7 +1120,7 @@ export async function closeAllPositions(params: {
 }) {
   parsePositiveRawAmount(params.minAmountOutRaw, "minAmountOutRaw");
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
-  const positionData = await getPositions(params.fromAddress);
+  const positionData = await getPositions(params.fromAddress, { includeMarketData: false });
   if (positionData.position_data_warning) {
     throw new Error(`INCOMPLETE_POSITION_DATA: close all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
   }
@@ -1152,7 +1152,7 @@ export async function settleAllPositions(params: {
   minOutWhenSwapRaw?: string;
 }) {
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
-  const positionData = await getPositions(params.fromAddress);
+  const positionData = await getPositions(params.fromAddress, { includeMarketData: false });
   if (positionData.position_data_warning) {
     throw new Error(`INCOMPLETE_POSITION_DATA: settle all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
   }
@@ -1177,17 +1177,22 @@ export async function settleAllPositions(params: {
   };
 }
 
-export async function getPositions(address: string) {
+export async function getPositions(
+  address: string,
+  options: { includeMarketData?: boolean } = {}
+) {
   const provider = await getValidatedProvider();
   if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
   const account = ethers.getAddress(address);
 
   let snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null = null;
   let marketDataWarning: string | null = null;
-  try {
-    snapshot = await getMarketSnapshot();
-  } catch (error) {
-    marketDataWarning = error instanceof Error ? error.message : String(error);
+  if (options.includeMarketData !== false) {
+    try {
+      snapshot = await getMarketSnapshot();
+    } catch (error) {
+      marketDataWarning = error instanceof Error ? error.message : String(error);
+    }
   }
 
   const readAssetPositions = async (asset: UnderlyingAsset) => {

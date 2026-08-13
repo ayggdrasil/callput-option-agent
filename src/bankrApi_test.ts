@@ -123,6 +123,7 @@ let capturedMinFillRatio: number | undefined;
 let capturedIntentLookup: { address: string; intentFingerprint: string; fromBlock?: number } | undefined;
 let portfolioSummaryCalls = 0;
 let lightweightPositionCalls = 0;
+let lightweightPositionOptions: unknown;
 let preparedFactory = (input: any) => prepared({
   strategy: input.strategy,
   from_address: input.fromAddress,
@@ -158,8 +159,9 @@ const deps = {
     ]
     });
   },
-  getPositions: async () => {
+  getPositions: async (_address: string, options?: unknown) => {
     lightweightPositionCalls++;
+    lightweightPositionOptions = options;
     return {
       account: wallet,
       total_active_count: 2,
@@ -467,6 +469,7 @@ async function main() {
   assert.equal(positionsBody.total_positions, 2);
   assert.equal(positionsBody.positions[0].naked_strike, 100);
   assert.equal(lightweightPositionCalls, 1, "Bankr lifecycle reads must use the lightweight on-chain position path");
+  assert.deepEqual(lightweightPositionOptions, { includeMarketData: false }, "Bankr lifecycle reads must not wait for optional market enrichment");
   assert.equal(portfolioSummaryCalls, 0, "Bankr lifecycle reads must not compute the full P&L portfolio summary");
 
   const close = await post("close", {
