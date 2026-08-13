@@ -3,7 +3,7 @@ import http from "node:http";
 import test from "node:test";
 import { ethers } from "ethers";
 import { CONFIG, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
-import { closePosition, getMarketSnapshot, parseOptionTokenId, settlePosition, validateSpread } from "./core.js";
+import { closePosition, getMarketSnapshot, parseOptionTokenId, planPositionLifecycle, settlePosition, validateSpread } from "./core.js";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
 const NOW_SEC = Math.floor(Date.now() / 1000);
@@ -364,5 +364,18 @@ test("trade core safety gates", async (t) => {
     const parsed = new ethers.Interface(SETTLE_MANAGER_ABI).parseTransaction({ data: result.unsigned_tx.data });
     assert.equal(parsed?.args[3], 77n);
     assert.equal(result.unsigned_tx.from, ethers.getAddress(ACCOUNT));
+  });
+
+  await t.test("plans close-all and settle-all from exact on-chain expiry state", () => {
+    const positions = [
+      { underlying: "BTC", token_id: "1", size: 0.001, expiry_sec: NOW_SEC + 60 },
+      { underlying: "ETH", token_id: "2", size: -0.01, expiry_sec: NOW_SEC - 1 },
+      { underlying: "TSLA", token_id: "3", size: 1, expiry_sec: NOW_SEC }
+    ];
+    const plan = planPositionLifecycle(positions, NOW_SEC);
+    assert.deepEqual(plan.closable.map((position) => position.token_id), ["1"]);
+    assert.deepEqual(plan.settleable.map((position) => position.token_id), ["2", "3"]);
+    assert.equal(plan.closable[0].size, 0.001);
+    assert.equal(plan.settleable[0].size, 0.01, "batch lifecycle sizes must be positive full balances");
   });
 });

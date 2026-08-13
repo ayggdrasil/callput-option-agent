@@ -8,7 +8,7 @@ function main() {
   assert.match(manifest.title, /Crypto/, "the Bankr app title must advertise crypto support");
   assert.deepEqual(manifest.permissions, ["read:wallet", "fetch:http", "prepare:transaction"]);
   assert.equal(manifest.frontendIdentity, "viewer");
-  assert.deepEqual(manifest.scripts, ["assets", "scan", "prepare", "reconcile", "track"]);
+  assert.deepEqual(manifest.scripts, ["assets", "scan", "prepare", "reconcile", "positions", "close", "settle", "close-all", "settle-all", "track"]);
   assert.match(manifest.description, /synthetic on-chain/i);
   assert.match(manifest.description, /not broker-listed/i);
   assert.ok(manifest.tags.includes("crypto"));
@@ -19,6 +19,11 @@ function main() {
   assert.match(html, /id="scanStatus" class="status" role="status" aria-live="polite"/, "scan progress must be announced");
   assert.match(html, /id="tradeStatus" class="status" role="status" aria-live="polite"/, "trade progress must be announced");
   assert.match(html, /id="reconcileStatus" class="status" role="status" aria-live="polite"/, "reconciliation progress must be announced");
+  assert.match(html, /id="positionsStatus" class="status" role="status" aria-live="polite"/, "position lifecycle progress must be announced");
+  assert.match(html, /id="refreshPositions"/, "the Bankr app must expose portfolio refresh");
+  assert.match(html, /id="closeAll"/, "the Bankr app must expose close all");
+  assert.match(html, /id="settleAll"/, "the Bankr app must expose settle all");
+  assert.match(html, /id="reviewNextLifecycle"/, "batch lifecycle actions must require a separate user gesture for each Bankr review");
   assert.match(html, /function setStatus\(id, text, cls=""\) \{[\s\S]*?el\.setAttribute\("role","alert"\);[\s\S]*?el\.focus\(\);/, "errors must be announced urgently and receive focus");
   assert.match(html, /function validSize\(\) \{ return Number\.isFinite\(Number\(\$\("size"\)\.value\)\) && Number\(\$\("size"\)\.value\) > 0; \}/, "size must be strictly positive before preparing");
   for (const [id, label] of [["asset", "Underlying"], ["bias", "Market view"], ["size", "Size"]]) {
@@ -81,6 +86,14 @@ function main() {
   assert.match(html, /function syncAuthUi\(\)/);
   assert.match(html, /\$\("scan"\)\.disabled=!authenticated/);
   assert.match(html, /\$\("reconcile"\)\.disabled=!authenticated/);
+  assert.match(html, /\$\("refreshPositions"\)\.disabled=!authenticated/);
+  assert.match(html, /bankr\.scripts\.run\("positions"/);
+  assert.match(html, /bankr\.scripts\.run\("close"/);
+  assert.match(html, /bankr\.scripts\.run\("settle"/);
+  assert.match(html, /bankr\.scripts\.run\("close-all"/);
+  assert.match(html, /bankr\.scripts\.run\("settle-all"/);
+  assert.match(html, /Each position opens a separate Bankr transaction review/i, "batch lifecycle UX must explain non-atomic confirmation");
+  assert.doesNotMatch(html, /for\s*\([^)]*\)\s*\{[^}]*confirmTransaction/s, "batch reviews must not auto-loop through wallet confirmations");
   assert.doesNotMatch(html, /fetch\(["']https?:\/\//, "frontend must route external HTTP through backend scripts");
 
   for (const script of manifest.scripts) {
@@ -91,6 +104,11 @@ function main() {
 
   const prepare = prepareScript;
   const reconcileScript = read("bankr-app/scripts/reconcile.ts");
+  const positionsScript = read("bankr-app/scripts/positions.ts");
+  const closeScript = read("bankr-app/scripts/close.ts");
+  const settleScript = read("bankr-app/scripts/settle.ts");
+  const closeAllScript = read("bankr-app/scripts/close-all.ts");
+  const settleAllScript = read("bankr-app/scripts/settle-all.ts");
   const core = read("src/core.ts");
   const toolReference = read("callput/references/TOOL_REFERENCE.md");
   assert.match(prepare, /bankr\.tx\.prepare/);
@@ -101,12 +119,21 @@ function main() {
   assert.match(toolReference, /default 0\.78/);
   assert.doesNotMatch(prepare, /privateKey|secret|signTransaction/i);
   assert.match(reconcileScript, /intent_fingerprint: args\.intent_fingerprint \? String\(args\.intent_fingerprint\) : undefined/, "reconcile must forward the explicit intent fingerprint");
+  assert.match(positionsScript, /\/api\/bankr\/positions/);
+  assert.match(closeScript, /\/api\/bankr\/close/);
+  assert.match(settleScript, /\/api\/bankr\/settle/);
+  assert.match(closeAllScript, /\/api\/bankr\/close-all/);
+  assert.match(settleAllScript, /\/api\/bankr\/settle-all/);
+  for (const source of [closeScript, settleScript, closeAllScript, settleAllScript]) {
+    assert.match(source, /bankr\.tx\.prepare/, "every lifecycle builder must pass canonical calldata through Bankr transaction preparation");
+    assert.doesNotMatch(source, /confirmTransaction|signTransaction|privateKey/i, "backend scripts must not confirm or sign");
+  }
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.4\.4\/bankr-app/);
-  assert.match(installPrompt, /Run only `assets` and `scan`/);
-  assert.match(installPrompt, /Do not run `prepare` or `track`/);
+  assert.match(installPrompt, /tree\/v0\.5\.0\/bankr-app/);
+  assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
+  assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);
 
   const bankrGuide = read("BANKR_GUIDE.md");

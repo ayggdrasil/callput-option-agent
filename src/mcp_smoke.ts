@@ -10,7 +10,7 @@ async function main() {
     const tools = await client.listTools();
     const names = new Set(tools.tools.map((t) => t.name));
 
-    // Verify all 10 current tools are registered
+    // Verify the complete position lifecycle toolset is registered
     const expectedTools = [
       "callput_scan_spreads",
       "callput_execute_spread",
@@ -19,6 +19,8 @@ async function main() {
       "callput_portfolio_summary",
       "callput_close_position",
       "callput_settle_position",
+      "callput_close_all_positions",
+      "callput_settle_all_positions",
       "callput_list_positions_by_wallet",
       "callput_get_settled_pnl",
       "callput_get_option_chains"

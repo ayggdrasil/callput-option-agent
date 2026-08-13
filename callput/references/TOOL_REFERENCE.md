@@ -51,7 +51,7 @@ This scans on-chain `GenerateRequestKey` events to recover all open position key
 - Live tradability is feed-driven. A supported symbol can still return no candidates if every contract is unavailable.
 - Leg IDs may be decimal strings or `0x` hex strings from the live Callput feed.
 
-## Tool Definitions (10 Tools)
+## Tool Definitions (12 Tools)
 
 ### 1. callput_scan_spreads
 
@@ -338,7 +338,48 @@ Use the IDs with the `strategy` returned by the same scan candidate. Callput's b
 
 ---
 
-### 8. callput_list_positions_by_wallet
+### 8. callput_close_all_positions
+
+**Purpose**: Discover every wallet-owned unexpired Callput position and build one unsigned full-close transaction per position.
+
+**Schema**:
+```javascript
+{
+  from_address: string,
+  min_amount_out_raw: string,      // Positive floor applied to each close tx
+  min_out_when_swap_raw: string    // Positive floor applied to each close tx
+}
+```
+
+**Safety boundary**:
+- Floors are per transaction, not aggregate.
+- At most 25 eligible positions are returned in one reviewed batch.
+- Every `transactions[]` item must receive a separate wallet confirmation.
+- The MCP never signs, broadcasts, or auto-confirms the queue.
+
+---
+
+### 9. callput_settle_all_positions
+
+**Purpose**: Discover every wallet-owned expired Callput position and build one unsigned settlement transaction per position.
+
+**Schema**:
+```javascript
+{
+  from_address: string,
+  min_out_when_swap_raw: string    // Positive floor applied to each settlement tx
+}
+```
+
+**Safety boundary**:
+- Only expired positions are included.
+- At most 25 eligible positions are returned in one reviewed batch.
+- Every `transactions[]` item must receive a separate wallet confirmation.
+- Refresh the portfolio after broadcast and query settled P&L for realized payout history.
+
+---
+
+### 10. callput_list_positions_by_wallet
 
 **Purpose**: Recover all `request_keys` from on-chain `GenerateRequestKey` events. Use after session loss.
 
@@ -363,7 +404,7 @@ Use the IDs with the `strategy` returned by the same scan candidate. Callput's b
 
 ---
 
-### 9. callput_get_settled_pnl
+### 11. callput_get_settled_pnl
 
 **Purpose**: Query `SettlePosition` events to retrieve realized payout history.
 
@@ -394,7 +435,7 @@ Use the IDs with the `strategy` returned by the same scan candidate. Callput's b
 
 ---
 
-### 10. callput_get_option_chains
+### 12. callput_get_option_chains
 
 **Purpose**: Fetch raw tradable options from Callput market feed. Prefer `callput_scan_spreads` for normal use; use this only for raw chain inspection or IV analysis.
 

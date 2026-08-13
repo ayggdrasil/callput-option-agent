@@ -61,6 +61,13 @@ function main() {
   assert.match(html, /Synthetic on-chain/);
   assert.match(html, /Scan[\s\S]*Review[\s\S]*Approve/);
   assert.match(html, /Callput App[\s\S]*Bankr Chat[\s\S]*User Wallet/);
+  for (const phrase of [
+    "Close one position",
+    "Settle one expired position",
+    "Close all open positions",
+    "Settle all expired positions"
+  ]) assert.match(html, new RegExp(phrase, "i"), `the Bankr guide must document ${phrase}`);
+  assert.match(html, /Each position requires its own Bankr transaction review/i, "the Bankr guide must explain batch confirmation boundaries");
   for (const symbol of ["BTC", "ETH", "TSLA", "QQQ", "SPY", "EWY", "NVDA", "COIN", "SPCX", "MU", "SKHY"]) {
     assert.match(html, new RegExp(`>${symbol}<`), `the market section must expose ${symbol} as text`);
     assert.match(html, new RegExp(`data-asset="${symbol}"`), `the interactive demo must offer ${symbol}`);
@@ -68,7 +75,7 @@ function main() {
   assert.match(html, /id="liveMarketStatus"[^>]*role="status"/, "the guide must expose live market availability status");
   assert.match(html, /https:\/\/mcp\.callput\.app\/api\/mcp/);
   assert.match(html, /callput-lite-agent-mcp/);
-  assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.4\.4\/callput/);
+  assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.5\.0\/callput/);
   for (const heading of [
     "Getting started in Bankr",
     "Markets, strategies, and funding",
@@ -107,6 +114,9 @@ function main() {
 
   const rootFrontend = readProjectFile("frontend-v1/index.html");
   assert.match(rootFrontend, /href="\/bankr"[^>]*>Bankr<\/a>/, "the root operator console must link to the Bankr guide");
+  for (const tool of ["callput_close_position", "callput_settle_position", "callput_close_all_positions", "callput_settle_all_positions"]) {
+    assert.match(rootFrontend, new RegExp(tool), `the root MCP page must expose ${tool}`);
+  }
 
   const sitemap = readProjectFile("sitemap.xml");
   assert.match(sitemap, /<loc>https:\/\/mcp\.callput\.app\/bankr<\/loc>/);

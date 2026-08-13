@@ -145,10 +145,48 @@ const deps = {
     return { request_key: requestKey, is_open: true, tx_hash: txHash, from_block: 98_200, to_block: 100_000 };
   },
   checkRequestStatus: async () => ({ request_key: requestKey, status: "executed" as const, account: wallet }),
+  getPortfolioSummary: async () => ({
+    account: wallet,
+    total_positions: 2,
+    positions: [
+      { underlying: "BTC", token_id: "101", size: 0.001, lifecycle: "closable" },
+      { underlying: "ETH", token_id: "202", size: 0.01, lifecycle: "settleable" }
+    ]
+  }),
+  closePosition: async (input: any) => ({
+    unsigned_tx: { to: CONFIG.CONTRACTS.POSITION_MANAGER, data: "0x1234", value: "60000000000000", chain_id: 8453, from: input.fromAddress },
+    close: { asset: input.underlyingAsset, option_token_id: input.optionTokenId, size: input.size, min_amount_out_raw: input.minAmountOutRaw, min_out_when_swap_raw: input.minOutWhenSwapRaw }
+  }),
+  settlePosition: async (input: any) => ({
+    unsigned_tx: { to: CONFIG.CONTRACTS.SETTLE_MANAGER, data: "0x5678", value: "0", chain_id: 8453, from: input.fromAddress },
+    settle: { asset: input.underlyingAsset, option_token_id: input.optionTokenId, min_out_when_swap_raw: input.minOutWhenSwapRaw }
+  }),
+  closeAllPositions: async (input: any) => ({
+    action: "close_all",
+    account: input.fromAddress,
+    eligible_count: 1,
+    skipped_count: 1,
+    transactions: [{
+      unsigned_tx: { to: CONFIG.CONTRACTS.POSITION_MANAGER, data: "0x1234", value: "60000000000000", chain_id: 8453, from: input.fromAddress },
+      close: { asset: "BTC", option_token_id: "101", size: 0.001, min_amount_out_raw: input.minAmountOutRaw, min_out_when_swap_raw: input.minOutWhenSwapRaw }
+    }]
+  }),
+  settleAllPositions: async (input: any) => ({
+    action: "settle_all",
+    account: input.fromAddress,
+    eligible_count: 1,
+    skipped_count: 1,
+    transactions: [{
+      unsigned_tx: { to: CONFIG.CONTRACTS.SETTLE_MANAGER, data: "0x5678", value: "0", chain_id: 8453, from: input.fromAddress },
+      settle: { asset: "ETH", option_token_id: "202", min_out_when_swap_raw: input.minOutWhenSwapRaw }
+    }]
+  }),
   captureTelemetry: async ({ event }: { event: string }) => { captured.push(event); }
 } as unknown as BankrDependencies;
 
-async function post(action: "scan" | "prepare" | "reconcile" | "events", body: unknown) {
+type PostAction = "scan" | "prepare" | "reconcile" | "positions" | "close" | "settle" | "close-all" | "settle-all" | "events";
+
+async function post(action: PostAction, body: unknown) {
   return handleBankrApiRequest(action, new Request(`https://mcp.callput.app/api/bankr/${action}`, {
     method: "POST",
     headers: { "content-type": "application/json", origin: "https://bankr.bot" },
@@ -156,7 +194,7 @@ async function post(action: "scan" | "prepare" | "reconcile" | "events", body: u
   }), deps);
 }
 
-async function postFrom(action: "scan" | "prepare" | "reconcile" | "events", body: unknown, clientAddress: string) {
+async function postFrom(action: PostAction, body: unknown, clientAddress: string) {
   return handleBankrApiRequest(action, new Request(`https://mcp.callput.app/api/bankr/${action}`, {
     method: "POST",
     headers: {
@@ -404,6 +442,65 @@ async function main() {
     intentFingerprint,
     fromBlock: 99_000
   });
+
+  const positions = await post("positions", { wallet_address: wallet });
+  assert.equal(positions.status, 200);
+  assert.equal((await positions.json() as any).total_positions, 2);
+
+  const close = await post("close", {
+    wallet_address: wallet,
+    underlying_asset: "BTC",
+    option_token_id: "101",
+    size: 0.001,
+    min_amount_out_raw: "1",
+    min_out_when_swap_raw: "1"
+  });
+  assert.equal(close.status, 200);
+  const closeBody = await close.json() as any;
+  assert.equal(closeBody.action, "close");
+  assert.match(closeBody.intent_fingerprint, /^[0-9a-f]{64}$/);
+  assert.equal(closeBody.transaction_preview.destination, CONFIG.CONTRACTS.POSITION_MANAGER);
+
+  const settle = await post("settle", {
+    wallet_address: wallet,
+    underlying_asset: "ETH",
+    option_token_id: "202",
+    min_out_when_swap_raw: "1"
+  });
+  assert.equal(settle.status, 200);
+  const settleBody = await settle.json() as any;
+  assert.equal(settleBody.action, "settle");
+  assert.equal(settleBody.transaction_preview.destination, CONFIG.CONTRACTS.SETTLE_MANAGER);
+
+  const closeAll = await post("close-all", {
+    wallet_address: wallet,
+    min_amount_out_raw: "1",
+    min_out_when_swap_raw: "1"
+  });
+  assert.equal(closeAll.status, 200);
+  const closeAllBody = await closeAll.json() as any;
+  assert.equal(closeAllBody.eligible_count, 1);
+  assert.equal(closeAllBody.transactions.length, 1);
+  assert.match(closeAllBody.transactions[0].intent_fingerprint, /^[0-9a-f]{64}$/);
+
+  const settleAll = await post("settle-all", {
+    wallet_address: wallet,
+    min_out_when_swap_raw: "1"
+  });
+  assert.equal(settleAll.status, 200);
+  const settleAllBody = await settleAll.json() as any;
+  assert.equal(settleAllBody.eligible_count, 1);
+  assert.equal(settleAllBody.transactions.length, 1);
+
+  for (const [action, body] of [
+    ["close", { wallet_address: wallet, underlying_asset: "BTC", option_token_id: "101", size: 0.001, min_amount_out_raw: "0", min_out_when_swap_raw: "1" }],
+    ["settle", { wallet_address: wallet, underlying_asset: "ETH", option_token_id: "202", min_out_when_swap_raw: "0" }],
+    ["close-all", { wallet_address: wallet, min_amount_out_raw: "0", min_out_when_swap_raw: "1" }],
+    ["settle-all", { wallet_address: wallet, min_out_when_swap_raw: "0" }]
+  ] as const) {
+    const invalidFloor = await post(action, body);
+    assert.equal(invalidFloor.status, 400, `${action} must reject zero minimum output floors`);
+  }
 
   const badEvent = await post("events", { event: "arbitrary_event", anonymous_id: "12345678" });
   assert.equal(badEvent.status, 400);
