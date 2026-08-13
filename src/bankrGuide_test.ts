@@ -38,7 +38,7 @@ function main() {
   assert.match(html, /src="\/bankr\/app\.js"/);
   assert.match(html, /Defined-risk options, directly inside Bankr\./);
   assert.match(html, /Open Callput in Bankr/);
-  const publicBankrAppUrl = "https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options";
+  const publicBankrAppUrl = "https://bankr.bot/u/0xaaacc4820e9b053582286042dfe832dfaba0175a/apps/callput-options";
   assert.match(html, new RegExp(publicBankrAppUrl), "all users must be sent to the public app surface without owner Scripts controls");
   assert.doesNotMatch(html, /https:\/\/bankr\.bot\/apps\/callput-options/, "the guide must not send users to the owner-oriented app route");
   assert.match(
