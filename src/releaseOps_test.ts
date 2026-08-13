@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import versionHandler from "../api/version.js";
-import healthHandler from "../api/health.js";
 import { CALLPUT_VERSION } from "./version.js";
 
 async function main() {
@@ -28,7 +27,7 @@ async function main() {
   assert.equal(payload.commit, null);
 
   const healthResult: { status?: number; body?: string } = {};
-  await healthHandler({ method: "POST" }, {
+  await versionHandler({ method: "POST", url: "/api/health" }, {
     statusCode: 0,
     setHeader() {},
     end(value?: string) {
@@ -42,6 +41,7 @@ async function main() {
   assert.equal(packageJson.version, CALLPUT_VERSION, "package and runtime versions must match");
 
   const config = JSON.parse(await readFile(new URL("../../vercel.json", import.meta.url), "utf8"));
+  assert.ok(config.routes?.some((entry: { src?: string; dest?: string }) => entry.src === "/api/health" && entry.dest === "/api/version.ts"), "health must reuse the version function to stay within the Hobby function limit");
   const headerRoute = config.routes?.find((entry: { src?: string; continue?: boolean }) => entry.src === "/(.*)" && entry.continue === true);
   assert.ok(headerRoute?.headers, "vercel.json must define a continuing global security-header route");
   const headerMap = new Map(Object.entries(headerRoute.headers).map(([key, value]) => [key.toLowerCase(), String(value)]));
