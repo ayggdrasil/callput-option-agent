@@ -602,7 +602,7 @@ export async function validateSpread(strategy: SpreadStrategy, longLegId: string
   };
 }
 
-function getProvider() {
+function getProvider(options: { unbatchedRpc?: boolean } = {}) {
   const timeoutMs = readIntegerEnv(
     "CALLPUT_RPC_TIMEOUT_MS",
     DEFAULT_RPC_TIMEOUT_MS,
@@ -611,11 +611,14 @@ function getProvider() {
   );
   const request = new ethers.FetchRequest(CONFIG.RPC_URL);
   request.timeout = timeoutMs;
-  return new ethers.JsonRpcProvider(request, CONFIG.CHAIN_ID, { staticNetwork: true });
+  return new ethers.JsonRpcProvider(request, CONFIG.CHAIN_ID, {
+    staticNetwork: true,
+    ...(options.unbatchedRpc ? { batchMaxCount: 1 } : {})
+  });
 }
 
-async function getValidatedProvider(): Promise<ethers.JsonRpcProvider> {
-  const provider = getProvider();
+async function getValidatedProvider(options: { unbatchedRpc?: boolean } = {}): Promise<ethers.JsonRpcProvider> {
+  const provider = getProvider(options);
   const chainId = BigInt(await provider.send("eth_chainId", []));
   if (chainId !== BigInt(CONFIG.CHAIN_ID)) {
     throw new Error(`RPC provider is on chain ${chainId}, expected Base (${CONFIG.CHAIN_ID})`);
@@ -1120,7 +1123,7 @@ export async function closeAllPositions(params: {
 }) {
   parsePositiveRawAmount(params.minAmountOutRaw, "minAmountOutRaw");
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
-  const positionData = await getPositions(params.fromAddress, { includeMarketData: false });
+  const positionData = await getPositions(params.fromAddress, { includeMarketData: false, unbatchedRpc: true });
   if (positionData.position_data_warning) {
     throw new Error(`INCOMPLETE_POSITION_DATA: close all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
   }
@@ -1152,7 +1155,7 @@ export async function settleAllPositions(params: {
   minOutWhenSwapRaw?: string;
 }) {
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
-  const positionData = await getPositions(params.fromAddress, { includeMarketData: false });
+  const positionData = await getPositions(params.fromAddress, { includeMarketData: false, unbatchedRpc: true });
   if (positionData.position_data_warning) {
     throw new Error(`INCOMPLETE_POSITION_DATA: settle all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
   }
@@ -1179,9 +1182,9 @@ export async function settleAllPositions(params: {
 
 export async function getPositions(
   address: string,
-  options: { includeMarketData?: boolean } = {}
+  options: { includeMarketData?: boolean; unbatchedRpc?: boolean } = {}
 ) {
-  const provider = await getValidatedProvider();
+  const provider = await getValidatedProvider({ unbatchedRpc: options.unbatchedRpc });
   if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
   const account = ethers.getAddress(address);
 

@@ -514,7 +514,7 @@ export async function handleBankrApiRequest(
 
     if (action === "positions") {
       const input = positionsSchema.parse(raw);
-      const positionData = await deps.getPositions(input.wallet_address, { includeMarketData: false });
+      const positionData = await deps.getPositions(input.wallet_address, { includeMarketData: false, unbatchedRpc: true });
       return response(200, {
         account: positionData.account,
         total_positions: positionData.total_active_count,
