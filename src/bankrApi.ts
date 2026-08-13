@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { z } from "zod";
-import { CONFIG, ERC20_ABI, POSITION_MANAGER_ABI } from "./config.js";
+import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import {
   DEFAULT_MIN_FILL_RATIO,
   calculateSpreadOpenQuote,
@@ -210,6 +210,32 @@ function lifecycleIntentFingerprint(tx: { chain_id: number; from: string; to: st
 
 function lifecycleTransactionResponse(action: "close" | "settle", built: any) {
   const tx = built.unsigned_tx;
+  const approval = built.position_token_approval;
+  if (approval) {
+    const asset = action === "close" ? built.close?.asset : built.settle?.asset;
+    const expectedToken = CONFIG.UNDERLYINGS[asset as keyof typeof CONFIG.UNDERLYINGS]?.optionsToken;
+    if (!expectedToken) throw new Error("Position-token approval has an unsupported asset");
+    sameAddress(approval.token, expectedToken, "Position-token approval token");
+    if (!ethers.isAddress(approval.operator)) throw new Error("Position-token approval operator is invalid");
+    const approveTx = approval.approve_tx;
+    if (approval.sufficient) {
+      if (approveTx) throw new Error("Position-token approval transaction must be absent when approval is sufficient");
+    } else {
+      if (!approveTx) throw new Error("Position-token approval transaction is required");
+      sameAddress(approveTx.to, expectedToken, "Position-token approval destination");
+      sameAddress(approveTx.from, tx.from, "Position-token approval sender");
+      if (approveTx.chain_id !== CONFIG.CHAIN_ID || parseUint256(approveTx.value, "Position-token approval value") !== 0n) {
+        throw new Error("Position-token approval chain or value is invalid");
+      }
+      const iface = new ethers.Interface(OPTIONS_TOKEN_ABI);
+      const parsed = iface.parseTransaction({ data: approveTx.data, value: approveTx.value });
+      if (parsed?.name !== "setApprovalForAll" || parsed.args[1] !== true) throw new Error("Position-token approval calldata is invalid");
+      sameAddress(String(parsed.args[0]), approval.operator, "Position-token approval operator");
+      if (iface.encodeFunctionData("setApprovalForAll", Array.from(parsed.args)).toLowerCase() !== approveTx.data.toLowerCase()) {
+        throw new Error("Position-token approval calldata is not canonical");
+      }
+    }
+  }
   return {
     ...built,
     action,

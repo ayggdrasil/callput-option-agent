@@ -121,6 +121,10 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
           result = erc20.encodeFunctionResult("balanceOf", [1_000_000n]);
         } else if (data.startsWith(pm.getFunction("executionFee")!.selector)) {
           result = pm.encodeFunctionResult("executionFee", [state.executionFee]);
+        } else if (data.startsWith(pm.getFunction("controller")!.selector)) {
+          result = pm.encodeFunctionResult("controller", [FOREIGN_ACCOUNT]);
+        } else if (data.startsWith(optionToken.getFunction("isApprovedForAll")!.selector)) {
+          result = optionToken.encodeFunctionResult("isApprovedForAll", [false]);
         } else if (data.startsWith(pm.getFunction("openPositionRequests")!.selector)) {
           const key = String(pm.decodeFunctionData("openPositionRequests", data)[0]).toLowerCase();
           state.openRequestCalls.push(key);

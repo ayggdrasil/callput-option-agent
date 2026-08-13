@@ -1059,9 +1059,14 @@ export async function closePosition(params: {
 
   const provider = await getValidatedProvider();
   const token = new ethers.Contract(CONFIG.UNDERLYINGS[asset].optionsToken, OPTIONS_TOKEN_ABI, provider);
-  const [positionBalance] = (await token.balanceOfBatch([account], [tokenId])) as bigint[];
-  if ((positionBalance ?? 0n) < sizeRaw) {
-    throw new Error(`Wallet has insufficient position balance: ${(positionBalance ?? 0n).toString()} < ${sizeRaw.toString()}`);
+  const pmRead = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
+  const controller = ethers.getAddress(await pmRead.controller());
+  const [positionBalance, operatorApproved] = await Promise.all([
+    token.balanceOfBatch([account], [tokenId]).then((balances: bigint[]) => balances[0] ?? 0n),
+    token.isApprovedForAll(account, controller) as Promise<boolean>
+  ]);
+  if (positionBalance < sizeRaw) {
+    throw new Error(`Wallet has insufficient position balance: ${positionBalance.toString()} < ${sizeRaw.toString()}`);
   }
 
   const iface = new ethers.Interface(POSITION_MANAGER_ABI);
@@ -1075,8 +1080,8 @@ export async function closePosition(params: {
     false
   ]);
 
-  const pmRead = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);
   const executionFee = await getExecutionFee(pmRead);
+  const approvalData = new ethers.Interface(OPTIONS_TOKEN_ABI).encodeFunctionData("setApprovalForAll", [controller, true]);
 
   return {
     unsigned_tx: {
@@ -1085,6 +1090,18 @@ export async function closePosition(params: {
       value: executionFee.toString(),
       chain_id: CONFIG.CHAIN_ID,
       from: account
+    },
+    position_token_approval: {
+      sufficient: operatorApproved,
+      token: CONFIG.UNDERLYINGS[asset].optionsToken,
+      operator: controller,
+      approve_tx: operatorApproved ? null : {
+        to: CONFIG.UNDERLYINGS[asset].optionsToken,
+        data: approvalData,
+        value: "0",
+        chain_id: CONFIG.CHAIN_ID,
+        from: account
+      }
     },
     close: {
       asset,
@@ -1095,7 +1112,7 @@ export async function closePosition(params: {
       min_out_when_swap_raw: minOutWhenSwap.toString()
     },
     next_steps: [
-      "1. Sign and broadcast unsigned_tx",
+      operatorApproved ? "1. Sign and broadcast unsigned_tx" : "1. Sign and broadcast position_token_approval.approve_tx, then rebuild and verify approval",
       "2. Call callput_get_request_key_from_tx(tx_hash)",
       "3. Poll callput_check_request_status(request_key, is_open=false)"
     ]
@@ -1124,7 +1141,12 @@ export async function settlePosition(params: {
   const minOutWhenSwap = parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
   const provider = await getValidatedProvider();
   const token = new ethers.Contract(CONFIG.UNDERLYINGS[asset].optionsToken, OPTIONS_TOKEN_ABI, provider);
-  const [positionBalance] = (await token.balanceOfBatch([account], [tokenId])) as bigint[];
+  const settleManager = new ethers.Contract(CONFIG.CONTRACTS.SETTLE_MANAGER, ["function controller() view returns (address)"], provider);
+  const controller = ethers.getAddress(await settleManager.controller());
+  const [[positionBalance], operatorApproved] = await Promise.all([
+    token.balanceOfBatch([account], [tokenId]) as Promise<bigint[]>,
+    token.isApprovedForAll(account, controller) as Promise<boolean>
+  ]);
   if ((positionBalance ?? 0n) <= 0n) throw new Error("Wallet does not own position token");
   const underlyingIndex = CONFIG.UNDERLYINGS[asset].index;
   const path = [CONFIG.CONTRACTS.USDC];
@@ -1137,6 +1159,7 @@ export async function settlePosition(params: {
     minOutWhenSwap,
     false
   ]);
+  const approvalData = new ethers.Interface(OPTIONS_TOKEN_ABI).encodeFunctionData("setApprovalForAll", [controller, true]);
 
   return {
     unsigned_tx: {
@@ -1145,6 +1168,18 @@ export async function settlePosition(params: {
       value: "0",
       chain_id: CONFIG.CHAIN_ID,
       from: account
+    },
+    position_token_approval: {
+      sufficient: operatorApproved,
+      token: CONFIG.UNDERLYINGS[asset].optionsToken,
+      operator: controller,
+      approve_tx: operatorApproved ? null : {
+        to: CONFIG.UNDERLYINGS[asset].optionsToken,
+        data: approvalData,
+        value: "0",
+        chain_id: CONFIG.CHAIN_ID,
+        from: account
+      }
     },
     settle: {
       asset,

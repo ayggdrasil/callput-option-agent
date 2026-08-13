@@ -6,6 +6,7 @@ import { CONFIG, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
 import { calculateSpreadOpenQuote, closePosition, getMarketSnapshot, parseOptionTokenId, planPositionLifecycle, settlePosition, validateSpread } from "./core.js";
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111";
+const CONTROLLER = "0x3333333333333333333333333333333333333333";
 const NOW_SEC = Math.floor(Date.now() / 1000);
 
 function optionId(assetIndex: number, expirySec: number, strike: number): string {
@@ -70,6 +71,12 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
   const balanceSelector = new ethers.Interface([
     "function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])"
   ]).getFunction("balanceOfBatch")!.selector;
+  const controllerSelector = new ethers.Interface([
+    "function controller() view returns (address)"
+  ]).getFunction("controller")!.selector;
+  const operatorApprovalSelector = new ethers.Interface([
+    "function isApprovedForAll(address account, address operator) view returns (bool)"
+  ]).getFunction("isApprovedForAll")!.selector;
   const coder = ethers.AbiCoder.defaultAbiCoder();
 
   const server = http.createServer(async (request, response) => {
@@ -87,6 +94,10 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
           result = coder.encode(["uint256"], [CONFIG.EXECUTION_FEE_FALLBACK]);
         } else if (data.startsWith(balanceSelector)) {
           result = coder.encode(["uint256[]"], [[ownedBalanceRaw]]);
+        } else if (data.startsWith(controllerSelector)) {
+          result = coder.encode(["address"], [CONTROLLER]);
+        } else if (data.startsWith(operatorApprovalSelector)) {
+          result = coder.encode(["bool"], [false]);
         } else {
           throw new Error(`Unexpected eth_call selector: ${data.slice(0, 10)}`);
         }
@@ -344,6 +355,29 @@ test("trade core safety gates", async (t) => {
     assert.equal(parsed?.args[5], 45n);
   });
 
+  await t.test("close prepares the exact ERC-1155 controller approval when the wallet is not approved", async () => {
+    ownedBalanceRaw = 100_000_000n;
+    const result = await closePosition({
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      size: 1,
+      minAmountOutRaw: "1",
+      minOutWhenSwapRaw: "1"
+    } as any);
+    assert.equal(result.position_token_approval.sufficient, false);
+    assert.ok(result.position_token_approval.approve_tx);
+    assert.equal(result.position_token_approval.token, CONFIG.UNDERLYINGS.BTC.optionsToken);
+    assert.equal(result.position_token_approval.operator, ethers.getAddress(CONTROLLER));
+    assert.equal(result.position_token_approval.approve_tx!.to, CONFIG.UNDERLYINGS.BTC.optionsToken);
+    assert.equal(result.position_token_approval.approve_tx!.value, "0");
+    const parsed = new ethers.Interface([
+      "function setApprovalForAll(address operator, bool approved)"
+    ]).parseTransaction({ data: result.position_token_approval.approve_tx!.data });
+    assert.equal(parsed?.args[0], ethers.getAddress(CONTROLLER));
+    assert.equal(parsed?.args[1], true);
+  });
+
   await t.test("settle requires a wallet", async () => {
     await assert.rejects(() => settlePosition({
       underlyingAsset: "BTC",
@@ -398,6 +432,7 @@ test("trade core safety gates", async (t) => {
     const parsed = new ethers.Interface(SETTLE_MANAGER_ABI).parseTransaction({ data: result.unsigned_tx.data });
     assert.equal(parsed?.args[3], 77n);
     assert.equal(result.unsigned_tx.from, ethers.getAddress(ACCOUNT));
+    assert.equal(result.position_token_approval.sufficient, false);
   });
 
   await t.test("plans close-all and settle-all from exact on-chain expiry state", () => {

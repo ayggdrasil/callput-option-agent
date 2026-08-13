@@ -302,6 +302,11 @@
     setStatus("positionsStatus",`Preparing ${action} review for ${position.underlying}…`);
     try {
       const result=action === "close" ? await bankr.scripts.run("close",args) : await bankr.scripts.run("settle",args);
+      if (result.position_token_approval && !result.position_token_approval.sufficient) {
+        await bankr.confirmTransaction(result.position_token_approval.transaction);
+        setStatus("positionsStatus","Position-token approval review opened in Bankr chat. Nothing has been submitted by this app. Refresh positions and prepare the action again after the approval is confirmed.","ok");
+        return;
+      }
       await bankr.confirmTransaction(result.transaction);
       if (action === "close") lastHandoffIntentFingerprint=result.intent_fingerprint;
       setStatus("positionsStatus",`${action === "close" ? "Close" : "Settlement"} review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then refresh positions.`,"ok");
@@ -325,6 +330,12 @@
     if (!lifecycleQueue.length) { $("reviewNextLifecycle").classList.add("hidden"); return; }
     const item=lifecycleQueue.shift(); const current=lifecycleQueueTotal-lifecycleQueue.length;
     try {
+      if (item.position_token_approval && !item.position_token_approval.sufficient) {
+        await bankr.confirmTransaction(item.position_token_approval.transaction);
+        lifecycleQueue.unshift(item);
+        setStatus("positionsStatus","Position-token approval review opened in Bankr chat. Nothing has been submitted by this app. Refresh positions and prepare the action again after the approval is confirmed.","ok");
+        return;
+      }
       await bankr.confirmTransaction(item.transaction);
       if (item.action === "close") lastHandoffIntentFingerprint=item.intent_fingerprint;
       $("reviewNextLifecycle").textContent=lifecycleQueue.length ? `Open next Bankr review (${current + 1}/${lifecycleQueueTotal})` : "All reviews opened";

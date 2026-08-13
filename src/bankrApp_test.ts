@@ -143,12 +143,15 @@ function main() {
   for (const source of [closeScript, settleScript, closeAllScript, settleAllScript]) {
     assert.match(source, /bankr\.tx\.prepare/, "every lifecycle builder must pass canonical calldata through Bankr transaction preparation");
     assert.match(source, /to: tx\.to\.toLowerCase\(\)/, "every lifecycle builder must normalize destinations for Bankr Wallet API compatibility");
+    assert.match(source, /position_token_approval/, "every lifecycle builder must handle the required ERC-1155 controller approval");
     assert.doesNotMatch(source, /confirmTransaction|signTransaction|privateKey/i, "backend scripts must not confirm or sign");
   }
+  assert.match(html, /Position-token approval review opened in Bankr chat/, "lifecycle UX must stop after the ERC-1155 approval handoff");
+  assert.match(html, /Refresh positions and prepare the action again after the approval is confirmed/, "lifecycle UX must require a fresh approval-state read before close or settlement");
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.11\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.12\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);
