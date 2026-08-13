@@ -121,6 +121,8 @@ function validate(value: ReturnType<typeof prepared>, request: PrepareRequest = 
 const captured: string[] = [];
 let capturedMinFillRatio: number | undefined;
 let capturedIntentLookup: { address: string; intentFingerprint: string; fromBlock?: number } | undefined;
+let portfolioSummaryCalls = 0;
+let lightweightPositionCalls = 0;
 let preparedFactory = (input: any) => prepared({
   strategy: input.strategy,
   from_address: input.fromAddress,
@@ -145,14 +147,30 @@ const deps = {
     return { request_key: requestKey, is_open: true, tx_hash: txHash, from_block: 98_200, to_block: 100_000 };
   },
   checkRequestStatus: async () => ({ request_key: requestKey, status: "executed" as const, account: wallet }),
-  getPortfolioSummary: async () => ({
+  getPortfolioSummary: async () => {
+    portfolioSummaryCalls++;
+    return ({
     account: wallet,
     total_positions: 2,
     positions: [
       { underlying: "BTC", token_id: "101", size: 0.001, lifecycle: "closable" },
       { underlying: "ETH", token_id: "202", size: 0.01, lifecycle: "settleable" }
     ]
-  }),
+    });
+  },
+  getPositions: async () => {
+    lightweightPositionCalls++;
+    return {
+      account: wallet,
+      total_active_count: 2,
+      market_data_warning: null,
+      position_data_warning: null,
+      positions: [
+        { underlying: "BTC", token_id: "101", size: 0.001, strike: 100, pair_strike: 110, lifecycle: "closable" },
+        { underlying: "ETH", token_id: "202", size: 0.01, strike: 10, pair_strike: 12, lifecycle: "settleable" }
+      ]
+    };
+  },
   closePosition: async (input: any) => ({
     unsigned_tx: { to: CONFIG.CONTRACTS.POSITION_MANAGER, data: "0x1234", value: "60000000000000", chain_id: 8453, from: input.fromAddress },
     close: { asset: input.underlyingAsset, option_token_id: input.optionTokenId, size: input.size, min_amount_out_raw: input.minAmountOutRaw, min_out_when_swap_raw: input.minOutWhenSwapRaw }
@@ -445,7 +463,11 @@ async function main() {
 
   const positions = await post("positions", { wallet_address: wallet });
   assert.equal(positions.status, 200);
-  assert.equal((await positions.json() as any).total_positions, 2);
+  const positionsBody = await positions.json() as any;
+  assert.equal(positionsBody.total_positions, 2);
+  assert.equal(positionsBody.positions[0].naked_strike, 100);
+  assert.equal(lightweightPositionCalls, 1, "Bankr lifecycle reads must use the lightweight on-chain position path");
+  assert.equal(portfolioSummaryCalls, 0, "Bankr lifecycle reads must not compute the full P&L portfolio summary");
 
   const close = await post("close", {
     wallet_address: wallet,
