@@ -50,6 +50,7 @@ type RpcState = {
   optionTokenIds: bigint[];
   openRequestCalls: string[];
   maxOpenRequestsPerBatch: number;
+  maxTokenQueriesPerBatch: number;
   executionFee: bigint;
   receipts: Record<string, any>;
   transactions: Record<string, any>;
@@ -66,6 +67,7 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
     optionTokenIds: [],
     openRequestCalls: [],
     maxOpenRequestsPerBatch: 0,
+    maxTokenQueriesPerBatch: 0,
     executionFee: CONFIG.EXECUTION_FEE_FALLBACK,
     receipts: {},
     transactions: {}
@@ -81,6 +83,11 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
       return data.startsWith(pm.getFunction("openPositionRequests")!.selector);
     }).length;
     state.maxOpenRequestsPerBatch = Math.max(state.maxOpenRequestsPerBatch, openCallsInBatch);
+    const tokenQueriesInBatch = requests.filter((rpc: any) => {
+      const data = String(rpc.params?.[0]?.data ?? "");
+      return data.startsWith(optionToken.getFunction("tokensByAccount")!.selector);
+    }).length;
+    state.maxTokenQueriesPerBatch = Math.max(state.maxTokenQueriesPerBatch, tokenQueriesInBatch);
 
     const replies = requests.map((rpc: any) => {
       let result: unknown;
@@ -289,6 +296,13 @@ test("core public-launch abuse controls", async (t) => {
     } finally {
       rpc.state.optionTokenIds = [];
     }
+  });
+
+  await t.test("batches independent underlying position lookups", async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify(freshMarketPayload()));
+    rpc.state.maxTokenQueriesPerBatch = 0;
+    await getPositions(ACCOUNT);
+    assert.ok(rpc.state.maxTokenQueriesPerBatch >= 2, "underlying token lookups must run concurrently");
   });
 
   await t.test("keeps lifecycle positions available when optional market pricing is malformed", async () => {
