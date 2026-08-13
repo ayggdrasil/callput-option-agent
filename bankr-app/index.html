@@ -54,6 +54,7 @@
     <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
     <div class="contract-links" aria-label="Canonical Base contracts"><strong>Verify contracts on Base:</strong><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a><a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a><a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a></div>
     <button id="confirm" class="primary">Open Bankr transaction review</button>
+    <button id="refreshApproval" class="hidden">I approved it — refresh allowance</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 
@@ -88,6 +89,7 @@
   let lastHandoffIntentFingerprint = null;
   let lifecycleQueue = [];
   let lifecycleQueueTotal = 0;
+  const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
@@ -118,7 +120,25 @@
     preparationVersion += 1;
     prepared = null;
     $("confirm").disabled=true;
+    $("refreshApproval").classList.add("hidden");
     $("review").classList.add("hidden");
+  }
+  function showPrepared(result,candidate,size,currentPreparationVersion) {
+    const r=result.risk_preview;
+    const txPreview=result.transaction_preview;
+    if (!result.intent_fingerprint || !txPreview?.destination || !txPreview?.chain) throw new Error("Prepared transaction is missing its bound review details.");
+    prepared={ ...result, candidate, size, preparationVersion:currentPreparationVersion };
+    $("risk").innerHTML=[
+      reviewField("Asset",r.asset), reviewField("Strategy",r.strategy), reviewField("Size",size),
+      reviewField("Expiry",candidate.expiry_code), reviewField("Strikes",`${candidate.long_strike} / ${candidate.short_strike}`),
+      addressField("Callput PositionManager",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
+      reviewField("Wallet",r.wallet), reviewField("Maximum at risk",`${money(r.maximum_usdc_at_risk)} USDC`),
+      reviewField("Network fee",`${money(weiToEth(r.execution_fee_wei))} ETH (${r.execution_fee_wei} wei)`), reviewField("Minimum fill",`${money(r.minimum_fill_ratio * 100)}%`),
+      ...(prepared.approval_preview ? [addressField(prepared.approval_preview.token,prepared.approval_preview.token_address), addressField("Callput Router",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
+      reviewField("Intent fingerprint",result.intent_fingerprint)
+    ].join("");
+    $("confirm").disabled=false;
+    $("refreshApproval").classList.toggle("hidden",!prepared.approval);
   }
   async function scan() {
     if (!(await requireSignIn())) return;
@@ -149,21 +169,8 @@
     try {
       const result=await bankr.scripts.run("prepare", { strategy:candidate.strategy, long_leg_id:candidate.long_leg_id, short_leg_id:candidate.short_leg_id, size });
       if (currentPreparationVersion !== preparationVersion) return;
-      const r=result.risk_preview;
-      const txPreview=result.transaction_preview;
-      if (!result.intent_fingerprint || !txPreview?.destination || !txPreview?.chain) throw new Error("Prepared transaction is missing its bound review details.");
-      prepared={ ...result, candidate, size, preparationVersion:currentPreparationVersion };
-      $("risk").innerHTML=[
-        reviewField("Asset",r.asset), reviewField("Strategy",r.strategy), reviewField("Size",size),
-        reviewField("Expiry",candidate.expiry_code), reviewField("Strikes",`${candidate.long_strike} / ${candidate.short_strike}`),
-        addressField("Callput PositionManager",txPreview.destination), reviewField("Chain",`${txPreview.chain} (${txPreview.chain_id})`),
-        reviewField("Wallet",r.wallet), reviewField("Maximum at risk",`${money(r.maximum_usdc_at_risk)} USDC`),
-        reviewField("Network fee",`${money(weiToEth(r.execution_fee_wei))} ETH (${r.execution_fee_wei} wei)`), reviewField("Minimum fill",`${money(r.minimum_fill_ratio * 100)}%`),
-        ...(prepared.approval_preview ? [addressField(prepared.approval_preview.token,prepared.approval_preview.token_address), addressField("Callput Router",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
-        reviewField("Intent fingerprint",result.intent_fingerprint)
-      ].join("");
+      showPrepared(result,candidate,size,currentPreparationVersion);
       setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
-      $("confirm").disabled=false;
     } catch(error) { if (currentPreparationVersion === preparationVersion) setStatus("tradeStatus",error.message || String(error),"error"); }
   }
 
@@ -179,6 +186,7 @@
         setStatus("tradeStatus","Opening the bounded USDC approval in Bankr chat…");
         await bankr.confirmTransaction(confirmationIntent.approval);
         setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return and choose the spread again to refresh the allowance.");
+        $("refreshApproval").classList.remove("hidden");
         $("confirm").disabled=false;
         return;
       }
@@ -191,6 +199,37 @@
       const message=error.message || String(error);
       setStatus("tradeStatus",`Bankr ${handoffKind} handoff did not complete: ${message}. Nothing was submitted by this app. Try opening the ${handoffKind} review again.`,"error");
       $("confirm").disabled=false;
+    }
+  }
+
+  async function refreshAllowance() {
+    if (!selected || !(await requireSignIn())) return;
+    const candidate=selected;
+    const size=Number($("size").value);
+    if (!validSize()) { setStatus("tradeStatus","Enter a positive size before refreshing the allowance.","error"); return; }
+    const currentPreparationVersion=++preparationVersion;
+    prepared=null;
+    $("confirm").disabled=true;
+    $("refreshApproval").disabled=true;
+    try {
+      let result=null;
+      for (let attempt=1; attempt<=MAX_ALLOWANCE_REFRESH_ATTEMPTS; attempt+=1) {
+        setStatus("tradeStatus",`Checking confirmed allowance on Base (${attempt}/${MAX_ALLOWANCE_REFRESH_ATTEMPTS})…`);
+        result=await bankr.scripts.run("prepare", { strategy:candidate.strategy, long_leg_id:candidate.long_leg_id, short_leg_id:candidate.short_leg_id, size });
+        if (currentPreparationVersion !== preparationVersion) return;
+        if (!result.approval) break;
+        if (attempt < MAX_ALLOWANCE_REFRESH_ATTEMPTS) await new Promise(resolve=>setTimeout(resolve,1500));
+      }
+      showPrepared(result,candidate,size,currentPreparationVersion);
+      if (prepared.approval) {
+        setStatus("tradeStatus","Allowance is still insufficient or the live premium moved above it. A refreshed bounded approval is ready; review that exact amount again.","error");
+      } else {
+        setStatus("tradeStatus","Allowance confirmed. Review the refreshed Callput order before opening it in Bankr chat.","ok");
+      }
+    } catch(error) {
+      if (currentPreparationVersion === preparationVersion) setStatus("tradeStatus",`Allowance refresh failed: ${error.message || String(error)}. No order was opened or submitted.`,"error");
+    } finally {
+      $("refreshApproval").disabled=false;
     }
   }
 
@@ -290,7 +329,7 @@
   ["asset","bias"].forEach(id=>$(id).addEventListener("change",()=>{ selected=null; scannedCandidates=[]; $("cards").innerHTML=""; setStatus("scanStatus","Inputs changed. Scan again for current candidates."); }));
   $("size").addEventListener("input",()=>{ invalidatePrepared(); refreshCandidatePricing(); });
   $("size").addEventListener("change",()=>{ if (selected) prepare(); });
-  $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("reconcile").onclick=reconcile; $("refreshPositions").onclick=refreshPositions; $("closeAll").onclick=()=>prepareLifecycleBatch("close-all"); $("settleAll").onclick=()=>prepareLifecycleBatch("settle-all"); $("reviewNextLifecycle").onclick=reviewNextLifecycle;
+  $("scan").onclick=scan; $("confirm").onclick=confirmTrade; $("refreshApproval").onclick=refreshAllowance; $("reconcile").onclick=reconcile; $("refreshPositions").onclick=refreshPositions; $("closeAll").onclick=()=>prepareLifecycleBatch("close-all"); $("settleAll").onclick=()=>prepareLifecycleBatch("settle-all"); $("reviewNextLifecycle").onclick=reviewNextLifecycle;
   $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };
   bankr.on("ready", async () => {
     syncAuthUi();

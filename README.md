@@ -51,6 +51,8 @@ This package is designed for:
 - `bankr/` : public English Bankr guide, deterministic demo, and social preview asset
 - `bankr-app/` : Bankr manifest, frontend, scripts, install prompt, and QA
 - `api/` : Vercel Functions for remote MCP and Bankr endpoints
+- `api/health` : sanitized Base RPC and live market-feed production health
+- `.github/workflows/production-smoke.yml` : daily and manually triggered public production smoke checks
 
 ## Supported Underlyings
 - Crypto: `BTC`, `ETH`
@@ -102,7 +104,7 @@ npm run verify:mcp
 
 ## Connect OpenClaw / Bankr
 1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
-2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.8/callput`.
+2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.9/callput`.
 3. Bankr MCP: add `https://mcp.callput.app/api/mcp` as HTTP with authentication `None`.
 4. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
 5. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
@@ -118,6 +120,13 @@ python3 -m http.server 4173
 
 Then visit `http://localhost:4173` or `http://localhost:4173/frontend-v1/`.
 The Bankr guide is available at `http://localhost:4173/bankr/`.
+
+## Production monitoring
+
+- `GET /api/health` reports Base RPC and live market-feed status without returning provider URLs or secrets.
+- `npm run smoke:production` checks health, the complete asset catalog, MCP initialization, and both public pages without signing or preparing a transaction.
+- GitHub Actions runs the smoke suite daily at 02:17 UTC and records failures in the repository Actions history. Repository notification rules should alert operators when the workflow fails.
+- Live-trade canaries deliberately do not store a permanent write key. Run them from a capped test wallet under an ephemeral Bankr key, then revoke the key and clear allowance.
 
 V1 flow in UI:
 1. Direction setup

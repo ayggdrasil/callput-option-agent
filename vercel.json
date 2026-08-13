@@ -39,6 +39,10 @@
       "continue": true
     },
     {
+      "src": "/api/health",
+      "dest": "/api/version.ts"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1.ts"
     },

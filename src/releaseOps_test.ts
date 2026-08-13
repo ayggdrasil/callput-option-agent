@@ -26,10 +26,22 @@ async function main() {
   assert.equal(payload.version, CALLPUT_VERSION);
   assert.equal(payload.commit, null);
 
+  const healthResult: { status?: number; body?: string } = {};
+  await versionHandler({ method: "POST", url: "/api/health" }, {
+    statusCode: 0,
+    setHeader() {},
+    end(value?: string) {
+      healthResult.status = this.statusCode;
+      healthResult.body = value ?? "";
+    }
+  });
+  assert.equal(healthResult.status, 405, "health endpoint must be read-only");
+
   const packageJson = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
   assert.equal(packageJson.version, CALLPUT_VERSION, "package and runtime versions must match");
 
   const config = JSON.parse(await readFile(new URL("../../vercel.json", import.meta.url), "utf8"));
+  assert.ok(config.routes?.some((entry: { src?: string; dest?: string }) => entry.src === "/api/health" && entry.dest === "/api/version.ts"), "health must reuse the version function to stay within the Hobby function limit");
   const headerRoute = config.routes?.find((entry: { src?: string; continue?: boolean }) => entry.src === "/(.*)" && entry.continue === true);
   assert.ok(headerRoute?.headers, "vercel.json must define a continuing global security-header route");
   const headerMap = new Map(Object.entries(headerRoute.headers).map(([key, value]) => [key.toLowerCase(), String(value)]));
@@ -38,6 +50,11 @@ async function main() {
   assert.equal(headerMap.get("x-frame-options"), "SAMEORIGIN");
   assert.match(headerMap.get("permissions-policy") ?? "", /camera=\(\)/);
   assert.match(headerMap.get("strict-transport-security") ?? "", /max-age=/);
+
+  const workflow = await readFile(new URL("../../.github/workflows/production-smoke.yml", import.meta.url), "utf8");
+  assert.match(workflow, /cron:\s*['"]17 2 \* \* \*['"]/, "production smoke must run daily");
+  assert.match(workflow, /npm run smoke:production/, "scheduled monitoring must execute the production smoke suite");
+  assert.match(workflow, /workflow_dispatch:/, "production smoke must support manual verification");
 
   console.log("Release operations tests passed.");
 }

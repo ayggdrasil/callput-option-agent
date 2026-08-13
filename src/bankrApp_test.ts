@@ -23,6 +23,7 @@ function main() {
   assert.match(html, /id="refreshPositions"/, "the Bankr app must expose portfolio refresh");
   assert.match(html, /id="closeAll"/, "the Bankr app must expose close all");
   assert.match(html, /id="settleAll"/, "the Bankr app must expose settle all");
+  assert.match(html, /id="refreshApproval"/, "the Bankr app must expose an explicit post-approval allowance refresh");
   assert.match(html, /id="reviewNextLifecycle"/, "batch lifecycle actions must require a separate user gesture for each Bankr review");
   assert.match(html, /function setStatus\(id, text, cls=""\) \{[\s\S]*?el\.setAttribute\("role","alert"\);[\s\S]*?el\.focus\(\);/, "errors must be announced urgently and receive focus");
   assert.match(html, /function validSize\(\) \{ return Number\.isFinite\(Number\(\$\("size"\)\.value\)\) && Number\(\$\("size"\)\.value\) > 0; \}/, "size must be strictly positive before preparing");
@@ -55,6 +56,12 @@ function main() {
   assert.match(html, /reviewField\("Approval amount",`\$\{money\(prepared\.approval_preview\.amount_usdc\)\} USDC`\)/, "approval amount must be reviewed before confirmation");
   assert.doesNotMatch(html, /approvalConfirmedIntentFingerprint/, "the void SDK handoff must not be treated as a confirmed approval");
   assert.match(html, /await bankr\.confirmTransaction\(confirmationIntent\.approval\);[\s\S]*?Approval review opened in Bankr chat\.[\s\S]*?return;/, "an approval handoff must stop before opening the order handoff");
+  assert.match(html, /const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;/, "allowance propagation checks must be bounded");
+  assert.match(html, /async function refreshAllowance\(\)/, "the app must support an explicit allowance refresh after approval");
+  assert.match(html, /for \(let attempt=1; attempt<=MAX_ALLOWANCE_REFRESH_ATTEMPTS; attempt\+=1\)[\s\S]*?bankr\.scripts\.run\("prepare"/, "allowance refresh must re-read canonical preparation state with a bounded retry loop");
+  assert.match(html, /Allowance confirmed\. Review the refreshed Callput order before opening it in Bankr chat\./, "a confirmed allowance must lead to a fresh order review");
+  assert.match(html, /Allowance is still insufficient/, "a delayed or price-moved allowance must give an explicit recovery state");
+  assert.doesNotMatch(html, /refreshAllowance[\s\S]{0,1200}confirmTransaction\(confirmationIntent\.transaction\)/, "allowance refresh must never auto-open or submit the order review");
   assert.match(html, /bankr\.confirmTransaction\(confirmationIntent\.transaction\)/, "the order confirmation must use the reviewed intent snapshot");
   assert.doesNotMatch(html, /bankr\.confirmTransaction\(prepared\.transaction\)/, "the mutable prepared state must not be confirmed");
   assert.match(html, /let preparationVersion = 0;/, "preparation must use an intent version");
@@ -133,7 +140,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.8\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.9\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);
