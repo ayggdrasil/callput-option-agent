@@ -303,6 +303,7 @@ test("core public-launch abuse controls", async (t) => {
     rpc.state.maxTokenQueriesPerBatch = 0;
     await getPositions(ACCOUNT);
     assert.ok(rpc.state.maxTokenQueriesPerBatch >= 2, "underlying token lookups must run concurrently");
+    assert.ok(rpc.state.maxTokenQueriesPerBatch <= 10, "position lookup batches must respect the Base RPC limit");
   });
 
   await t.test("keeps lifecycle positions available when optional market pricing is malformed", async () => {
