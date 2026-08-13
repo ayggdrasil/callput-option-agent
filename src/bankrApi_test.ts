@@ -469,7 +469,7 @@ async function main() {
   assert.equal(positionsBody.total_positions, 2);
   assert.equal(positionsBody.positions[0].naked_strike, 100);
   assert.equal(lightweightPositionCalls, 1, "Bankr lifecycle reads must use the lightweight on-chain position path");
-  assert.deepEqual(lightweightPositionOptions, { includeMarketData: false, unbatchedRpc: true }, "Bankr lifecycle reads must avoid optional market enrichment and slow RPC batches");
+  assert.deepEqual(lightweightPositionOptions, { includeMarketData: false, multicallRpc: true }, "Bankr lifecycle reads must avoid optional market enrichment and collapse RPC reads through Multicall3");
   assert.equal(portfolioSummaryCalls, 0, "Bankr lifecycle reads must not compute the full P&L portfolio summary");
 
   const close = await post("close", {
