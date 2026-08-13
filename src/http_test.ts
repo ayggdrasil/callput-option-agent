@@ -33,7 +33,7 @@ async function main() {
   assert.equal(initialize.status, 200);
   const initialized = await initialize.json() as any;
   assert.equal(initialized.result.serverInfo.name, "callput-lite-agent-mcp");
-  assert.equal(initialized.result.serverInfo.version, "0.5.3");
+  assert.equal(initialized.result.serverInfo.version, "0.5.4");
 
   const toolList = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
     method: "POST",

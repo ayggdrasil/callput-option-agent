@@ -89,6 +89,7 @@ function main() {
   assert.match(html, /\$\("refreshPositions"\)\.disabled=!authenticated/);
   assert.match(html, /bankr\.scripts\.run\("positions"/);
   assert.match(html, /if \(result\?\.error\) throw new Error\(result\.error\)/, "position refresh must surface backend errors instead of rendering a false empty state");
+  assert.match(html, /result\.position_data_warning/, "partial position reads must be disclosed and disable batch actions");
   assert.match(html, /bankr\.scripts\.run\("close"/);
   assert.match(html, /bankr\.scripts\.run\("settle"/);
   assert.match(html, /bankr\.scripts\.run\("close-all"/);
@@ -132,7 +133,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.3\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.4\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

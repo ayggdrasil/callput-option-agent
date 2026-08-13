@@ -1121,6 +1121,9 @@ export async function closeAllPositions(params: {
   parsePositiveRawAmount(params.minAmountOutRaw, "minAmountOutRaw");
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
   const positionData = await getPositions(params.fromAddress);
+  if (positionData.position_data_warning) {
+    throw new Error(`INCOMPLETE_POSITION_DATA: close all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
+  }
   const plan = planPositionLifecycle(positionData.positions as LifecyclePosition[]);
   assertLifecycleBatchSize("close all", plan.closable);
   const transactions = [];
@@ -1150,6 +1153,9 @@ export async function settleAllPositions(params: {
 }) {
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
   const positionData = await getPositions(params.fromAddress);
+  if (positionData.position_data_warning) {
+    throw new Error(`INCOMPLETE_POSITION_DATA: settle all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
+  }
   const plan = planPositionLifecycle(positionData.positions as LifecyclePosition[]);
   assertLifecycleBatchSize("settle all", plan.settleable);
   const transactions = [];
@@ -1228,11 +1234,25 @@ export async function getPositions(address: string) {
     return out;
   };
   const positionsByAsset: any[][] = [];
+  const positionDataWarnings: string[] = [];
   const positionLookupBatchSize = 8;
   for (let offset = 0; offset < UNDERLYING_ASSETS.length; offset += positionLookupBatchSize) {
-    positionsByAsset.push(...await Promise.all(
-      UNDERLYING_ASSETS.slice(offset, offset + positionLookupBatchSize).map(readAssetPositions)
-    ));
+    const assets = UNDERLYING_ASSETS.slice(offset, offset + positionLookupBatchSize);
+    const results = await Promise.allSettled(assets.map(readAssetPositions));
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index];
+      if (result.status === "fulfilled") {
+        positionsByAsset.push(result.value);
+        continue;
+      }
+      try {
+        positionsByAsset.push(await readAssetPositions(assets[index]));
+      } catch (retryError) {
+        positionsByAsset.push([]);
+        const message = retryError instanceof Error ? retryError.message : String(retryError);
+        positionDataWarnings.push(`${assets[index]}: ${message}`);
+      }
+    }
   }
   const out = positionsByAsset.flat();
 
@@ -1240,7 +1260,8 @@ export async function getPositions(address: string) {
     account,
     positions: out,
     total_active_count: out.length,
-    market_data_warning: marketDataWarning
+    market_data_warning: marketDataWarning,
+    position_data_warning: positionDataWarnings.length ? positionDataWarnings.join("; ") : null
   };
 }
 
@@ -1784,6 +1805,7 @@ export async function getPortfolioSummary(params: {
 
   const marketDataWarning = marketResult.warning ?? positionData.market_data_warning;
   if (marketDataWarning) result.market_data_warning = marketDataWarning;
+  if (positionData.position_data_warning) result.position_data_warning = positionData.position_data_warning;
 
   if (hasRequestKeys) {
     const pnlUsd = Math.round((totalMarkValueUsd - totalEntryUsd) * 100) / 100;

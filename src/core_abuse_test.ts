@@ -51,6 +51,7 @@ type RpcState = {
   openRequestCalls: string[];
   maxOpenRequestsPerBatch: number;
   maxTokenQueriesPerBatch: number;
+  revertingOptionsToken: string | null;
   executionFee: bigint;
   receipts: Record<string, any>;
   transactions: Record<string, any>;
@@ -68,6 +69,7 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
     openRequestCalls: [],
     maxOpenRequestsPerBatch: 0,
     maxTokenQueriesPerBatch: 0,
+    revertingOptionsToken: null,
     executionFee: CONFIG.EXECUTION_FEE_FALLBACK,
     receipts: {},
     transactions: {}
@@ -107,6 +109,9 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
         const data = String(rpc.params?.[0]?.data ?? "");
         if (data.startsWith(optionToken.getFunction("tokensByAccount")!.selector)) {
           const target = String(rpc.params?.[0]?.to ?? "").toLowerCase();
+          if (target === state.revertingOptionsToken) {
+            return { jsonrpc: "2.0", id: rpc.id, error: { code: 3, message: "execution reverted" } };
+          }
           const btcOptionsToken = CONFIG.UNDERLYINGS.BTC.optionsToken.toLowerCase();
           result = optionToken.encodeFunctionResult("tokensByAccount", [target === btcOptionsToken ? state.optionTokenIds : []]);
         } else if (data.startsWith(optionToken.getFunction("balanceOfBatch")!.selector)) {
@@ -304,6 +309,21 @@ test("core public-launch abuse controls", async (t) => {
     await getPositions(ACCOUNT);
     assert.ok(rpc.state.maxTokenQueriesPerBatch >= 2, "underlying token lookups must run concurrently");
     assert.ok(rpc.state.maxTokenQueriesPerBatch <= 10, "position lookup batches must respect the Base RPC limit");
+  });
+
+  await t.test("isolates one reverting underlying while preserving other lifecycle positions", async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify(freshMarketPayload()));
+    rpc.state.optionTokenIds = [BigInt(spreadTokenId(CONFIG.UNDERLYINGS.BTC.index, NOW_SEC + 3_600))];
+    rpc.state.revertingOptionsToken = CONFIG.UNDERLYINGS.SPY.optionsToken.toLowerCase();
+    try {
+      const result = await getPositions(ACCOUNT);
+      assert.equal(result.total_active_count, 1);
+      assert.equal(result.positions[0].underlying, "BTC");
+      assert.match(result.position_data_warning ?? "", /SPY/);
+    } finally {
+      rpc.state.optionTokenIds = [];
+      rpc.state.revertingOptionsToken = null;
+    }
   });
 
   await t.test("keeps lifecycle positions available when optional market pricing is malformed", async () => {
