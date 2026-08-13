@@ -1109,6 +1109,10 @@ export function planPositionLifecycle<T extends LifecyclePosition>(positions: T[
 }
 
 const MAX_LIFECYCLE_BATCH_POSITIONS = 25;
+const BASE_MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
+const MULTICALL3_ABI = [
+  "function aggregate3(tuple(address target,bool allowFailure,bytes callData)[] calls) payable returns (tuple(bool success,bytes returnData)[])"
+];
 
 function assertLifecycleBatchSize(action: string, positions: LifecyclePosition[]): void {
   if (positions.length > MAX_LIFECYCLE_BATCH_POSITIONS) {
@@ -1123,7 +1127,7 @@ export async function closeAllPositions(params: {
 }) {
   parsePositiveRawAmount(params.minAmountOutRaw, "minAmountOutRaw");
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
-  const positionData = await getPositions(params.fromAddress, { includeMarketData: false, unbatchedRpc: true });
+  const positionData = await getPositions(params.fromAddress, { includeMarketData: false, multicallRpc: true });
   if (positionData.position_data_warning) {
     throw new Error(`INCOMPLETE_POSITION_DATA: close all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
   }
@@ -1155,7 +1159,7 @@ export async function settleAllPositions(params: {
   minOutWhenSwapRaw?: string;
 }) {
   parsePositiveRawAmount(params.minOutWhenSwapRaw, "minOutWhenSwapRaw");
-  const positionData = await getPositions(params.fromAddress, { includeMarketData: false, unbatchedRpc: true });
+  const positionData = await getPositions(params.fromAddress, { includeMarketData: false, multicallRpc: true });
   if (positionData.position_data_warning) {
     throw new Error(`INCOMPLETE_POSITION_DATA: settle all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
   }
@@ -1182,7 +1186,7 @@ export async function settleAllPositions(params: {
 
 export async function getPositions(
   address: string,
-  options: { includeMarketData?: boolean; unbatchedRpc?: boolean } = {}
+  options: { includeMarketData?: boolean; unbatchedRpc?: boolean; multicallRpc?: boolean } = {}
 ) {
   const provider = await getValidatedProvider({ unbatchedRpc: options.unbatchedRpc });
   if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
@@ -1198,17 +1202,12 @@ export async function getPositions(
     }
   }
 
-  const readAssetPositions = async (asset: UnderlyingAsset) => {
+  const buildAssetPositions = (
+    asset: UnderlyingAsset,
+    tokenIds: bigint[],
+    balances: bigint[]
+  ) => {
     const out: any[] = [];
-    const tokenAddress = CONFIG.UNDERLYINGS[asset].optionsToken;
-    if (!tokenAddress) return out;
-    const token = new ethers.Contract(tokenAddress, OPTIONS_TOKEN_ABI, provider);
-    const tokenIds = Array.from(await token.tokensByAccount(account), (value) => BigInt(String(value)));
-    if (!tokenIds.length) return out;
-
-    const accounts = tokenIds.map(() => account);
-    const balances = Array.from(await token.balanceOfBatch(accounts, tokenIds), (value) => BigInt(String(value)));
-
     for (let i = 0; i < tokenIds.length; i++) {
       const bal = balances[i];
       if (bal === 0n) continue;
@@ -1243,22 +1242,67 @@ export async function getPositions(
   };
   const positionsByAsset: any[][] = [];
   const positionDataWarnings: string[] = [];
-  const positionLookupBatchSize = 8;
-  for (let offset = 0; offset < UNDERLYING_ASSETS.length; offset += positionLookupBatchSize) {
-    const assets = UNDERLYING_ASSETS.slice(offset, offset + positionLookupBatchSize);
-    const results = await Promise.allSettled(assets.map(readAssetPositions));
-    for (let index = 0; index < results.length; index++) {
-      const result = results[index];
-      if (result.status === "fulfilled") {
-        positionsByAsset.push(result.value);
+  const tokenInterface = new ethers.Interface(OPTIONS_TOKEN_ABI);
+
+  if (options.multicallRpc) {
+    const configuredAssets = UNDERLYING_ASSETS.filter((asset) => CONFIG.UNDERLYINGS[asset].optionsToken);
+    const multicall = new ethers.Contract(BASE_MULTICALL3, MULTICALL3_ABI, provider);
+    const tokenResults = await multicall.aggregate3.staticCall(configuredAssets.map((asset) => ({
+      target: CONFIG.UNDERLYINGS[asset].optionsToken,
+      allowFailure: true,
+      callData: tokenInterface.encodeFunctionData("tokensByAccount", [account])
+    })));
+    const assetsWithTokens: Array<{ asset: UnderlyingAsset; tokenIds: bigint[] }> = [];
+    for (let index = 0; index < configuredAssets.length; index++) {
+      const result = tokenResults[index];
+      const asset = configuredAssets[index];
+      if (!result.success) {
+        positionDataWarnings.push(`${asset}: tokensByAccount failed`);
         continue;
       }
-      try {
-        positionsByAsset.push(await readAssetPositions(assets[index]));
-      } catch (retryError) {
-        positionsByAsset.push([]);
-        const message = retryError instanceof Error ? retryError.message : String(retryError);
-        positionDataWarnings.push(`${assets[index]}: ${message}`);
+      const decoded = tokenInterface.decodeFunctionResult("tokensByAccount", result.returnData)[0];
+      const tokenIds = Array.from(decoded, (value) => BigInt(String(value)));
+      if (tokenIds.length) assetsWithTokens.push({ asset, tokenIds });
+    }
+    if (assetsWithTokens.length) {
+      const balanceResults = await multicall.aggregate3.staticCall(assetsWithTokens.map(({ asset, tokenIds }) => ({
+        target: CONFIG.UNDERLYINGS[asset].optionsToken,
+        allowFailure: true,
+        callData: tokenInterface.encodeFunctionData("balanceOfBatch", [tokenIds.map(() => account), tokenIds])
+      })));
+      for (let index = 0; index < assetsWithTokens.length; index++) {
+        const { asset, tokenIds } = assetsWithTokens[index];
+        const result = balanceResults[index];
+        if (!result.success) {
+          positionDataWarnings.push(`${asset}: balanceOfBatch failed`);
+          continue;
+        }
+        const decoded = tokenInterface.decodeFunctionResult("balanceOfBatch", result.returnData)[0];
+        const balances = Array.from(decoded, (value) => BigInt(String(value)));
+        positionsByAsset.push(buildAssetPositions(asset, tokenIds, balances));
+      }
+    }
+  } else {
+    const readAssetPositions = async (asset: UnderlyingAsset) => {
+      const tokenAddress = CONFIG.UNDERLYINGS[asset].optionsToken;
+      if (!tokenAddress) return [];
+      const token = new ethers.Contract(tokenAddress, OPTIONS_TOKEN_ABI, provider);
+      const tokenIds = Array.from(await token.tokensByAccount(account), (value) => BigInt(String(value)));
+      if (!tokenIds.length) return [];
+      const balances = Array.from(
+        await token.balanceOfBatch(tokenIds.map(() => account), tokenIds),
+        (value) => BigInt(String(value))
+      );
+      return buildAssetPositions(asset, tokenIds, balances);
+    };
+    const positionLookupBatchSize = 8;
+    for (let offset = 0; offset < UNDERLYING_ASSETS.length; offset += positionLookupBatchSize) {
+      const assets = UNDERLYING_ASSETS.slice(offset, offset + positionLookupBatchSize);
+      const results = await Promise.allSettled(assets.map(readAssetPositions));
+      for (let index = 0; index < results.length; index++) {
+        const result = results[index];
+        if (result.status === "fulfilled") positionsByAsset.push(result.value);
+        else positionDataWarnings.push(`${assets[index]}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
       }
     }
   }
