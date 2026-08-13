@@ -1184,13 +1184,13 @@ export async function getPositions(address: string) {
     marketDataWarning = error instanceof Error ? error.message : String(error);
   }
 
-  const out: any[] = [];
-  for (const asset of UNDERLYING_ASSETS) {
+  const positionsByAsset = await Promise.all(UNDERLYING_ASSETS.map(async (asset) => {
+    const out: any[] = [];
     const tokenAddress = CONFIG.UNDERLYINGS[asset].optionsToken;
-    if (!tokenAddress) continue;
+    if (!tokenAddress) return out;
     const token = new ethers.Contract(tokenAddress, OPTIONS_TOKEN_ABI, provider);
     const tokenIds = Array.from(await token.tokensByAccount(account), (value) => BigInt(String(value)));
-    if (!tokenIds.length) continue;
+    if (!tokenIds.length) return out;
 
     const accounts = tokenIds.map(() => account);
     const balances = Array.from(await token.balanceOfBatch(accounts, tokenIds), (value) => BigInt(String(value)));
@@ -1225,7 +1225,9 @@ export async function getPositions(address: string) {
         mark_price: matched?.markPrice ?? null
       });
     }
-  }
+    return out;
+  }));
+  const out = positionsByAsset.flat();
 
   return {
     account,
