@@ -374,23 +374,22 @@ export async function getMarketSnapshot(
           const row = arr[rowIndex];
           const rowPath = `data.market.${asset}.options.${expirySecStr}.${optionType.toLowerCase()}[${rowIndex}]`;
           if (!isRecord(row)) marketSchemaError(`${rowPath} must be an object`);
+          if (typeof row.isOptionAvailable !== "boolean") {
+            marketSchemaError(`${rowPath}.isOptionAvailable must be boolean`);
+          }
+          const isAvailable = row.isOptionAvailable;
+          if (!isAvailable) continue;
           const mark = requireFiniteNumber(row.markPrice, `${rowPath}.markPrice`);
           if (mark < 0) marketSchemaError(`${rowPath}.markPrice must be >= 0`);
           const rpBuy = requireFiniteNumber(row.riskPremiumRateForBuy, `${rowPath}.riskPremiumRateForBuy`);
           const rpSell = requireFiniteNumber(row.riskPremiumRateForSell, `${rowPath}.riskPremiumRateForSell`);
           if (rpBuy < 0) marketSchemaError(`${rowPath} risk premium rate for buy must be >= 0`);
-          if (rpSell < 0 || rpSell > 1) {
-            marketSchemaError(`${rowPath} risk premium rate for sell must be between 0 and 1`);
-          }
+          if (rpSell < 0) marketSchemaError(`${rowPath} risk premium rate for sell must be >= 0`);
           const strike = requireFiniteNumber(row.strikePrice, `${rowPath}.strikePrice`, { positive: true, integer: true });
           if (typeof row.optionId !== "string" || !/^(0x[0-9a-fA-F]+|[1-9]\d*)$/.test(row.optionId)) {
             marketSchemaError(`${rowPath}.optionId must be a positive integer string`);
           }
           const optionId = row.optionId;
-          if (typeof row.isOptionAvailable !== "boolean") {
-            marketSchemaError(`${rowPath}.isOptionAvailable must be boolean`);
-          }
-          const isAvailable = row.isOptionAvailable;
           if (typeof row.instrument !== "string" || !row.instrument) {
             marketSchemaError(`${rowPath}.instrument must be a non-empty string`);
           }
@@ -431,7 +430,7 @@ export async function getMarketSnapshot(
 
           const ivRaw = Number(row.impliedVolatility ?? row.iv ?? row.markIv ?? row.markIV ?? row.sigma ?? 0);
           const iv = ivRaw > 0 ? Math.round(ivRaw * 10000) / 100 : null; // store as percentage
-          const bid = mark * (1 - rpSell);
+          const bid = Math.max(0, mark * (1 - rpSell));
           const ask = mark * (1 + rpBuy);
           if (!Number.isFinite(bid) || bid < 0) {
             marketSchemaError(`${rowPath} derived bid must be finite and >= 0`);
@@ -1177,7 +1176,13 @@ export async function getPositions(address: string) {
   if (!ethers.isAddress(address)) throw new Error(`Invalid address: ${address}`);
   const account = ethers.getAddress(address);
 
-  const snapshot = await getMarketSnapshot();
+  let snapshot: Awaited<ReturnType<typeof getMarketSnapshot>> | null = null;
+  let marketDataWarning: string | null = null;
+  try {
+    snapshot = await getMarketSnapshot();
+  } catch (error) {
+    marketDataWarning = error instanceof Error ? error.message : String(error);
+  }
 
   const out: any[] = [];
   for (const asset of UNDERLYING_ASSETS) {
@@ -1197,7 +1202,7 @@ export async function getPositions(address: string) {
       const decoded = decodeSpreadTokenId(tokenIds[i].toString());
       const signed = decoded.isLong ? bal : -bal;
       const size = Number(signed) / 10 ** CONFIG.UNDERLYINGS[asset].decimals;
-      const matched = snapshot.options.find((o) =>
+      const matched = snapshot?.options.find((o) =>
         o.underlying === asset &&
         o.expirySec === decoded.expirySec &&
         Math.trunc(o.strikePrice) === Math.trunc(decoded.nakedStrike) &&
@@ -1222,7 +1227,12 @@ export async function getPositions(address: string) {
     }
   }
 
-  return { account, positions: out, total_active_count: out.length };
+  return {
+    account,
+    positions: out,
+    total_active_count: out.length,
+    market_data_warning: marketDataWarning
+  };
 }
 
 // ─── listPositionsByWallet ────────────────────────────────────────────────────
@@ -1585,11 +1595,17 @@ export async function getPortfolioSummary(params: {
   const provider = await getValidatedProvider();
 
   const usdc = new ethers.Contract(CONFIG.CONTRACTS.USDC, ERC20_ABI, provider);
-  const [snapshot, positionData, usdcBalanceRaw] = await Promise.all([
-    getMarketSnapshot(),
+  const [marketResult, positionData, usdcBalanceRaw] = await Promise.all([
+    getMarketSnapshot()
+      .then((snapshot) => ({ snapshot, warning: null as string | null }))
+      .catch((error) => ({
+        snapshot: null,
+        warning: error instanceof Error ? error.message : String(error)
+      })),
     getPositions(params.address),
     usdc.balanceOf(account) as Promise<bigint>
   ]);
+  const snapshot = marketResult.snapshot;
 
   const usdcBalance = Number(usdcBalanceRaw) / 10 ** CONFIG.ASSETS.USDC.decimals;
   const now = Date.now() / 1000;
@@ -1650,16 +1666,16 @@ export async function getPortfolioSummary(params: {
     const asset = pos.underlying as UnderlyingAsset;
     const absSize = Math.abs(pos.size);
 
-    const expiryOpt = snapshot.options.find(
+    const expiryOpt = snapshot?.options.find(
       (o) => o.expiryCode === pos.expiry_code && o.underlying === asset
     );
-    const expirySec = expiryOpt?.expirySec ?? 0;
+    const expirySec = Number(pos.expiry_sec || expiryOpt?.expirySec || 0);
     const secsToExpiry = expirySec > 0 ? expirySec - now : 0;
     const daysToExpiry = expirySec > 0 ? Math.round((secsToExpiry / 86400) * 10) / 10 : null;
     const urgent = expirySec > 0 && secsToExpiry > 0 && secsToExpiry < 86400;
 
     // Resolve both legs from market snapshot
-    const nakedOpt = snapshot.options.find(
+    const nakedOpt = snapshot?.options.find(
       (o) =>
         o.underlying === asset &&
         o.expirySec === expirySec &&
@@ -1667,7 +1683,7 @@ export async function getPortfolioSummary(params: {
         o.optionType === pos.option_type
     );
     const pairOpt = (pos.pair_strike && expirySec)
-      ? snapshot.options.find(
+      ? snapshot?.options.find(
           (o) =>
             o.underlying === asset &&
             o.expirySec === expirySec &&
@@ -1756,6 +1772,9 @@ export async function getPortfolioSummary(params: {
     urgent_count: urgentCount,
     positions: enrichedPositions
   };
+
+  const marketDataWarning = marketResult.warning ?? positionData.market_data_warning;
+  if (marketDataWarning) result.market_data_warning = marketDataWarning;
 
   if (hasRequestKeys) {
     const pnlUsd = Math.round((totalMarkValueUsd - totalEntryUsd) * 100) / 100;

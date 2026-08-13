@@ -7,6 +7,7 @@ import {
   closePosition,
   findRequestKeyByIntentFingerprint,
   getMarketSnapshot,
+  getPositions,
   getPortfolioSummary,
   getRequestKeyFromTx,
   getSettledPnl,
@@ -286,6 +287,34 @@ test("core public-launch abuse controls", async (t) => {
       assert.equal(result.total_positions, 1);
       assert.equal(result.positions[0].underlying, "BTC");
     } finally {
+      rpc.state.optionTokenIds = [];
+    }
+  });
+
+  await t.test("keeps lifecycle positions available when optional market pricing is malformed", async () => {
+    const originalDateNow = Date.now;
+    const payloadTimestamp = originalDateNow();
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      lastUpdatedAt: new Date(payloadTimestamp).toISOString(),
+      timestamp: payloadTimestamp,
+      data: { market: null, spotIndices: {} }
+    }));
+    Date.now = () => payloadTimestamp + 6_000;
+    rpc.state.optionTokenIds = [BigInt(spreadTokenId(CONFIG.UNDERLYINGS.BTC.index, NOW_SEC + 3_600))];
+    try {
+      const positions = await getPositions(ACCOUNT);
+      assert.equal(positions.total_active_count, 1);
+      assert.equal(positions.positions[0].lifecycle, "closable");
+      assert.equal(positions.positions[0].mark_price, null);
+      assert.match(positions.market_data_warning ?? "", /MARKET_DATA_SCHEMA/);
+
+      const portfolio = await getPortfolioSummary({ address: ACCOUNT });
+      assert.equal(portfolio.total_positions, 1);
+      assert.equal(portfolio.positions[0].lifecycle, "closable");
+      assert.equal(portfolio.positions[0].current_value_usd, null);
+      assert.match(portfolio.market_data_warning ?? "", /MARKET_DATA_SCHEMA/);
+    } finally {
+      Date.now = originalDateNow;
       rpc.state.optionTokenIds = [];
     }
   });

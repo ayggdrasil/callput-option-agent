@@ -237,10 +237,12 @@
     setStatus("positionsStatus","Reading Callput position tokens from Base…");
     try {
       const result=await bankr.scripts.run("positions",{});
+      if (result?.error) throw new Error(result.error);
       renderPositions(result);
       const closable=result.positions?.filter(position=>position.lifecycle === "closable").length || 0;
       const settleable=result.positions?.filter(position=>position.lifecycle === "settleable").length || 0;
-      setStatus("positionsStatus",`${result.total_positions || 0} positions · ${closable} closable · ${settleable} settleable`,"ok");
+      const warning=result.market_data_warning ? " · live pricing unavailable; lifecycle actions remain available" : "";
+      setStatus("positionsStatus",`${result.total_positions || 0} positions · ${closable} closable · ${settleable} settleable${warning}`,result.market_data_warning ? "" : "ok");
     } catch(error) { setStatus("positionsStatus",error.message || String(error),"error"); }
   }
   async function prepareLifecycle(action,position) {
