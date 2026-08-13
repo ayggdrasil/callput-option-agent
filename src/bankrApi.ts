@@ -9,6 +9,7 @@ import {
   executeSpread,
   findRequestKeyByIntentFingerprint,
   getMarketSnapshot,
+  getPositions,
   getPortfolioSummary,
   getRequestKeyFromTx,
   scanSpreads,
@@ -137,6 +138,7 @@ export type BankrDependencies = {
   findRequestKeyByIntentFingerprint: typeof findRequestKeyByIntentFingerprint;
   checkRequestStatus: typeof checkRequestStatus;
   getPortfolioSummary: typeof getPortfolioSummary;
+  getPositions: typeof getPositions;
   closePosition: typeof closePosition;
   settlePosition: typeof settlePosition;
   closeAllPositions: typeof closeAllPositions;
@@ -152,6 +154,7 @@ const defaultDependencies: BankrDependencies = {
   findRequestKeyByIntentFingerprint,
   checkRequestStatus,
   getPortfolioSummary,
+  getPositions,
   closePosition,
   settlePosition,
   closeAllPositions,
@@ -511,8 +514,17 @@ export async function handleBankrApiRequest(
 
     if (action === "positions") {
       const input = positionsSchema.parse(raw);
-      const portfolio = await deps.getPortfolioSummary({ address: input.wallet_address });
-      return response(200, portfolio, origin);
+      const positionData = await deps.getPositions(input.wallet_address);
+      return response(200, {
+        account: positionData.account,
+        total_positions: positionData.total_active_count,
+        market_data_warning: positionData.market_data_warning,
+        position_data_warning: positionData.position_data_warning,
+        positions: positionData.positions.map((position) => ({
+          ...position,
+          naked_strike: position.strike
+        }))
+      }, origin);
     }
 
     if (action === "close") {
