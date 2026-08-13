@@ -75,7 +75,7 @@ function main() {
   assert.match(html, /id="liveMarketStatus"[^>]*role="status"/, "the guide must expose live market availability status");
   assert.match(html, /https:\/\/mcp\.callput\.app\/api\/mcp/);
   assert.match(html, /callput-lite-agent-mcp/);
-  assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.5\.5\/callput/);
+  assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.5\.6\/callput/);
   for (const heading of [
     "Getting started in Bankr",
     "Markets, strategies, and funding",
