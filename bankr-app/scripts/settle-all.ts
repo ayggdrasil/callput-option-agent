@@ -12,7 +12,7 @@ for (const item of prepared.transactions) {
   const tx = item.unsigned_tx;
   const transaction = await bankr.tx.prepare({
     chain: "base",
-    to: tx.to,
+    to: tx.to.toLowerCase(),
     data: tx.data,
     value: tx.value,
     label: `Settle expired ${item.settle.asset} Callput position ${item.settle.option_token_id}`

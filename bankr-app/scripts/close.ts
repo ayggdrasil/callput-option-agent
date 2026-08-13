@@ -14,7 +14,7 @@ const prepared = await http.fetch("https://mcp.callput.app/api/bankr/close", {
 const tx = prepared.unsigned_tx;
 const transaction = await bankr.tx.prepare({
   chain: "base",
-  to: tx.to,
+  to: tx.to.toLowerCase(),
   data: tx.data,
   value: tx.value,
   label: `Close ${prepared.close.asset} Callput position ${prepared.close.option_token_id}`

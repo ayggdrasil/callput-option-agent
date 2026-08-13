@@ -13,7 +13,7 @@ for (const item of prepared.transactions) {
   const tx = item.unsigned_tx;
   const transaction = await bankr.tx.prepare({
     chain: "base",
-    to: tx.to,
+    to: tx.to.toLowerCase(),
     data: tx.data,
     value: tx.value,
     label: `Close ${item.close.asset} Callput position ${item.close.option_token_id}`

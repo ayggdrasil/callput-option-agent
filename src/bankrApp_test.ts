@@ -51,6 +51,8 @@ function main() {
   assert.match(prepareScript, /const approvalTx = prepared\.usdc_approval && !prepared\.usdc_approval\.sufficient \? prepared\.usdc_approval\.approve_tx : null;/, "approval review must retain the actual approval transaction");
   assert.match(prepareScript, /spender:`0x\$\{approvalTx\.data\.slice\(34,74\)\}`/, "approval spender must come from the approval calldata address argument");
   assert.match(prepareScript, /token_address:approvalTx\.to/, "approval preview must expose the canonical token address");
+  assert.match(prepareScript, /to: approvalTx\.to\.toLowerCase\(\)/, "Bankr approval destinations must be normalized for Wallet API compatibility");
+  assert.match(prepareScript, /to: tx\.to\.toLowerCase\(\)/, "Callput order destinations must be normalized for Wallet API compatibility");
   assert.match(html, /addressField\(prepared\.approval_preview\.token,prepared\.approval_preview\.token_address\)/, "approval token address must be reviewed before confirmation");
   assert.match(html, /addressField\("Callput Router",prepared\.approval_preview\.spender\)/, "approval spender must be reviewed before confirmation");
   assert.match(html, /reviewField\("Approval amount",`\$\{money\(prepared\.approval_preview\.amount_usdc\)\} USDC`\)/, "approval amount must be reviewed before confirmation");
@@ -59,6 +61,10 @@ function main() {
   assert.match(html, /const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;/, "allowance propagation checks must be bounded");
   assert.match(html, /async function refreshAllowance\(\)/, "the app must support an explicit allowance refresh after approval");
   assert.match(html, /for \(let attempt=1; attempt<=MAX_ALLOWANCE_REFRESH_ATTEMPTS; attempt\+=1\)[\s\S]*?bankr\.scripts\.run\("prepare"/, "allowance refresh must re-read canonical preparation state with a bounded retry loop");
+  assert.match(prepareScript, /allowance_preview:[\s\S]*?current_raw:prepared\.usdc_approval\.current_allowance[\s\S]*?required_raw:prepared\.usdc_approval\.required/, "prepare must expose raw allowance state for exact post-approval verification");
+  assert.match(html, /const reviewedIntent=prepared;/, "allowance refresh must retain the exact order the user reviewed before approval");
+  assert.match(html, /BigInt\(result\.allowance_preview\.current_raw\) >= BigInt\(reviewedIntent\.quote\.amount_in_raw\)/, "allowance refresh must compare confirmed allowance against the reviewed order, not a moving quote");
+  assert.match(html, /showPrepared\(\{ \.\.\.reviewedIntent, approval:null, approval_preview:null \}/, "confirmed allowance must restore the exact reviewed order without requesting a moving-price reapproval");
   assert.match(html, /Allowance confirmed\. Review the refreshed Callput order before opening it in Bankr chat\./, "a confirmed allowance must lead to a fresh order review");
   assert.match(html, /Allowance is still insufficient/, "a delayed or price-moved allowance must give an explicit recovery state");
   assert.doesNotMatch(html, /refreshAllowance[\s\S]{0,1200}confirmTransaction\(confirmationIntent\.transaction\)/, "allowance refresh must never auto-open or submit the order review");
@@ -135,12 +141,13 @@ function main() {
   assert.match(settleAllScript, /\/api\/bankr\/settle-all/);
   for (const source of [closeScript, settleScript, closeAllScript, settleAllScript]) {
     assert.match(source, /bankr\.tx\.prepare/, "every lifecycle builder must pass canonical calldata through Bankr transaction preparation");
+    assert.match(source, /to: tx\.to\.toLowerCase\(\)/, "every lifecycle builder must normalize destinations for Bankr Wallet API compatibility");
     assert.doesNotMatch(source, /confirmTransaction|signTransaction|privateKey/i, "backend scripts must not confirm or sign");
   }
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.9\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.10\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

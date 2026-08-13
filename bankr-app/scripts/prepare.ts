@@ -19,7 +19,7 @@ const approvalTx = prepared.usdc_approval && !prepared.usdc_approval.sufficient 
 if (approvalTx) {
   approval = await bankr.tx.prepare({
     chain: "base",
-    to: approvalTx.to,
+    to: approvalTx.to.toLowerCase(),
     data: approvalTx.data,
     value: approvalTx.value,
     label: `Approve bounded USDC allowance for Callput`
@@ -29,7 +29,7 @@ if (approvalTx) {
 const tx = prepared.unsigned_tx;
 const transaction = await bankr.tx.prepare({
   chain: "base",
-  to: tx.to,
+  to: tx.to.toLowerCase(),
   data: tx.data,
   value: tx.value,
   label: `${prepared.risk_preview.strategy} ${prepared.risk_preview.asset} — max ${prepared.risk_preview.maximum_usdc_at_risk} USDC`
@@ -38,6 +38,10 @@ const transaction = await bankr.tx.prepare({
 return {
   approval,
   approval_preview: approval ? { token:"Base USDC", token_address:approvalTx.to, spender:`0x${approvalTx.data.slice(34,74)}`, amount_usdc:Number(prepared.usdc_approval.required)/1e6 } : null,
+  allowance_preview: {
+    current_raw:prepared.usdc_approval.current_allowance,
+    required_raw:prepared.usdc_approval.required
+  },
   transaction,
   transaction_preview: {
     chain: "Base",

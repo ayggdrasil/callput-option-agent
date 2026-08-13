@@ -204,6 +204,8 @@
 
   async function refreshAllowance() {
     if (!selected || !(await requireSignIn())) return;
+    const reviewedIntent=prepared;
+    if (!reviewedIntent?.approval || !reviewedIntent?.quote?.amount_in_raw) { setStatus("tradeStatus","Prepare and review a bounded approval before refreshing it.","error"); return; }
     const candidate=selected;
     const size=Number($("size").value);
     if (!validSize()) { setStatus("tradeStatus","Enter a positive size before refreshing the allowance.","error"); return; }
@@ -217,6 +219,11 @@
         setStatus("tradeStatus",`Checking confirmed allowance on Base (${attempt}/${MAX_ALLOWANCE_REFRESH_ATTEMPTS})…`);
         result=await bankr.scripts.run("prepare", { strategy:candidate.strategy, long_leg_id:candidate.long_leg_id, short_leg_id:candidate.short_leg_id, size });
         if (currentPreparationVersion !== preparationVersion) return;
+        if (BigInt(result.allowance_preview.current_raw) >= BigInt(reviewedIntent.quote.amount_in_raw)) {
+          showPrepared({ ...reviewedIntent, approval:null, approval_preview:null },candidate,size,currentPreparationVersion);
+          setStatus("tradeStatus","Allowance confirmed for the exact order you already reviewed. Review that same Callput order before opening it in Bankr chat.","ok");
+          return;
+        }
         if (!result.approval) break;
         if (attempt < MAX_ALLOWANCE_REFRESH_ATTEMPTS) await new Promise(resolve=>setTimeout(resolve,1500));
       }

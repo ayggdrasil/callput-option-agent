@@ -12,7 +12,7 @@ const prepared = await http.fetch("https://mcp.callput.app/api/bankr/settle", {
 const tx = prepared.unsigned_tx;
 const transaction = await bankr.tx.prepare({
   chain: "base",
-  to: tx.to,
+  to: tx.to.toLowerCase(),
   data: tx.data,
   value: tx.value,
   label: `Settle expired ${prepared.settle.asset} Callput position ${prepared.settle.option_token_id}`
