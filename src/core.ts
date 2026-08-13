@@ -1184,7 +1184,7 @@ export async function getPositions(address: string) {
     marketDataWarning = error instanceof Error ? error.message : String(error);
   }
 
-  const positionsByAsset = await Promise.all(UNDERLYING_ASSETS.map(async (asset) => {
+  const readAssetPositions = async (asset: UnderlyingAsset) => {
     const out: any[] = [];
     const tokenAddress = CONFIG.UNDERLYINGS[asset].optionsToken;
     if (!tokenAddress) return out;
@@ -1226,7 +1226,14 @@ export async function getPositions(address: string) {
       });
     }
     return out;
-  }));
+  };
+  const positionsByAsset: any[][] = [];
+  const positionLookupBatchSize = 8;
+  for (let offset = 0; offset < UNDERLYING_ASSETS.length; offset += positionLookupBatchSize) {
+    positionsByAsset.push(...await Promise.all(
+      UNDERLYING_ASSETS.slice(offset, offset + positionLookupBatchSize).map(readAssetPositions)
+    ));
+  }
   const out = positionsByAsset.flat();
 
   return {
