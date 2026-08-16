@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { CALLPUT_VERSION } from "./version.js";
 
 function readProjectFile(filePath: string) {
   return fs.readFileSync(path.join(process.cwd(), filePath), "utf8");
@@ -75,7 +76,8 @@ function main() {
   assert.match(html, /id="liveMarketStatus"[^>]*role="status"/, "the guide must expose live market availability status");
   assert.match(html, /https:\/\/mcp\.callput\.app\/api\/mcp/);
   assert.match(html, /callput-lite-agent-mcp/);
-  assert.match(html, /https:\/\/github\.com\/ayggdrasil\/callput-option-agent\/tree\/v0\.5\.11\/callput/);
+  assert.match(html, new RegExp(`"softwareVersion": "${CALLPUT_VERSION.replaceAll(".", "\\.")}"`));
+  assert.match(html, new RegExp(`https:\\/\\/github\\.com\\/ayggdrasil\\/callput-option-agent\\/tree\\/v${CALLPUT_VERSION.replaceAll(".", "\\.")}\\/callput`));
   for (const heading of [
     "Getting started in Bankr",
     "Markets, strategies, and funding",
