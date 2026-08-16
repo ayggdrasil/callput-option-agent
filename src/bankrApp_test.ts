@@ -140,6 +140,8 @@ function main() {
   assert.match(settleScript, /\/api\/bankr\/settle/);
   assert.match(closeAllScript, /\/api\/bankr\/close-all/);
   assert.match(settleAllScript, /\/api\/bankr\/settle-all/);
+  assert.match(closeAllScript, /plan_only: true/, "Bankr close-all must request a non-privileged staged plan");
+  assert.match(settleAllScript, /plan_only: true/, "Bankr settle-all must request a non-privileged staged plan");
   for (const source of [closeScript, settleScript]) {
     assert.match(source, /bankr\.tx\.prepare/, "every lifecycle builder must pass canonical calldata through Bankr transaction preparation");
     assert.match(source, /to: tx\.to\.toLowerCase\(\)/, "every lifecycle builder must normalize destinations for Bankr Wallet API compatibility");
@@ -152,13 +154,14 @@ function main() {
     assert.match(source, /return prepared/, "batch planners must return the canonical lifecycle plan for staged review");
   }
   assert.match(html, /bankr\.scripts\.run\(item\.action,item\.script_args\)/, "each queued lifecycle item must be freshly prepared through its single-position script");
+  assert.match(html, /if \(result\?\.error\) throw new Error\(result\.error\);[\s\S]*const expectedAction/, "batch planning must surface backend errors instead of showing a false empty queue");
   assert.match(html, /staged\.position_token_approval && !staged\.position_token_approval\.sufficient/, "staged review must stop for a required position-token approval");
   assert.match(html, /Position-token approval review opened in Bankr chat/, "lifecycle UX must stop after the ERC-1155 approval handoff");
   assert.match(html, /Refresh positions and prepare the action again after the approval is confirmed/, "lifecycle UX must require a fresh approval-state read before close or settlement");
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.13\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.14\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

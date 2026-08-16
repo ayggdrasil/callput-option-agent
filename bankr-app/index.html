@@ -320,6 +320,7 @@
     try {
       const batchArgs={ min_amount_out_raw:minClose, min_out_when_swap_raw:minSwap };
       const result=action === "close-all" ? await bankr.scripts.run("close-all",batchArgs) : await bankr.scripts.run("settle-all",batchArgs);
+      if (result?.error) throw new Error(result.error);
       const expectedAction=action === "close-all" ? "close" : "settle";
       lifecycleQueue=Array.from(result.transactions || []).map(item=>{
         if (item.action !== expectedAction) throw new Error(`Unexpected batch action: ${item.action || "missing"}`);

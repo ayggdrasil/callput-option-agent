@@ -5,7 +5,8 @@ const prepared = await http.fetch("https://mcp.callput.app/api/bankr/close-all",
   body: JSON.stringify({
     wallet_address: me.evmAddress,
     min_amount_out_raw: String(args.min_amount_out_raw),
-    min_out_when_swap_raw: String(args.min_out_when_swap_raw)
+    min_out_when_swap_raw: String(args.min_out_when_swap_raw),
+    plan_only: true
   })
 });
 return prepared;

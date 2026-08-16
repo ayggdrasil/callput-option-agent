@@ -156,6 +156,8 @@ let capturedIntentLookup: { address: string; intentFingerprint: string; fromBloc
 let portfolioSummaryCalls = 0;
 let lightweightPositionCalls = 0;
 let lightweightPositionOptions: unknown;
+let closeAllPositionCalls = 0;
+let settleAllPositionCalls = 0;
 let preparedFactory = (input: any) => prepared({
   strategy: input.strategy,
   from_address: input.fromAddress,
@@ -213,7 +215,9 @@ const deps = {
     unsigned_tx: { to: CONFIG.CONTRACTS.SETTLE_MANAGER, data: "0x5678", value: "0", chain_id: 8453, from: input.fromAddress },
     settle: { asset: input.underlyingAsset, option_token_id: input.optionTokenId, min_out_when_swap_raw: input.minOutWhenSwapRaw }
   }),
-  closeAllPositions: async (input: any) => ({
+  closeAllPositions: async (input: any) => {
+    closeAllPositionCalls++;
+    return ({
     action: "close_all",
     account: input.fromAddress,
     eligible_count: 1,
@@ -222,8 +226,11 @@ const deps = {
       unsigned_tx: { to: CONFIG.CONTRACTS.POSITION_MANAGER, data: "0x1234", value: "60000000000000", chain_id: 8453, from: input.fromAddress },
       close: { asset: "BTC", option_token_id: "101", size: 0.001, min_amount_out_raw: input.minAmountOutRaw, min_out_when_swap_raw: input.minOutWhenSwapRaw }
     }]
-  }),
-  settleAllPositions: async (input: any) => ({
+  });
+  },
+  settleAllPositions: async (input: any) => {
+    settleAllPositionCalls++;
+    return ({
     action: "settle_all",
     account: input.fromAddress,
     eligible_count: 1,
@@ -232,7 +239,8 @@ const deps = {
       unsigned_tx: { to: CONFIG.CONTRACTS.SETTLE_MANAGER, data: "0x5678", value: "0", chain_id: 8453, from: input.fromAddress },
       settle: { asset: "ETH", option_token_id: "202", min_out_when_swap_raw: input.minOutWhenSwapRaw }
     }]
-  }),
+  });
+  },
   captureTelemetry: async ({ event }: { event: string }) => { captured.push(event); }
 } as unknown as BankrDependencies;
 
@@ -539,6 +547,7 @@ async function main() {
   assert.equal(closeAllBody.eligible_count, 1);
   assert.equal(closeAllBody.transactions.length, 1);
   assert.match(closeAllBody.transactions[0].intent_fingerprint, /^[0-9a-f]{64}$/);
+  assert.equal(closeAllPositionCalls, 1);
 
   const settleAll = await post("settle-all", {
     wallet_address: wallet,
@@ -548,6 +557,34 @@ async function main() {
   const settleAllBody = await settleAll.json() as any;
   assert.equal(settleAllBody.eligible_count, 1);
   assert.equal(settleAllBody.transactions.length, 1);
+  assert.equal(settleAllPositionCalls, 1);
+
+  const closePlan = await post("close-all", {
+    wallet_address: wallet,
+    min_amount_out_raw: "1",
+    min_out_when_swap_raw: "1",
+    plan_only: true
+  });
+  assert.equal(closePlan.status, 200);
+  const closePlanBody = await closePlan.json() as any;
+  assert.equal(closePlanBody.eligible_count, 1);
+  assert.equal(closePlanBody.transactions[0].action, "close");
+  assert.equal(closePlanBody.transactions[0].close.option_token_id, "101");
+  assert.equal(closePlanBody.transactions[0].unsigned_tx, undefined);
+  assert.equal(closeAllPositionCalls, 1, "plan-only close batches must not prebuild transactions");
+
+  const settlePlan = await post("settle-all", {
+    wallet_address: wallet,
+    min_out_when_swap_raw: "1",
+    plan_only: true
+  });
+  assert.equal(settlePlan.status, 200);
+  const settlePlanBody = await settlePlan.json() as any;
+  assert.equal(settlePlanBody.eligible_count, 1);
+  assert.equal(settlePlanBody.transactions[0].action, "settle");
+  assert.equal(settlePlanBody.transactions[0].settle.option_token_id, "202");
+  assert.equal(settlePlanBody.transactions[0].unsigned_tx, undefined);
+  assert.equal(settleAllPositionCalls, 1, "plan-only settle batches must not prebuild transactions");
 
   for (const [action, body] of [
     ["close", { wallet_address: wallet, underlying_asset: "BTC", option_token_id: "101", size: 0.001, min_amount_out_raw: "0", min_out_when_swap_raw: "1" }],

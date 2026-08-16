@@ -4,7 +4,8 @@ const prepared = await http.fetch("https://mcp.callput.app/api/bankr/settle-all"
   headers: { "content-type": "application/json" },
   body: JSON.stringify({
     wallet_address: me.evmAddress,
-    min_out_when_swap_raw: String(args.min_out_when_swap_raw)
+    min_out_when_swap_raw: String(args.min_out_when_swap_raw),
+    plan_only: true
   })
 });
 return prepared;

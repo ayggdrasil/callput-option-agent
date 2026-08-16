@@ -109,11 +109,13 @@ const settleSchema = z.object({
 const closeAllSchema = z.object({
   wallet_address: addressSchema,
   min_amount_out_raw: positiveRawSchema,
-  min_out_when_swap_raw: positiveRawSchema
+  min_out_when_swap_raw: positiveRawSchema,
+  plan_only: z.boolean().optional().default(false)
 }).strict();
 const settleAllSchema = z.object({
   wallet_address: addressSchema,
-  min_out_when_swap_raw: positiveRawSchema
+  min_out_when_swap_raw: positiveRawSchema,
+  plan_only: z.boolean().optional().default(false)
 }).strict();
 
 const eventSchema = z.object({
@@ -247,6 +249,58 @@ function lifecycleTransactionResponse(action: "close" | "settle", built: any) {
       value_wei: tx.value,
       wallet: tx.from
     }
+  };
+}
+
+const MAX_BANKR_LIFECYCLE_PLAN_ITEMS = 25;
+
+function lifecycleBatchPlan(
+  action: "close" | "settle",
+  input: { wallet_address: string; min_amount_out_raw?: string; min_out_when_swap_raw: string },
+  positionData: any
+) {
+  if (positionData.position_data_warning) {
+    throw new Error(`INCOMPLETE_POSITION_DATA: ${action} all requires every underlying lookup to succeed; ${positionData.position_data_warning}`);
+  }
+  const eligibleLifecycle = action === "close" ? "closable" : "settleable";
+  const skippedLifecycle = action === "close" ? "settleable" : "closable";
+  const eligible = Array.from(positionData.positions || []).filter((position: any) => position.lifecycle === eligibleLifecycle);
+  const skipped = Array.from(positionData.positions || []).filter((position: any) => position.lifecycle === skippedLifecycle);
+  if (eligible.length > MAX_BANKR_LIFECYCLE_PLAN_ITEMS) {
+    throw new Error(`${action} all exceeds maximum ${MAX_BANKR_LIFECYCLE_PLAN_ITEMS} positions; split the request into smaller reviewed batches`);
+  }
+  const transactions = eligible.map((position: any) => {
+    const asset = String(position.underlying || "");
+    const optionTokenId = String(position.token_id || "");
+    if (!CONFIG.UNDERLYINGS[asset as keyof typeof CONFIG.UNDERLYINGS]) throw new Error(`Unsupported lifecycle asset: ${asset}`);
+    if (!/^(0x[0-9a-fA-F]+|[1-9]\d*)$/.test(optionTokenId)) throw new Error("Lifecycle plan contains an invalid option token ID");
+    if (action === "settle") {
+      return {
+        action,
+        settle: { asset, option_token_id: optionTokenId, min_out_when_swap_raw: input.min_out_when_swap_raw }
+      };
+    }
+    const size = Math.abs(Number(position.size));
+    if (!Number.isFinite(size) || size <= 0) throw new Error("Lifecycle plan contains an invalid close size");
+    return {
+      action,
+      close: {
+        asset,
+        option_token_id: optionTokenId,
+        size,
+        min_amount_out_raw: input.min_amount_out_raw,
+        min_out_when_swap_raw: input.min_out_when_swap_raw
+      }
+    };
+  });
+  return {
+    action: `${action}_all`,
+    account: ethers.getAddress(input.wallet_address),
+    eligible_count: transactions.length,
+    skipped_count: skipped.length,
+    transactions,
+    confirmation_mode: "one_bankr_review_per_transaction",
+    plan_only: true
   };
 }
 
@@ -606,6 +660,10 @@ export async function handleBankrApiRequest(
 
     if (action === "close-all") {
       const input = closeAllSchema.parse(raw);
+      if (input.plan_only) {
+        const positionData = await deps.getPositions(input.wallet_address, { includeMarketData: false, multicallRpc: true });
+        return response(200, lifecycleBatchPlan("close", input, positionData), origin);
+      }
       const batch = await deps.closeAllPositions({
         fromAddress: input.wallet_address,
         minAmountOutRaw: input.min_amount_out_raw,
@@ -617,6 +675,10 @@ export async function handleBankrApiRequest(
 
     if (action === "settle-all") {
       const input = settleAllSchema.parse(raw);
+      if (input.plan_only) {
+        const positionData = await deps.getPositions(input.wallet_address, { includeMarketData: false, multicallRpc: true });
+        return response(200, lifecycleBatchPlan("settle", input, positionData), origin);
+      }
       const batch = await deps.settleAllPositions({
         fromAddress: input.wallet_address,
         minOutWhenSwapRaw: input.min_out_when_swap_raw
