@@ -158,12 +158,12 @@ function main() {
   assert.match(html, /staged\.position_token_approval && !staged\.position_token_approval\.sufficient/, "staged review must stop for a required position-token approval");
   assert.match(html, /Position-token approval review opened in Bankr chat/, "lifecycle UX must stop after the ERC-1155 approval handoff");
   assert.match(html, /Refresh positions and prepare the action again after the approval is confirmed/, "lifecycle UX must require a fresh approval-state read before close or settlement");
-  assert.match(html, /Refresh positions to load this wallet\./, "signed-in viewers must get an accurate initial position-loading instruction");
-  assert.doesNotMatch(html, /Sign in, then refresh your wallet positions\./, "the viewer app must not claim sign-in is missing after Bankr has supplied the wallet");
+  assert.match(html, /authenticated \? "Refresh positions to load this wallet\." : "Sign in to Bankr to load positions\."/, "position guidance must follow the actual Bankr authentication state");
+  assert.doesNotMatch(html, /Sign in, then refresh your wallet positions\./, "the viewer app must not retain ambiguous sign-in guidance");
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.17\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.18\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

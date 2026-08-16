@@ -77,7 +77,7 @@
     <div class="warning">Close all and settle all are reviewed batches, not one atomic transaction. Each position opens a separate Bankr transaction review and requires your explicit send and approval. Returning to the app does not prove submission.</div>
     <div id="positions" class="cards"></div>
     <button id="reviewNextLifecycle" class="primary hidden">Open next Bankr review</button>
-    <div id="positionsStatus" class="status" role="status" aria-live="polite" tabindex="-1">Refresh positions to load this wallet.</div>
+    <div id="positionsStatus" class="status" role="status" aria-live="polite" tabindex="-1">Sign in to Bankr to load positions.</div>
   </section>
 </main>
 <script>
@@ -94,7 +94,7 @@
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
   async function requireSignIn() { if (!signedIn()) { await bankr.auth.requireSignIn(); return false; } return true; }
-  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("refreshPositions").disabled=!authenticated; $("closeAll").disabled=!authenticated; $("settleAll").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); }
+  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("refreshPositions").disabled=!authenticated; $("closeAll").disabled=!authenticated; $("settleAll").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); setStatus("positionsStatus",authenticated ? "Refresh positions to load this wallet." : "Sign in to Bankr to load positions."); }
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
