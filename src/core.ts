@@ -1530,7 +1530,7 @@ export async function getSettledPnl(params: {
     const assetDecimals = mappedUnderlying ? CONFIG.UNDERLYINGS[mappedUnderlying].decimals : 18;
     const size = Number((ev.args as any).size || 0) / 10 ** assetDecimals;
     const amountOutUsd = Number((ev.args as any).amountOut || 0) / 10 ** CONFIG.ASSETS.USDC.decimals;
-    const settlePrice = Number((ev.args as any).settlePrice || 0);
+    const settlePrice = Number(ethers.formatUnits((ev.args as any).settlePrice || 0, 30));
 
     totalAmountOutUsd += amountOutUsd;
 

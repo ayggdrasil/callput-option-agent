@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import test from "node:test";
 import { ethers } from "ethers";
-import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI } from "./config.js";
+import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
 import {
   closePosition,
   findRequestKeyByIntentFingerprint,
@@ -292,6 +292,39 @@ test("core public-launch abuse controls", async (t) => {
     assert.deepEqual(rpc.state.eventToBlocks.slice(0, 3), [84_999, 94_999, 100_000]);
     for (let i = 0; i < rpc.state.eventFromBlocks.length; i++) {
       assert.ok(rpc.state.eventToBlocks[i] - rpc.state.eventFromBlocks[i] + 1 <= 10_000);
+    }
+  });
+
+  await t.test("formats 30-decimal settlement oracle prices as USD values", async () => {
+    const settle = new ethers.Interface(SETTLE_MANAGER_ABI);
+    const encoded = settle.encodeEventLog(settle.getEvent("SettlePosition")!, [
+      ACCOUNT,
+      CONFIG.UNDERLYINGS.BTC.index,
+      NOW_SEC - 60,
+      spreadTokenId(CONFIG.UNDERLYINGS.BTC.index, NOW_SEC - 60),
+      100_000_000n,
+      [CONFIG.CONTRACTS.USDC],
+      12_345n,
+      ethers.parseUnits("64349.34518141703", 30)
+    ]);
+    rpc.state.eventLogs = [{
+      address: CONFIG.CONTRACTS.SETTLE_MANAGER,
+      topics: encoded.topics,
+      data: encoded.data,
+      blockNumber: ethers.toQuantity(100_000),
+      transactionHash: `0x${"ab".repeat(32)}`,
+      transactionIndex: "0x0",
+      blockHash: `0x${"cd".repeat(32)}`,
+      logIndex: "0x0",
+      removed: false
+    }];
+    try {
+      const result = await getSettledPnl({ address: ACCOUNT, fromBlock: 95_000 });
+      assert.equal(result.total_settled_positions, 1);
+      assert.equal(result.settlements[0].settle_price, 64_349.34518141703);
+      assert.equal(result.settlements[0].amount_out_usd, 0.01);
+    } finally {
+      rpc.state.eventLogs = [];
     }
   });
 
