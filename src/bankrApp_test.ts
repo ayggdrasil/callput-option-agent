@@ -140,18 +140,25 @@ function main() {
   assert.match(settleScript, /\/api\/bankr\/settle/);
   assert.match(closeAllScript, /\/api\/bankr\/close-all/);
   assert.match(settleAllScript, /\/api\/bankr\/settle-all/);
-  for (const source of [closeScript, settleScript, closeAllScript, settleAllScript]) {
+  for (const source of [closeScript, settleScript]) {
     assert.match(source, /bankr\.tx\.prepare/, "every lifecycle builder must pass canonical calldata through Bankr transaction preparation");
     assert.match(source, /to: tx\.to\.toLowerCase\(\)/, "every lifecycle builder must normalize destinations for Bankr Wallet API compatibility");
     assert.match(source, /position_token_approval/, "every lifecycle builder must handle the required ERC-1155 controller approval");
     assert.doesNotMatch(source, /confirmTransaction|signTransaction|privateKey/i, "backend scripts must not confirm or sign");
   }
+  for (const source of [closeAllScript, settleAllScript]) {
+    assert.doesNotMatch(source, /bankr\.tx\.prepare/, "batch planners must not perform repeated privileged transaction preparation");
+    assert.doesNotMatch(source, /confirmTransaction|signTransaction|privateKey/i, "batch planners must not confirm or sign");
+    assert.match(source, /return prepared/, "batch planners must return the canonical lifecycle plan for staged review");
+  }
+  assert.match(html, /bankr\.scripts\.run\(item\.action,item\.script_args\)/, "each queued lifecycle item must be freshly prepared through its single-position script");
+  assert.match(html, /staged\.position_token_approval && !staged\.position_token_approval\.sufficient/, "staged review must stop for a required position-token approval");
   assert.match(html, /Position-token approval review opened in Bankr chat/, "lifecycle UX must stop after the ERC-1155 approval handoff");
   assert.match(html, /Refresh positions and prepare the action again after the approval is confirmed/, "lifecycle UX must require a fresh approval-state read before close or settlement");
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.12\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.13\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

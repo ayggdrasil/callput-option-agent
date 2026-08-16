@@ -8,7 +8,7 @@ async function main() {
     checkMarket: async () => ({ assets: 11, tradableOptions: 100 })
   });
   assert.equal(healthy.status, "ok");
-  assert.equal(healthy.version, "0.5.12");
+  assert.equal(healthy.version, "0.5.13");
   assert.equal(healthy.checks.rpc.chain_id, 8453);
   assert.equal(healthy.checks.market.assets, 11);
   assert.equal(healthy.checked_at, "2026-08-13T06:00:00.000Z");

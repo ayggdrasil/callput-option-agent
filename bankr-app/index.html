@@ -320,7 +320,23 @@
     try {
       const batchArgs={ min_amount_out_raw:minClose, min_out_when_swap_raw:minSwap };
       const result=action === "close-all" ? await bankr.scripts.run("close-all",batchArgs) : await bankr.scripts.run("settle-all",batchArgs);
-      lifecycleQueue=Array.from(result.transactions || []); lifecycleQueueTotal=lifecycleQueue.length;
+      const expectedAction=action === "close-all" ? "close" : "settle";
+      lifecycleQueue=Array.from(result.transactions || []).map(item=>{
+        if (item.action !== expectedAction) throw new Error(`Unexpected batch action: ${item.action || "missing"}`);
+        const detail=expectedAction === "close" ? item.close : item.settle;
+        if (!detail?.asset || !detail?.option_token_id) throw new Error("Batch item is missing canonical lifecycle details.");
+        return {
+          ...item,
+          script_args:{
+            underlying_asset:detail.asset,
+            option_token_id:detail.option_token_id,
+            size:detail.size,
+            min_amount_out_raw:detail.min_amount_out_raw,
+            min_out_when_swap_raw:detail.min_out_when_swap_raw
+          }
+        };
+      });
+      lifecycleQueueTotal=lifecycleQueue.length;
       if (!lifecycleQueueTotal) { $("reviewNextLifecycle").classList.add("hidden"); setStatus("positionsStatus",`No ${action === "close-all" ? "unexpired" : "expired"} positions are eligible.`); return; }
       $("reviewNextLifecycle").classList.remove("hidden");
       setStatus("positionsStatus",`${lifecycleQueueTotal} reviews prepared. Each position requires a separate click and Bankr approval; no transaction has been submitted.`,"ok");
@@ -330,14 +346,15 @@
     if (!lifecycleQueue.length) { $("reviewNextLifecycle").classList.add("hidden"); return; }
     const item=lifecycleQueue.shift(); const current=lifecycleQueueTotal-lifecycleQueue.length;
     try {
-      if (item.position_token_approval && !item.position_token_approval.sufficient) {
-        await bankr.confirmTransaction(item.position_token_approval.transaction);
+      const staged=await bankr.scripts.run(item.action,item.script_args);
+      if (staged.position_token_approval && !staged.position_token_approval.sufficient) {
+        await bankr.confirmTransaction(staged.position_token_approval.transaction);
         lifecycleQueue.unshift(item);
-        setStatus("positionsStatus","Position-token approval review opened in Bankr chat. Nothing has been submitted by this app. Refresh positions and prepare the action again after the approval is confirmed.","ok");
+        setStatus("positionsStatus","Position-token approval review opened in Bankr chat. Nothing has been submitted by this app. After approval is confirmed, return and open this review again; approval state will be read fresh.","ok");
         return;
       }
-      await bankr.confirmTransaction(item.transaction);
-      if (item.action === "close") lastHandoffIntentFingerprint=item.intent_fingerprint;
+      await bankr.confirmTransaction(staged.transaction);
+      if (staged.action === "close") lastHandoffIntentFingerprint=staged.intent_fingerprint;
       $("reviewNextLifecycle").textContent=lifecycleQueue.length ? `Open next Bankr review (${current + 1}/${lifecycleQueueTotal})` : "All reviews opened";
       $("reviewNextLifecycle").classList.toggle("hidden",!lifecycleQueue.length);
       setStatus("positionsStatus",`Review ${current}/${lifecycleQueueTotal} opened. Nothing has been submitted by this app. Complete it in Bankr chat${lifecycleQueue.length ? ", then return for the next review" : ", then refresh positions"}.`,"ok");
