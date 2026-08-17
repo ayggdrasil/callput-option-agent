@@ -384,7 +384,7 @@ export async function getMarketSnapshot(
           const isAvailable = row.isOptionAvailable;
           if (!isAvailable) continue;
           const mark = requireFiniteNumber(row.markPrice, `${rowPath}.markPrice`);
-          if (mark < 0) marketSchemaError(`${rowPath}.markPrice must be >= 0`);
+          if (mark < 0) continue;
           const rpBuy = requireFiniteNumber(row.riskPremiumRateForBuy, `${rowPath}.riskPremiumRateForBuy`);
           const rpSell = requireFiniteNumber(row.riskPremiumRateForSell, `${rowPath}.riskPremiumRateForSell`);
           if (rpBuy < 0) marketSchemaError(`${rowPath} risk premium rate for buy must be >= 0`);

@@ -144,6 +144,23 @@ test("trade core safety gates", async (t) => {
     await assert.rejects(() => getMarketSnapshot(true), /MARKET_DATA_SCHEMA/);
   });
 
+  await t.test("quarantines negative-mark option rows while preserving healthy market options", async () => {
+    const payload: any = marketPayload();
+    const expirySec = NOW_SEC + 86_400;
+    const calls = payload.data.market.TSLA.options[String(expirySec)].call;
+    calls.push({
+      ...calls[0],
+      instrument: "TSLA-TEST-110-C",
+      optionId: optionId(3, expirySec, 110),
+      strikePrice: 110,
+      markPrice: -0.01
+    });
+    globalThis.fetch = async () => new Response(JSON.stringify(payload));
+
+    const snapshot = await getMarketSnapshot(true);
+    assert.deepEqual(snapshot.options.map((option) => option.instrument), ["TSLA-TEST-100-C"]);
+  });
+
   await t.test("accepts non-negative risk premiums and floors a derived negative bid at zero", async () => {
     const payload: any = marketPayload();
     const row = payload.data.market.TSLA.options[String(NOW_SEC + 86_400)].call[0];

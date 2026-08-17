@@ -104,7 +104,7 @@ npm run verify:mcp
 
 ## Connect OpenClaw / Bankr
 1. Local clients: copy `OPENCLAW_MCP_CONFIG.template.json` and point to `build/src/index.js`.
-2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.18/callput`.
+2. Bankr Skill: install `https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.19/callput`.
 3. Bankr MCP: add `https://mcp.callput.app/api/mcp` as HTTP with authentication `None`.
 4. Visual Bankr flow: install `bankr-app/` using `bankr-app/INSTALL_PROMPT.md`.
 5. Run the read-only checks in `BANKR_GUIDE.md` before preparing any transaction.
