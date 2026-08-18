@@ -66,7 +66,7 @@ function marketPayload(overrides: Record<string, unknown> = {}) {
 
 let ownedBalanceRaw = 100_000_000n;
 
-async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
+async function startRpcServer(): Promise<{ server: http.Server; url: string; state: { chainIdCalls: number } }> {
   const executionFeeSelector = new ethers.Interface(POSITION_MANAGER_ABI).getFunction("executionFee")!.selector;
   const balanceSelector = new ethers.Interface([
     "function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])"
@@ -78,6 +78,7 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
     "function isApprovedForAll(address account, address operator) view returns (bool)"
   ]).getFunction("isApprovedForAll")!.selector;
   const coder = ethers.AbiCoder.defaultAbiCoder();
+  const state = { chainIdCalls: 0 };
 
   const server = http.createServer(async (request, response) => {
     const chunks: Buffer[] = [];
@@ -87,6 +88,7 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
     const replies = requests.map((rpc: any) => {
       let result: string;
       if (rpc.method === "eth_chainId") {
+        state.chainIdCalls++;
         result = ethers.toQuantity(CONFIG.CHAIN_ID);
       } else if (rpc.method === "eth_call") {
         const data = String(rpc.params?.[0]?.data ?? "");
@@ -113,7 +115,7 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string }> {
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("RPC test server did not bind");
-  return { server, url: `http://127.0.0.1:${address.port}` };
+  return { server, url: `http://127.0.0.1:${address.port}`, state };
 }
 
 test("trade core safety gates", async (t) => {
@@ -332,6 +334,27 @@ test("trade core safety gates", async (t) => {
       () => getMarketSnapshot(true),
       /MARKET_DATA_OPTION_SIDE_MISMATCH:.*call/i
     );
+  });
+
+  await t.test("shares one validated Base provider across concurrent lifecycle requests", async () => {
+    const priorRpcUrl = CONFIG.RPC_URL;
+    (CONFIG as any).RPC_URL = `${rpc.url}?provider-cache=concurrent`;
+    rpc.state.chainIdCalls = 0;
+    ownedBalanceRaw = 100_000_000n;
+    const input = {
+      underlyingAsset: "BTC",
+      fromAddress: ACCOUNT,
+      optionTokenId: spreadTokenId(1, NOW_SEC + 3_600),
+      size: 1,
+      minAmountOutRaw: "1",
+      minOutWhenSwapRaw: "1"
+    } as any;
+    try {
+      await Promise.all([closePosition(input), closePosition(input)]);
+      assert.equal(rpc.state.chainIdCalls, 1, "concurrent requests must share the provider chain validation");
+    } finally {
+      (CONFIG as any).RPC_URL = priorRpcUrl;
+    }
   });
 
   await t.test("close rejects an asset mismatch", async () => {

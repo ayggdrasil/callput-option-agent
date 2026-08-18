@@ -680,12 +680,33 @@ function getProvider(options: { unbatchedRpc?: boolean } = {}) {
   });
 }
 
+const validatedNetworkCache = new Map<string, Promise<void>>();
+
 async function getValidatedProvider(options: { unbatchedRpc?: boolean } = {}): Promise<ethers.JsonRpcProvider> {
+  const key = [
+    CONFIG.RPC_URL,
+    process.env.CALLPUT_RPC_TIMEOUT_MS ?? "",
+    options.unbatchedRpc ? "unbatched" : "batched"
+  ].join(":");
   const provider = getProvider(options);
-  const chainId = BigInt(await provider.send("eth_chainId", []));
-  if (chainId !== BigInt(CONFIG.CHAIN_ID)) {
-    throw new Error(`RPC provider is on chain ${chainId}, expected Base (${CONFIG.CHAIN_ID})`);
+  let validation = validatedNetworkCache.get(key);
+  if (!validation) {
+    validation = (async () => {
+      const chainId = BigInt(await provider.send("eth_chainId", []));
+      if (chainId !== BigInt(CONFIG.CHAIN_ID)) {
+        throw new Error(`RPC provider is on chain ${chainId}, expected Base (${CONFIG.CHAIN_ID})`);
+      }
+    })().catch((error) => {
+      if (validatedNetworkCache.get(key) === validation) validatedNetworkCache.delete(key);
+      throw error;
+    });
+    validatedNetworkCache.set(key, validation);
   }
+  if (validatedNetworkCache.size > 8) {
+    const oldest = validatedNetworkCache.keys().next().value;
+    if (oldest && oldest !== key) validatedNetworkCache.delete(oldest);
+  }
+  await validation;
   return provider;
 }
 
