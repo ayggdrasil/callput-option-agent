@@ -10,6 +10,7 @@ async function json(path: string, init?: RequestInit) {
 async function main() {
   const health = await json("/api/health");
   if (health.status !== "ok" || health.checks?.rpc?.chain_id !== 8453) throw new Error("production health is not healthy on Base");
+  if (health.checks?.rpc?.dedicated_rpc_configured !== true) throw new Error("production RPC_URL is not configured");
 
   const assets = await json("/api/bankr/assets");
   if (!Array.isArray(assets.assets) || assets.assets.length < 11) throw new Error("production asset catalog is incomplete");

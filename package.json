@@ -1,6 +1,6 @@
 {
   "name": "callput-lite-mcp-skill",
-  "version": "0.5.21",
+  "version": "0.5.22",
   "description": "Minimal MCP + Skill for OpenClaw/Bankr agents to trade Callput on Base",
   "type": "module",
   "main": "build/src/index.js",
@@ -11,7 +11,8 @@
     "test": "npm run build && node build/src/config_test.js && node build/src/http_test.js && node build/src/vercelAdapter_test.js && node build/src/releaseOps_test.js && node build/src/health_test.js && node build/src/bankrApi_test.js && node build/src/bankrApp_test.js && node build/src/bankrGuide_test.js && node build/src/faqSeo_test.js && node --test build/src/core_safety_test.js build/src/core_abuse_test.js",
     "verify": "npm test && node build/src/stock_support_test.js && node build/src/smoke_test.js",
     "verify:mcp": "npm run build && node build/src/mcp_smoke.js",
-    "smoke:production": "node build/src/production_smoke.js"
+    "smoke:production": "node build/src/production_smoke.js",
+    "load:bankr": "npm run build && node build/src/bankr_load.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

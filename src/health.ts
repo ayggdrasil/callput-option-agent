@@ -8,12 +8,14 @@ type MarketCheck = { assets: number; tradableOptions: number };
 
 export type HealthDependencies = {
   now: () => Date;
+  isDedicatedRpcConfigured: () => boolean;
   checkRpc: () => Promise<RpcCheck>;
   checkMarket: () => Promise<MarketCheck>;
 };
 
 const defaultDependencies: HealthDependencies = {
   now: () => new Date(),
+  isDedicatedRpcConfigured: () => Boolean(process.env.RPC_URL || process.env.BASE_RPC_URL),
   async checkRpc() {
     const request = new ethers.FetchRequest(CONFIG.RPC_URL);
     request.timeout = 5_000;
@@ -38,7 +40,12 @@ export async function buildHealthReport(deps: HealthDependencies = defaultDepend
   try {
     const rpc = await deps.checkRpc();
     if (rpc.chainId !== CONFIG.CHAIN_ID) throw new Error("wrong chain");
-    checks.rpc = { ok: true, chain_id: rpc.chainId, block_number: rpc.blockNumber };
+    checks.rpc = {
+      ok: true,
+      chain_id: rpc.chainId,
+      block_number: rpc.blockNumber,
+      dedicated_rpc_configured: deps.isDedicatedRpcConfigured()
+    };
   } catch {
     checks.rpc = { ok: false, error: "rpc check failed" };
   }
