@@ -410,6 +410,25 @@ async function main() {
   const scan = await post("scan", { underlying_asset: "TSLA", bias: "bullish", max_results: 1 });
   assert.equal(scan.status, 200);
 
+  let releaseTelemetry!: () => void;
+  const telemetryPending = new Promise<void>((resolve) => { releaseTelemetry = resolve; });
+  const nonBlockingTelemetryDeps = {
+    ...deps,
+    captureTelemetry: async () => telemetryPending
+  } as unknown as BankrDependencies;
+  const scanWithPendingTelemetry = handleBankrApiRequest("scan", new Request("https://mcp.callput.app/api/bankr/scan", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://bankr.bot" },
+    body: JSON.stringify({ underlying_asset: "TSLA", bias: "bullish", max_results: 1 })
+  }), nonBlockingTelemetryDeps);
+  const completedBeforeTelemetry = await Promise.race([
+    scanWithPendingTelemetry.then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 25))
+  ]);
+  releaseTelemetry();
+  await scanWithPendingTelemetry;
+  assert.equal(completedBeforeTelemetry, true, "Bankr responses must not wait for best-effort telemetry delivery");
+
   const prepareResponse = await post("prepare", {
     strategy: "BuyCallSpread",
     from_address: wallet,

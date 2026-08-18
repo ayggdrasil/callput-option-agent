@@ -125,6 +125,7 @@ let marketCache: {
   options: MarketOption[];
   spot: Record<UnderlyingAsset, number>;
 } | null = null;
+let marketFetchInFlight: Promise<MarketDataPayload> | null = null;
 
 const ASSET_ALIASES: Record<string, UnderlyingAsset> = {
   WBTC: "BTC",
@@ -259,6 +260,15 @@ async function fetchRawMarketData(): Promise<MarketDataPayload> {
   }
 }
 
+async function fetchRawMarketDataCoalesced(): Promise<MarketDataPayload> {
+  if (!marketFetchInFlight) {
+    marketFetchInFlight = fetchRawMarketData().finally(() => {
+      marketFetchInFlight = null;
+    });
+  }
+  return marketFetchInFlight;
+}
+
 function marketSchemaError(message: string): never {
   throw new Error(`MARKET_DATA_SCHEMA: ${message}`);
 }
@@ -329,7 +339,7 @@ export async function getMarketSnapshot(
     return { options: marketCache.options, spot: marketCache.spot };
   }
 
-  const payload = await fetchRawMarketData();
+  const payload = await fetchRawMarketDataCoalesced();
   if (!isRecord(payload)) marketSchemaError("payload must be an object");
   const updatedAtMs = getMarketUpdatedAtMs(payload);
   const ageMs = now - updatedAtMs;

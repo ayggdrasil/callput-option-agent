@@ -128,6 +128,24 @@ test("trade core safety gates", async (t) => {
     await new Promise<void>((resolve, reject) => rpc.server.close((error) => error ? reject(error) : resolve()));
   });
 
+  await t.test("coalesces concurrent market refreshes into one upstream request", async () => {
+    let fetchCalls = 0;
+    let releaseFetch!: () => void;
+    const fetchPending = new Promise<void>((resolve) => { releaseFetch = resolve; });
+    globalThis.fetch = async () => {
+      fetchCalls++;
+      await fetchPending;
+      return new Response(JSON.stringify(marketPayload()));
+    };
+
+    const first = getMarketSnapshot(true);
+    const second = getMarketSnapshot(true);
+    await Promise.resolve();
+    assert.equal(fetchCalls, 1, "concurrent refreshes must share one upstream market fetch");
+    releaseFetch();
+    await Promise.all([first, second]);
+  });
+
   await t.test("rejects stale market data", async () => {
     const staleAt = Date.now() - 5 * 60_000 - 1;
     globalThis.fetch = async () => new Response(JSON.stringify(marketPayload({

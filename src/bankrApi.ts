@@ -572,7 +572,7 @@ export async function handleBankrApiRequest(
         bias: input.bias,
         maxResults: input.max_results
       });
-      await telemetry(deps, "scan_success", undefined, { anonymous_id: "bankr-readonly", asset: result.asset, strategy: result.strategy });
+      void telemetry(deps, "scan_success", undefined, { anonymous_id: "bankr-readonly", asset: result.asset, strategy: result.strategy });
       return response(200, result, origin);
     }
 
@@ -589,7 +589,7 @@ export async function handleBankrApiRequest(
       const maxUsdcRiskRaw = resolveBankrMaxUsdcRiskRaw();
       validatePreparedTransaction(prepared, input, maxUsdcRiskRaw);
       const fingerprint = intentFingerprint(prepared);
-      await telemetry(deps, "transaction_prepared", input.from_address, {
+      void telemetry(deps, "transaction_prepared", input.from_address, {
         intent_fingerprint: fingerprint,
         asset: (prepared.validation.details as any).asset,
         strategy: input.strategy
@@ -641,7 +641,7 @@ export async function handleBankrApiRequest(
         minOutWhenSwapRaw: input.min_out_when_swap_raw
       });
       const result = lifecycleTransactionResponse("close", built);
-      await telemetry(deps, "transaction_prepared", input.wallet_address, { intent_fingerprint: result.intent_fingerprint, action: "close" });
+      void telemetry(deps, "transaction_prepared", input.wallet_address, { intent_fingerprint: result.intent_fingerprint, action: "close" });
       return response(200, result, origin);
     }
 
@@ -654,7 +654,7 @@ export async function handleBankrApiRequest(
         minOutWhenSwapRaw: input.min_out_when_swap_raw
       });
       const result = lifecycleTransactionResponse("settle", built);
-      await telemetry(deps, "transaction_prepared", input.wallet_address, { intent_fingerprint: result.intent_fingerprint, action: "settle" });
+      void telemetry(deps, "transaction_prepared", input.wallet_address, { intent_fingerprint: result.intent_fingerprint, action: "settle" });
       return response(200, result, origin);
     }
 
@@ -721,14 +721,14 @@ export async function handleBankrApiRequest(
       if (account && ethers.getAddress(account) !== ethers.getAddress(input.wallet_address)) {
         return response(409, { error: "Request key belongs to a different wallet" }, origin);
       }
-      await telemetry(deps, "onchain_detected", input.wallet_address, { request_key: requestKey, status: status.status });
-      if (status.status === "executed") await telemetry(deps, "keeper_executed", input.wallet_address, { request_key: requestKey });
-      if (status.status === "cancelled") await telemetry(deps, "cancelled", input.wallet_address, { request_key: requestKey });
+      void telemetry(deps, "onchain_detected", input.wallet_address, { request_key: requestKey, status: status.status });
+      if (status.status === "executed") void telemetry(deps, "keeper_executed", input.wallet_address, { request_key: requestKey });
+      if (status.status === "cancelled") void telemetry(deps, "cancelled", input.wallet_address, { request_key: requestKey });
       return response(200, { tx_hash: resolvedTxHash, is_open: isOpen, ...status }, origin);
     }
 
     const input = eventSchema.parse(raw);
-    await telemetry(deps, input.event, input.wallet_address, {
+    void telemetry(deps, input.event, input.wallet_address, {
       anonymous_id: input.anonymous_id,
       intent_fingerprint: input.intent_fingerprint,
       asset: input.asset,
