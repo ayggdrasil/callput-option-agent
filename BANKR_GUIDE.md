@@ -11,7 +11,7 @@ Both integrations build unsigned Base transactions. Callput never receives a pri
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.27/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.28/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 
@@ -40,7 +40,7 @@ Verify with a read-only prompt:
 
 The source package is in `bankr-app/`. Paste `bankr-app/INSTALL_PROMPT.md` into Bankr Terminal, or create the files under `/apps/callput-options/` using Bankr's file editor.
 
-Required permissions are intentionally minimal: `read:wallet`, `read:appdata`, `write:appdata`, `fetch:http`, and `prepare:transaction`. Private app data stores only the viewer wallet's reviewed intent and fingerprint for up to 30 minutes. The app uses viewer identity, so each signed-in visitor prepares a transaction for their own Bankr wallet.
+Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and `prepare:transaction`. The app stores no private key, signature, or reviewed trade state. It uses viewer identity, so each signed-in visitor prepares a transaction for their own Bankr wallet.
 
 ## Trade flow
 
@@ -49,9 +49,9 @@ Required permissions are intentionally minimal: `read:wallet`, `read:appdata`, `
 3. Scan ranked, risk-defined spreads.
 4. Select one candidate and enter size.
 5. Review wallet, Base network, strategy, and maximum USDC at risk.
-6. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then return and use `I approved it — refresh allowance`. Do not rescan: the App restores the exact reviewed order for the same wallet for 30 minutes using Bankr's private app storage.
+6. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then return and scan again. The fresh scan rechecks allowance and market pricing before it prepares the order.
 7. Open the Callput order review in Bankr chat and explicitly send and approve it there.
-8. Return to the app and reconcile the exact prepared intent fingerprint to read its request key and keeper status from Base. The fingerprint also survives full-chat navigation for 30 minutes.
+8. Copy the transaction hash from Bankr Activity or BaseScan, return to the App, paste it into **Bankr transaction hash**, and run the keeper check. The backend verifies the exact PositionManager transaction and wallet before returning its request key and keeper status.
 
 ## Position lifecycle
 
@@ -85,10 +85,10 @@ Only allowlisted funnel events are accepted. Wallets are hashed before analytics
 | --- | --- |
 | MCP initialization fails | Confirm `/api/mcp`, Streamable HTTP, and support for JSON plus event-stream responses. |
 | No spread candidates | Try another live symbol/bias; availability comes from the market feed. |
-| First Bankr chat stays on `working` or `thinking` | Open full Bankr Chat, accept the Terms of Service, start a new chat, then return to Callput. The exact reviewed trade is restored for the same wallet for 30 minutes. |
-| Approval is shown | Open the bounded approval in Bankr chat, send and approve it there, then return and use `I approved it — refresh allowance`. Do not rescan or choose a moving quote. |
+| First Bankr chat stays on `working` or `thinking` | Open full Bankr Chat, accept the Terms of Service, start a new chat, then return to Callput and scan again. |
+| Approval is shown | Open the bounded approval in Bankr chat, send and approve it there, then return and scan again so allowance and market pricing are read fresh. |
 | Keeper status is pending | Wait for Base confirmation and refresh. |
-| Keeper check is `not_found` | A chat handoff alone proves nothing was submitted. If you did send the order in Bankr, retry after the RPC provider indexes the canonical receipt/log. Fingerprint reconciliation scans 1,800 recent Base blocks by default and is capped by `CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS`. |
+| Keeper check is `not_found` | A chat handoff alone proves nothing was submitted. Paste the exact Bankr transaction hash and retry after the RPC provider indexes the canonical receipt/log. The backend rejects failed, foreign-wallet, and non-PositionManager transactions. |
 
 ## Rollback
 

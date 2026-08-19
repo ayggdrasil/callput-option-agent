@@ -5,8 +5,6 @@
   "tags": ["options", "crypto", "stocks", "etf", "base", "trading"],
   "permissions": [
     "read:wallet",
-    "read:appdata",
-    "write:appdata",
     "fetch:http",
     "prepare:transaction"
   ],

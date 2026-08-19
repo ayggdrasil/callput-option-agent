@@ -51,7 +51,7 @@
   <section id="review" class="panel hidden">
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
-    <div class="warning"><strong>First Bankr chat?</strong> Open Bankr Chat once and accept the Bankr Terms of Service before opening a transaction review. If Bankr stays on “working” or “thinking”, accept the terms, start a new chat, then return here. This App restores the exact reviewed trade for 30 minutes.</div>
+    <div class="warning"><strong>First Bankr chat?</strong> Open Bankr Chat once and accept the Bankr Terms of Service before opening a transaction review. If Bankr stays on “working” or “thinking”, accept the terms, start a new chat, then return here and scan again. After sending an order, copy its transaction hash from Bankr for the keeper check below.</div>
     <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
     <div class="contract-links" aria-label="Canonical Base contracts"><strong>Verify contracts on Base:</strong><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a><a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a><a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a></div>
     <button id="confirm" class="primary">Open Bankr transaction review</button>
@@ -61,6 +61,7 @@
 
   <section class="panel">
     <h2>3. Check keeper execution</h2>
+    <label for="txHash">Bankr transaction hash (recommended after returning from chat)<input id="txHash" placeholder="0x… transaction hash from Bankr" autocomplete="off" spellcheck="false" /></label>
     <button id="reconcile" disabled>Check my Callput request after sending it in Bankr</button>
     <div id="reconcileStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
@@ -91,59 +92,15 @@
   let lifecycleQueue = [];
   let lifecycleQueueTotal = 0;
   const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;
-  const TRADE_SESSION_KEY="callput.bankr.trade.v1";
-  const TRADE_SESSION_TTL_MS=30*60*1000;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
+  function currentWalletAddress() { return String(bankr.ctx.walletAddress || bankr.wallet.evmAddress || bankr.wallet.address || ""); }
   async function requireSignIn() { if (!signedIn()) { await bankr.auth.requireSignIn(); return false; } return true; }
   function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("refreshPositions").disabled=!authenticated; $("closeAll").disabled=!authenticated; $("settleAll").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); setStatus("positionsStatus",authenticated ? "Refresh positions to load this wallet." : "Sign in to Bankr to load positions."); }
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
-  function reportTradeSessionError(error) { setStatus("tradeStatus",`Bankr could not save this reviewed trade for return navigation: ${error.message || String(error)}. Do not open chat until this is resolved.`,"error"); }
-  async function clearTradeSession() {
-    if (!signedIn() || !bankr.ctx.walletAddress) return;
-    try { await bankr.scripts.run("track",{ action:"delete_trade_session" }); } catch {}
-  }
-  async function persistTradeSession() {
-      if (!signedIn() || !bankr.ctx.walletAddress) return false;
-      if (!prepared && !lastHandoffIntentFingerprint) { await clearTradeSession(); return true; }
-      const session={
-        wallet:bankr.ctx.walletAddress.toLowerCase(),
-        expiresAt:Date.now()+TRADE_SESSION_TTL_MS,
-        candidate:selected,
-        size:Number($("size").value),
-        prepared,
-        lastHandoffIntentFingerprint
-      };
-      const verifiedResult=await bankr.scripts.run("track",{ action:"save_trade_session", session });
-      const verified=verifiedResult?.session;
-      if (!verified || verified.wallet !== session.wallet || verified.expiresAt !== session.expiresAt) throw new Error("Bankr app storage did not retain the reviewed trade.");
-      return true;
-  }
-  async function restoreTradeSession() {
-    try {
-      if (!signedIn() || !bankr.ctx.walletAddress) return false;
-      const storedResult=await bankr.scripts.run("track",{ action:"get_trade_session" });
-      const stored=storedResult?.session;
-      if (!stored || typeof stored !== "object") return false;
-      if (stored.wallet !== bankr.ctx.walletAddress.toLowerCase() || !Number.isFinite(stored.expiresAt) || stored.expiresAt <= Date.now()) { await clearTradeSession(); return false; }
-      lastHandoffIntentFingerprint=typeof stored.lastHandoffIntentFingerprint === "string" ? stored.lastHandoffIntentFingerprint : null;
-      if (!stored.prepared) return Boolean(lastHandoffIntentFingerprint);
-      if (!stored.candidate || !Number.isFinite(Number(stored.size)) || Number(stored.size) <= 0 || !stored.prepared.intent_fingerprint || !stored.prepared.transaction_preview?.destination || !stored.prepared.transaction_preview?.chain) { await clearTradeSession(); lastHandoffIntentFingerprint=null; return false; }
-      selected=stored.candidate;
-      $("size").value=String(stored.size);
-      const currentPreparationVersion=++preparationVersion;
-      showPrepared(stored.prepared,stored.candidate,stored.size,currentPreparationVersion,false);
-      setStatus("tradeStatus",stored.prepared.approval ? "Restored the exact reviewed approval and order. After the approval confirms, refresh allowance here without scanning again." : "Restored the exact reviewed Callput order. Review it before reopening Bankr chat.","ok");
-      return true;
-    } catch(error) {
-      await clearTradeSession();
-      setStatus("scanStatus",`Bankr could not restore the saved reviewed trade: ${error.message || String(error)}. Scan again before opening a transaction review.`,"error");
-      return false;
-    }
-  }
   function candidatePremiumLabel(candidate) {
     const buyEstimate = candidate.estimated_amount_in_per_unit != null ? candidate.estimated_amount_in_per_unit : candidate.spread_cost;
     const unitValue = candidate.spread_cost != null ? buyEstimate : candidate.spread_credit;
@@ -169,9 +126,8 @@
     $("confirm").disabled=true;
     $("refreshApproval").classList.add("hidden");
     $("review").classList.add("hidden");
-    persistTradeSession().catch(()=>{});
   }
-  function showPrepared(result,candidate,size,currentPreparationVersion,persist=true) {
+  function showPrepared(result,candidate,size,currentPreparationVersion) {
     const r=result.risk_preview;
     const txPreview=result.transaction_preview;
     if (!result.intent_fingerprint || !txPreview?.destination || !txPreview?.chain) throw new Error("Prepared transaction is missing its bound review details.");
@@ -187,7 +143,6 @@
     ].join("");
     $("confirm").disabled=false;
     $("refreshApproval").classList.toggle("hidden",!prepared.approval);
-    if (persist) persistTradeSession().catch(reportTradeSessionError);
   }
   async function scan() {
     if (!(await requireSignIn())) return;
@@ -233,19 +188,16 @@
     try {
       if (confirmationIntent.approval) {
         setStatus("tradeStatus","Opening the bounded USDC approval in Bankr chat…");
-        await persistTradeSession();
         await bankr.confirmTransaction(confirmationIntent.approval);
-        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return and refresh allowance for this restored exact order.");
+        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return, scan again, and review the freshly priced order.");
         $("refreshApproval").classList.remove("hidden");
         $("confirm").disabled=false;
         return;
       }
       setStatus("tradeStatus","Opening the Callput order in Bankr chat…");
-      await persistTradeSession();
       await bankr.confirmTransaction(confirmationIntent.transaction);
       lastHandoffIntentFingerprint=confirmationIntent.intent_fingerprint;
-      await persistTradeSession();
-      setStatus("tradeStatus","Order review opened in Bankr chat. Nothing has been submitted by this app. Review and send it there, then use the keeper check below.","ok");
+      setStatus("tradeStatus","Order review opened in Bankr chat. Nothing has been submitted by this app. Review and send it there, copy its transaction hash, then use the keeper check below.","ok");
       $("confirm").disabled=false;
     } catch(error) {
       const message=error.message || String(error);
@@ -294,11 +246,14 @@
 
   async function reconcile() {
     if (!(await requireSignIn())) return;
-    if (!lastHandoffIntentFingerprint) { setStatus("reconcileStatus","Open a Callput order review in this session first. This check only reconciles that exact reviewed intent.","error"); return; }
-    const reconcileArgs={ intent_fingerprint:lastHandoffIntentFingerprint };
-    setStatus("reconcileStatus","Checking whether this reviewed intent was submitted on Base…");
+    const txHash=$("txHash").value.trim();
+    if (txHash && !/^0x[0-9a-fA-F]{64}$/.test(txHash)) { setStatus("reconcileStatus","Paste the full 0x-prefixed 32-byte transaction hash shown by Bankr.","error"); return; }
+    if (!txHash && !lastHandoffIntentFingerprint) { setStatus("reconcileStatus","Paste the Bankr transaction hash after returning from chat. In the current page session, the exact reviewed intent can also be checked without a hash.","error"); return; }
+    const reconcileArgs=txHash ? { tx_hash:txHash } : { intent_fingerprint:lastHandoffIntentFingerprint };
+    setStatus("reconcileStatus","Checking the exact Base transaction or reviewed intent…");
     try {
       const result=await bankr.scripts.run("reconcile",reconcileArgs);
+      if (result?.error) throw new Error(result.error);
       const checkedAt=new Date().toLocaleTimeString();
       if (result.status === "not_found") { setStatus("reconcileStatus",`No matching on-chain Callput request was found. Opening the Bankr chat handoff did not prove submission. This does not prove failure. Check Bankr Activity or BaseScan for the reviewed transaction before preparing another order. Last checked ${checkedAt}.`); return; }
       if (result.status === "pending") { setStatus("reconcileStatus",`Pending · request ${result.request_key}. USDC may already be committed. Do not resubmit this intent. Check again after the keeper processes it. Last checked ${checkedAt}.`); return; }
@@ -421,7 +376,7 @@
   $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };
   bankr.on("ready", async () => {
     syncAuthUi();
-    if (signedIn()) { setStatus("scanStatus",`Wallet ready: ${bankr.ctx.walletAddress.slice(0,6)}…${bankr.ctx.walletAddress.slice(-4)}`,"ok"); await restoreTradeSession(); await bankr.scripts.run("track",{event:"app_view"}).catch(()=>{}); }
+    if (signedIn()) { const wallet=currentWalletAddress(); setStatus("scanStatus",wallet ? `Wallet ready: ${wallet.slice(0,6)}…${wallet.slice(-4)}` : "Wallet ready.","ok"); await bankr.scripts.run("track",{event:"app_view"}).catch(()=>{}); }
   });
 </script>
 </body>

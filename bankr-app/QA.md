@@ -17,7 +17,8 @@
 - Approval, if needed, shows Base USDC, spender `0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2`, and its exact USDC amount before confirmation.
 - On a new Bankr account, open Chat and accept the Terms of Service before the first transaction handoff. A pre-acceptance request may remain on `working` or `thinking`; start a new chat after accepting the terms.
 - When approval is needed, `Open Bankr transaction review` must open only the approval handoff. Send and approve it in Bankr, then use `I approved it — refresh allowance` so the original reviewed order is restored without a moving-price rescan.
-- Open the approval in full Bankr chat, return to the App, and verify the exact reviewed transaction is restored from Bankr private app storage for the same wallet. Repeat after an App reload. Another wallet and a session older than 30 minutes must not restore it.
+- Open the approval in full Bankr chat, return to the App, scan again, and verify allowance and market pricing are read fresh before the order is prepared.
+- After an order is sent, paste its Bankr/BaseScan transaction hash into the App and verify reconciliation rejects malformed, failed, foreign-wallet, and non-PositionManager transactions while resolving the exact valid Callput request.
 - After the order handoff, open full Bankr chat, return to the App, and verify the exact intent fingerprint remains available to the keeper check.
 - Empty scans explain how to recover; invalid or zero size is rejected before preparation; status and errors are announced and errors move focus to the message.
 - Opening or closing the Bankr chat handoff broadcasts nothing and leaves the app usable. The app must say that nothing was submitted and must never emit `wallet_confirmed` from `confirmTransaction()`, whose return value only acknowledges the handoff.

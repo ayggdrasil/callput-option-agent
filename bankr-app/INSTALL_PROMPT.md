@@ -2,7 +2,7 @@
 
 Paste into a signed-in Bankr Terminal chat:
 
-> Build and install a Bankr App named **Callput — Stock, ETF & Crypto Options** with slug `callput-options`. Use viewer identity. It must use only `read:wallet`, `read:appdata`, `write:appdata`, `fetch:http`, and `prepare:transaction`; app data is used only for wallet-bound, expiring transaction-review recovery. Copy the manifest, `index.html`, and all ten top-level backend scripts exactly from the immutable Callput release directory `bankr-app/`: https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.27/bankr-app . Do not add an agent invocation, secret, schedule, swap, transfer, signature, or automatic execution permission. Run only `assets`, `scan`, and `positions` for owner QA. Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track` during no-value QA. Audit all permissions before publication.
+> Build and install a Bankr App named **Callput — Stock, ETF & Crypto Options** with slug `callput-options`. Use viewer identity. It must use only `read:wallet`, `fetch:http`, and `prepare:transaction`; the App stores no private key, signature, or reviewed trade state, and reconciles a sent order from the transaction hash shown by Bankr. Copy the manifest, `index.html`, and all ten top-level backend scripts exactly from the immutable Callput release directory `bankr-app/`: https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.28/bankr-app . Do not add an agent invocation, secret, schedule, swap, transfer, signature, automatic execution, app-data, or file permission. Run only `assets`, `scan`, and `positions` for owner QA. Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track` during no-value QA. Audit all permissions before publication.
 
 Then ask:
 
