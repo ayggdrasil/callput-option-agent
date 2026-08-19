@@ -39,6 +39,11 @@ function main() {
   assert.match(html, /src="\/bankr\/app\.js"/);
   assert.match(html, /Defined-risk options, directly inside Bankr\./);
   assert.match(html, /Open Callput in Bankr/);
+  assert.match(html, /id="new-user-start"/, "the guide must expose a single new-user path before advanced setup");
+  assert.match(html, /No API key, MCP installation, or CLI is required for the public App path\./, "new users must not confuse the public App with builder setup");
+  assert.match(html, /Bankr EVM wallet address[\s\S]*Base USDC[\s\S]*Base ETH/, "the guide must explain which new-wallet address and network assets to fund");
+  assert.match(html, /Start with the default 0\.01 size/, "the guide must provide the same small first-trade size as the public App");
+  assert.match(html, /Return to this App and check keeper execution/, "the guide must carry a first-time user through reconciliation");
   const publicBankrAppUrl = "https://bankr.bot/u/0xaaacc4820e9b053582286042dfe832dfaba0175a/apps/callput-options";
   assert.match(html, new RegExp(publicBankrAppUrl), "all users must be sent to the public app surface without owner Scripts controls");
   assert.doesNotMatch(html, /https:\/\/bankr\.bot\/apps\/callput-options/, "the guide must not send users to the owner-oriented app route");

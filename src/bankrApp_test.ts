@@ -15,6 +15,7 @@ function main() {
 
   const html = read("bankr-app/index.html");
   const prepareScript = read("bankr-app/scripts/prepare.ts");
+  assert.match(html, /id="size" type="number" value="0\.01"/, "the first-trade size must default to a small onboarding amount");
   assert.match(html, /Synthetic on-chain options only; they are not broker-listed securities or ownership\./i, "the app must disclose the synthetic, non-ownership product boundary");
   assert.match(html, /id="scanStatus" class="status" role="status" aria-live="polite"/, "scan progress must be announced");
   assert.match(html, /id="tradeStatus" class="status" role="status" aria-live="polite"/, "trade progress must be announced");
@@ -163,7 +164,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.23\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.24\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);
