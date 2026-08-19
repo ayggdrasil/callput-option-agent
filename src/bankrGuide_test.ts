@@ -44,6 +44,8 @@ function main() {
   assert.match(html, /Bankr EVM wallet address[\s\S]*Base USDC[\s\S]*Base ETH/, "the guide must explain which new-wallet address and network assets to fund");
   assert.match(html, /Start with the default 0\.01 size/, "the guide must provide the same small first-trade size as the public App");
   assert.match(html, /Return to this App and check keeper execution/, "the guide must carry a first-time user through reconciliation");
+  assert.match(html, /Accept Bankr chat terms/i, "the new-user path must include the one-time Bankr chat terms gate");
+  assert.match(html, /If Bankr remains on (?:working|thinking)/i, "the guide must explain first-chat terms recovery");
   const publicBankrAppUrl = "https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options";
   assert.match(html, new RegExp(publicBankrAppUrl), "all users must be sent to the public app surface without owner Scripts controls");
   assert.doesNotMatch(

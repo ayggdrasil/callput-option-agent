@@ -11,7 +11,7 @@ Both integrations build unsigned Base transactions. Callput never receives a pri
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.24/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.25/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 
@@ -44,13 +44,14 @@ Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and
 
 ## Trade flow
 
-1. Select an underlying and market view.
-2. Scan ranked, risk-defined spreads.
-3. Select one candidate and enter size.
-4. Review wallet, Base network, strategy, and maximum USDC at risk.
-5. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then choose the spread again to refresh the allowance.
-6. Open the Callput order review in Bankr chat and explicitly send and approve it there.
-7. Return to the app and reconcile the exact prepared intent fingerprint to read its request key and keeper status from Base.
+1. On a new Bankr account, open Chat once and accept the Terms of Service. If a pre-acceptance request remains on `working` or `thinking`, start a new chat after accepting the terms.
+2. Select an underlying and market view.
+3. Scan ranked, risk-defined spreads.
+4. Select one candidate and enter size.
+5. Review wallet, Base network, strategy, and maximum USDC at risk.
+6. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then return and use `I approved it — refresh allowance`. Do not rescan: the App restores the exact reviewed order for the same wallet for 30 minutes.
+7. Open the Callput order review in Bankr chat and explicitly send and approve it there.
+8. Return to the app and reconcile the exact prepared intent fingerprint to read its request key and keeper status from Base. The fingerprint also survives full-chat navigation for 30 minutes.
 
 ## Position lifecycle
 
@@ -84,7 +85,8 @@ Only allowlisted funnel events are accepted. Wallets are hashed before analytics
 | --- | --- |
 | MCP initialization fails | Confirm `/api/mcp`, Streamable HTTP, and support for JSON plus event-stream responses. |
 | No spread candidates | Try another live symbol/bias; availability comes from the market feed. |
-| Approval is shown | Open the bounded approval in Bankr chat, send and approve it there, then return and choose the spread again before opening the order review. |
+| First Bankr chat stays on `working` or `thinking` | Open full Bankr Chat, accept the Terms of Service, start a new chat, then return to Callput. The exact reviewed trade is restored for the same wallet for 30 minutes. |
+| Approval is shown | Open the bounded approval in Bankr chat, send and approve it there, then return and use `I approved it — refresh allowance`. Do not rescan or choose a moving quote. |
 | Keeper status is pending | Wait for Base confirmation and refresh. |
 | Keeper check is `not_found` | A chat handoff alone proves nothing was submitted. If you did send the order in Bankr, retry after the RPC provider indexes the canonical receipt/log. Fingerprint reconciliation scans 1,800 recent Base blocks by default and is capped by `CALLPUT_MAX_INTENT_RECONCILE_LOOKBACK_BLOCKS`. |
 

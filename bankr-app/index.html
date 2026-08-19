@@ -51,6 +51,7 @@
   <section id="review" class="panel hidden">
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
+    <div class="warning"><strong>First Bankr chat?</strong> Open Bankr Chat once and accept the Bankr Terms of Service before opening a transaction review. If Bankr stays on “working” or “thinking”, accept the terms, start a new chat, then return here. This App restores the exact reviewed trade for 30 minutes.</div>
     <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
     <div class="contract-links" aria-label="Canonical Base contracts"><strong>Verify contracts on Base:</strong><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a><a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a><a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a></div>
     <button id="confirm" class="primary">Open Bankr transaction review</button>
@@ -90,6 +91,8 @@
   let lifecycleQueue = [];
   let lifecycleQueueTotal = 0;
   const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;
+  const TRADE_SESSION_KEY="callput.bankr.trade.v1";
+  const TRADE_SESSION_TTL_MS=30*60*1000;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
@@ -98,6 +101,37 @@
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
+  function clearTradeSession() { try { sessionStorage.removeItem(TRADE_SESSION_KEY); } catch {} }
+  function persistTradeSession() {
+    try {
+      if (!signedIn() || (!prepared && !lastHandoffIntentFingerprint)) { clearTradeSession(); return; }
+      sessionStorage.setItem(TRADE_SESSION_KEY,JSON.stringify({
+        wallet:bankr.ctx.walletAddress.toLowerCase(),
+        expiresAt:Date.now()+TRADE_SESSION_TTL_MS,
+        candidate:selected,
+        size:Number($("size").value),
+        prepared,
+        lastHandoffIntentFingerprint
+      }));
+    } catch {}
+  }
+  function restoreTradeSession() {
+    try {
+      const raw=sessionStorage.getItem(TRADE_SESSION_KEY);
+      if (!raw || !signedIn()) return false;
+      const stored=JSON.parse(raw);
+      if (stored.wallet !== bankr.ctx.walletAddress.toLowerCase() || !Number.isFinite(stored.expiresAt) || stored.expiresAt <= Date.now()) { clearTradeSession(); return false; }
+      lastHandoffIntentFingerprint=typeof stored.lastHandoffIntentFingerprint === "string" ? stored.lastHandoffIntentFingerprint : null;
+      if (!stored.prepared) return Boolean(lastHandoffIntentFingerprint);
+      if (!stored.candidate || !Number.isFinite(Number(stored.size)) || Number(stored.size) <= 0 || !stored.prepared.intent_fingerprint || !stored.prepared.transaction_preview?.destination || !stored.prepared.transaction_preview?.chain) { clearTradeSession(); lastHandoffIntentFingerprint=null; return false; }
+      selected=stored.candidate;
+      $("size").value=String(stored.size);
+      const currentPreparationVersion=++preparationVersion;
+      showPrepared(stored.prepared,stored.candidate,stored.size,currentPreparationVersion,false);
+      setStatus("tradeStatus",stored.prepared.approval ? "Restored the exact reviewed approval and order. After the approval confirms, refresh allowance here without scanning again." : "Restored the exact reviewed Callput order. Review it before reopening Bankr chat.","ok");
+      return true;
+    } catch { clearTradeSession(); return false; }
+  }
   function candidatePremiumLabel(candidate) {
     const buyEstimate = candidate.estimated_amount_in_per_unit != null ? candidate.estimated_amount_in_per_unit : candidate.spread_cost;
     const unitValue = candidate.spread_cost != null ? buyEstimate : candidate.spread_credit;
@@ -123,8 +157,9 @@
     $("confirm").disabled=true;
     $("refreshApproval").classList.add("hidden");
     $("review").classList.add("hidden");
+    persistTradeSession();
   }
-  function showPrepared(result,candidate,size,currentPreparationVersion) {
+  function showPrepared(result,candidate,size,currentPreparationVersion,persist=true) {
     const r=result.risk_preview;
     const txPreview=result.transaction_preview;
     if (!result.intent_fingerprint || !txPreview?.destination || !txPreview?.chain) throw new Error("Prepared transaction is missing its bound review details.");
@@ -140,6 +175,7 @@
     ].join("");
     $("confirm").disabled=false;
     $("refreshApproval").classList.toggle("hidden",!prepared.approval);
+    if (persist) persistTradeSession();
   }
   async function scan() {
     if (!(await requireSignIn())) return;
@@ -185,15 +221,18 @@
     try {
       if (confirmationIntent.approval) {
         setStatus("tradeStatus","Opening the bounded USDC approval in Bankr chat…");
+        persistTradeSession();
         await bankr.confirmTransaction(confirmationIntent.approval);
-        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return and choose the spread again to refresh the allowance.");
+        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return and refresh allowance for this restored exact order.");
         $("refreshApproval").classList.remove("hidden");
         $("confirm").disabled=false;
         return;
       }
       setStatus("tradeStatus","Opening the Callput order in Bankr chat…");
+      persistTradeSession();
       await bankr.confirmTransaction(confirmationIntent.transaction);
       lastHandoffIntentFingerprint=confirmationIntent.intent_fingerprint;
+      persistTradeSession();
       setStatus("tradeStatus","Order review opened in Bankr chat. Nothing has been submitted by this app. Review and send it there, then use the keeper check below.","ok");
       $("confirm").disabled=false;
     } catch(error) {
@@ -370,7 +409,7 @@
   $("signIn").onclick=async()=>{ await bankr.auth.requireSignIn(); syncAuthUi(); };
   bankr.on("ready", async () => {
     syncAuthUi();
-    if (signedIn()) { setStatus("scanStatus",`Wallet ready: ${bankr.ctx.walletAddress.slice(0,6)}…${bankr.ctx.walletAddress.slice(-4)}`,"ok"); await bankr.scripts.run("track",{event:"app_view"}).catch(()=>{}); }
+    if (signedIn()) { setStatus("scanStatus",`Wallet ready: ${bankr.ctx.walletAddress.slice(0,6)}…${bankr.ctx.walletAddress.slice(-4)}`,"ok"); restoreTradeSession(); await bankr.scripts.run("track",{event:"app_view"}).catch(()=>{}); }
   });
 </script>
 </body>
