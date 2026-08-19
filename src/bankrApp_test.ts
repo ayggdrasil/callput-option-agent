@@ -6,7 +6,7 @@ const read = (path: string) => fs.readFileSync(path, "utf8");
 function main() {
   const manifest = JSON.parse(read("bankr-app/manifest.json"));
   assert.match(manifest.title, /Crypto/, "the Bankr app title must advertise crypto support");
-  assert.deepEqual(manifest.permissions, ["read:wallet", "fetch:http", "prepare:transaction"]);
+  assert.deepEqual(manifest.permissions, ["read:wallet", "read:appdata", "write:appdata", "fetch:http", "prepare:transaction"]);
   assert.equal(manifest.frontendIdentity, "viewer");
   assert.deepEqual(manifest.scripts, ["assets", "scan", "prepare", "reconcile", "positions", "close", "settle", "close-all", "settle-all", "track"]);
   assert.match(manifest.description, /synthetic on-chain/i);
@@ -88,17 +88,21 @@ function main() {
   assert.match(html, /let lastHandoffIntentFingerprint = null;/, "the prepared fingerprint must be retained only as a handoff reference");
   assert.match(html, /const TRADE_SESSION_KEY="callput\.bankr\.trade\.v1";/, "trade recovery must use a versioned session key");
   assert.match(html, /const TRADE_SESSION_TTL_MS=30\*60\*1000;/, "trade recovery must expire promptly");
-  assert.match(html, /function persistTradeSession\(\)/, "the reviewed transaction must be recoverable after opening full Bankr chat");
+  assert.match(html, /async function persistTradeSession\(\)/, "the reviewed transaction must be recoverable after opening full Bankr chat");
+  assert.doesNotMatch(html, /sessionStorage/, "Bankr's opaque-origin iframe must not rely on browser session storage");
+  assert.match(html, /bankr\.appKV\.set\(tradeSessionKey\(\),/, "trade recovery must use Bankr's persistent app storage");
+  assert.match(html, /bankr\.appKV\.get\(tradeSessionKey\(\)\)/, "trade recovery must read from Bankr's persistent app storage");
+  assert.match(html, /const tradeSessionKey=\(\)=>`record:\$\{TRADE_SESSION_KEY\}:\$\{bankr\.ctx\.walletAddress\.toLowerCase\(\)\}`;/, "persistent trade state must be isolated by viewer wallet");
   assert.match(html, /wallet:bankr\.ctx\.walletAddress\.toLowerCase\(\)/, "persisted trade state must be bound to the viewer wallet");
   assert.match(html, /expiresAt:Date\.now\(\)\+TRADE_SESSION_TTL_MS/, "persisted trade state must carry an absolute expiry");
-  assert.match(html, /function restoreTradeSession\(\)/, "the app must restore a reviewed trade after returning from Bankr chat");
+  assert.match(html, /async function restoreTradeSession\(\)/, "the app must restore a reviewed trade after returning from Bankr chat");
   assert.match(html, /stored\.wallet !== bankr\.ctx\.walletAddress\.toLowerCase\(\)/, "restoration must reject another wallet's trade state");
   assert.match(html, /stored\.expiresAt <= Date\.now\(\)/, "restoration must reject expired trade state");
   assert.match(html, /stored\.prepared\.intent_fingerprint/, "restoration must require the bound intent fingerprint");
   assert.match(html, /showPrepared\(stored\.prepared,stored\.candidate,stored\.size,currentPreparationVersion,false\)/, "restoration must rebuild the exact reviewed transaction without moving-price preparation");
-  assert.match(html, /persistTradeSession\(\);[\s\S]*?bankr\.confirmTransaction\(confirmationIntent\.approval\)/, "the exact reviewed approval state must be saved before the Bankr chat handoff");
+  assert.match(html, /await persistTradeSession\(\);[\s\S]*?bankr\.confirmTransaction\(confirmationIntent\.approval\)/, "the exact reviewed approval state must be durably saved before the Bankr chat handoff");
   assert.match(html, /lastHandoffIntentFingerprint=confirmationIntent\.intent_fingerprint;/);
-  assert.match(html, /lastHandoffIntentFingerprint=confirmationIntent\.intent_fingerprint;[\s\S]*?persistTradeSession\(\);/, "the order fingerprint must survive full-chat navigation for reconcile");
+  assert.match(html, /lastHandoffIntentFingerprint=confirmationIntent\.intent_fingerprint;[\s\S]*?await persistTradeSession\(\);/, "the order fingerprint must survive full-chat navigation for reconcile");
   assert.match(html, /restoreTradeSession\(\)/, "the SDK ready handler must attempt wallet-bound trade recovery");
   assert.match(html, /Order review opened in Bankr chat\. Nothing has been submitted by this app\./, "the app must accurately describe the SDK handoff boundary");
   assert.match(html, /Nothing was submitted by this app\. Try opening the \$\{handoffKind\} review again\./, "failed or cancelled handoffs must give accurate recovery guidance");
@@ -179,7 +183,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.25\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.26\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

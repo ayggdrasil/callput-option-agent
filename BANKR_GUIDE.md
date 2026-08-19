@@ -11,7 +11,7 @@ Both integrations build unsigned Base transactions. Callput never receives a pri
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.25/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.26/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 
@@ -40,7 +40,7 @@ Verify with a read-only prompt:
 
 The source package is in `bankr-app/`. Paste `bankr-app/INSTALL_PROMPT.md` into Bankr Terminal, or create the files under `/apps/callput-options/` using Bankr's file editor.
 
-Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and `prepare:transaction`. The app uses viewer identity, so each signed-in visitor prepares a transaction for their own Bankr wallet.
+Required permissions are intentionally minimal: `read:wallet`, `read:appdata`, `write:appdata`, `fetch:http`, and `prepare:transaction`. Private app data stores only the viewer wallet's reviewed intent and fingerprint for up to 30 minutes. The app uses viewer identity, so each signed-in visitor prepares a transaction for their own Bankr wallet.
 
 ## Trade flow
 
@@ -49,7 +49,7 @@ Required permissions are intentionally minimal: `read:wallet`, `fetch:http`, and
 3. Scan ranked, risk-defined spreads.
 4. Select one candidate and enter size.
 5. Review wallet, Base network, strategy, and maximum USDC at risk.
-6. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then return and use `I approved it — refresh allowance`. Do not rescan: the App restores the exact reviewed order for the same wallet for 30 minutes.
+6. If needed, open the bounded USDC approval in Bankr chat, send and approve it there, then return and use `I approved it — refresh allowance`. Do not rescan: the App restores the exact reviewed order for the same wallet for 30 minutes using Bankr's private app storage.
 7. Open the Callput order review in Bankr chat and explicitly send and approve it there.
 8. Return to the app and reconcile the exact prepared intent fingerprint to read its request key and keeper status from Base. The fingerprint also survives full-chat navigation for 30 minutes.
 
