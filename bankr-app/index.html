@@ -93,7 +93,6 @@
   const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;
   const TRADE_SESSION_KEY="callput.bankr.trade.v1";
   const TRADE_SESSION_TTL_MS=30*60*1000;
-  const tradeSessionKey=()=>`record:${TRADE_SESSION_KEY}:${bankr.ctx.walletAddress.toLowerCase()}`;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
@@ -102,27 +101,32 @@
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
+  function reportTradeSessionError(error) { setStatus("tradeStatus",`Bankr could not save this reviewed trade for return navigation: ${error.message || String(error)}. Do not open chat until this is resolved.`,"error"); }
   async function clearTradeSession() {
     if (!signedIn() || !bankr.ctx.walletAddress) return;
-    try { await bankr.appKV.delete(tradeSessionKey()); } catch {}
+    try { await bankr.scripts.run("track",{ action:"delete_trade_session" }); } catch {}
   }
   async function persistTradeSession() {
       if (!signedIn() || !bankr.ctx.walletAddress) return false;
       if (!prepared && !lastHandoffIntentFingerprint) { await clearTradeSession(); return true; }
-      await bankr.appKV.set(tradeSessionKey(),{
+      const session={
         wallet:bankr.ctx.walletAddress.toLowerCase(),
         expiresAt:Date.now()+TRADE_SESSION_TTL_MS,
         candidate:selected,
         size:Number($("size").value),
         prepared,
         lastHandoffIntentFingerprint
-      });
+      };
+      const verifiedResult=await bankr.scripts.run("track",{ action:"save_trade_session", session });
+      const verified=verifiedResult?.session;
+      if (!verified || verified.wallet !== session.wallet || verified.expiresAt !== session.expiresAt) throw new Error("Bankr app storage did not retain the reviewed trade.");
       return true;
   }
   async function restoreTradeSession() {
     try {
       if (!signedIn() || !bankr.ctx.walletAddress) return false;
-      const stored=await bankr.appKV.get(tradeSessionKey());
+      const storedResult=await bankr.scripts.run("track",{ action:"get_trade_session" });
+      const stored=storedResult?.session;
       if (!stored || typeof stored !== "object") return false;
       if (stored.wallet !== bankr.ctx.walletAddress.toLowerCase() || !Number.isFinite(stored.expiresAt) || stored.expiresAt <= Date.now()) { await clearTradeSession(); return false; }
       lastHandoffIntentFingerprint=typeof stored.lastHandoffIntentFingerprint === "string" ? stored.lastHandoffIntentFingerprint : null;
@@ -134,7 +138,11 @@
       showPrepared(stored.prepared,stored.candidate,stored.size,currentPreparationVersion,false);
       setStatus("tradeStatus",stored.prepared.approval ? "Restored the exact reviewed approval and order. After the approval confirms, refresh allowance here without scanning again." : "Restored the exact reviewed Callput order. Review it before reopening Bankr chat.","ok");
       return true;
-    } catch { await clearTradeSession(); return false; }
+    } catch(error) {
+      await clearTradeSession();
+      setStatus("scanStatus",`Bankr could not restore the saved reviewed trade: ${error.message || String(error)}. Scan again before opening a transaction review.`,"error");
+      return false;
+    }
   }
   function candidatePremiumLabel(candidate) {
     const buyEstimate = candidate.estimated_amount_in_per_unit != null ? candidate.estimated_amount_in_per_unit : candidate.spread_cost;
@@ -179,7 +187,7 @@
     ].join("");
     $("confirm").disabled=false;
     $("refreshApproval").classList.toggle("hidden",!prepared.approval);
-    if (persist) persistTradeSession().catch(()=>{});
+    if (persist) persistTradeSession().catch(reportTradeSessionError);
   }
   async function scan() {
     if (!(await requireSignIn())) return;
