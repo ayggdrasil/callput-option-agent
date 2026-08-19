@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { resolveRpcUrl } from "./config.js";
+import { resolveRpcUrl, resolveTrackingRpcUrl } from "./config.js";
 import { formatExpiry, getMarketSnapshot, getOptionChains, normalizeAsset, scanSpreads, validateSpread } from "./core.js";
 
 const EXPIRY = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60;
@@ -211,6 +211,11 @@ async function main() {
   assert.equal(resolveRpcUrl({ RPC_URL: "https://rpc.example" }), "https://rpc.example");
   assert.equal(resolveRpcUrl({ BASE_RPC_URL: "https://base-rpc.example" }), "https://base-rpc.example");
   assert.equal(resolveRpcUrl({}), "https://mainnet.base.org");
+  assert.equal(
+    resolveTrackingRpcUrl({ CALLPUT_TRACKING_RPC_URL: "https://tracking.example", RPC_URL: "https://rpc.example" }),
+    "https://tracking.example"
+  );
+  assert.equal(resolveTrackingRpcUrl({ RPC_URL: "https://rpc.example" }), "https://rpc.example");
   assertFrontendDeployConfig();
 
   assert.equal(normalizeAsset("tsla"), "TSLA");

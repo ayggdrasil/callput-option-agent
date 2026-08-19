@@ -665,14 +665,16 @@ export function calculateSpreadOpenQuote(params: {
   };
 }
 
-function getProvider(options: { unbatchedRpc?: boolean } = {}) {
+type ProviderOptions = { unbatchedRpc?: boolean; rpcUrl?: string };
+
+function getProvider(options: ProviderOptions = {}) {
   const timeoutMs = readIntegerEnv(
     "CALLPUT_RPC_TIMEOUT_MS",
     DEFAULT_RPC_TIMEOUT_MS,
     25,
     HARD_MAX_NETWORK_TIMEOUT_MS
   );
-  const request = new ethers.FetchRequest(CONFIG.RPC_URL);
+  const request = new ethers.FetchRequest(options.rpcUrl ?? CONFIG.RPC_URL);
   request.timeout = timeoutMs;
   return new ethers.JsonRpcProvider(request, CONFIG.CHAIN_ID, {
     staticNetwork: true,
@@ -682,9 +684,10 @@ function getProvider(options: { unbatchedRpc?: boolean } = {}) {
 
 const validatedNetworkCache = new Map<string, Promise<void>>();
 
-async function getValidatedProvider(options: { unbatchedRpc?: boolean } = {}): Promise<ethers.JsonRpcProvider> {
+async function getValidatedProvider(options: ProviderOptions = {}): Promise<ethers.JsonRpcProvider> {
+  const rpcUrl = options.rpcUrl ?? CONFIG.RPC_URL;
   const key = [
-    CONFIG.RPC_URL,
+    rpcUrl,
     process.env.CALLPUT_RPC_TIMEOUT_MS ?? "",
     options.unbatchedRpc ? "unbatched" : "batched"
   ].join(":");
@@ -708,6 +711,10 @@ async function getValidatedProvider(options: { unbatchedRpc?: boolean } = {}): P
   }
   await validation;
   return provider;
+}
+
+async function getValidatedTrackingProvider(): Promise<ethers.JsonRpcProvider> {
+  return getValidatedProvider({ rpcUrl: CONFIG.TRACKING_RPC_URL });
 }
 
 function statusFromRaw(raw: number): "pending" | "cancelled" | "executed" {
@@ -849,7 +856,7 @@ export async function getRequestKeyFromTx(
   txHash: string,
   expectedAccount?: string
 ): Promise<RequestKeyResult | { error: string }> {
-  const provider = await getValidatedProvider();
+  const provider = await getValidatedTrackingProvider();
   if (expectedAccount && !ethers.isAddress(expectedAccount)) return { error: `Invalid address: ${expectedAccount}` };
   const inspected = await inspectRequestTransaction(provider, txHash, expectedAccount);
   return "error" in inspected ? inspected : inspected.result;
@@ -882,7 +889,7 @@ export async function findRequestKeyByIntentFingerprint(params: {
   if (!ethers.isAddress(params.address)) throw new Error(`Invalid address: ${params.address}`);
   if (!/^[0-9a-f]{64}$/.test(params.intentFingerprint)) throw new Error("Invalid intent fingerprint");
   const account = ethers.getAddress(params.address);
-  const provider = await getValidatedProvider();
+  const provider = await getValidatedTrackingProvider();
   const latestBlock = await provider.getBlockNumber();
   const fromBlock = getBoundedIntentReconcileFromBlock(params.fromBlock, latestBlock);
   const pm = new ethers.Contract(CONFIG.CONTRACTS.POSITION_MANAGER, POSITION_MANAGER_ABI, provider);

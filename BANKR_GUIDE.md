@@ -11,7 +11,7 @@ Both integrations build unsigned Base transactions. Callput never receives a pri
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.22/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.23/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 

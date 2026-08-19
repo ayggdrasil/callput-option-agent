@@ -248,6 +248,7 @@ function guarded<T>(promise: Promise<T>, milliseconds: number, message: string):
 test("core public-launch abuse controls", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalRpcUrl = CONFIG.RPC_URL;
+  const originalTrackingRpcUrl = (CONFIG as any).TRACKING_RPC_URL;
   const originalOptionsTokens = Object.fromEntries(
     Object.entries(CONFIG.UNDERLYINGS).map(([asset, config]) => [asset, config.optionsToken])
   );
@@ -263,6 +264,7 @@ test("core public-launch abuse controls", async (t) => {
   const originalEnv = Object.fromEntries(envNames.map((name) => [name, process.env[name]]));
   const rpc = await startRpcServer();
   (CONFIG as any).RPC_URL = rpc.url;
+  (CONFIG as any).TRACKING_RPC_URL = rpc.url;
   for (const config of Object.values(CONFIG.UNDERLYINGS)) {
     (config as any).optionsToken = config.optionsToken.toLowerCase();
   }
@@ -270,6 +272,7 @@ test("core public-launch abuse controls", async (t) => {
   t.after(async () => {
     globalThis.fetch = originalFetch;
     (CONFIG as any).RPC_URL = originalRpcUrl;
+    (CONFIG as any).TRACKING_RPC_URL = originalTrackingRpcUrl;
     for (const [asset, optionsToken] of Object.entries(originalOptionsTokens)) {
       (CONFIG.UNDERLYINGS as any)[asset].optionsToken = optionsToken;
     }
@@ -430,16 +433,32 @@ test("core public-launch abuse controls", async (t) => {
   await t.test("bounds stalled JSON-RPC requests", async () => {
     const hanging = await startHangingServer();
     process.env.CALLPUT_RPC_TIMEOUT_MS = "40";
-    (CONFIG as any).RPC_URL = hanging.url;
+    (CONFIG as any).TRACKING_RPC_URL = hanging.url;
     try {
       await assert.rejects(
         () => guarded(getRequestKeyFromTx(ethers.ZeroHash), 300, "RPC guard elapsed"),
         /timeout/i
       );
     } finally {
-      (CONFIG as any).RPC_URL = rpc.url;
+      (CONFIG as any).TRACKING_RPC_URL = rpc.url;
       hanging.server.closeAllConnections();
       await new Promise<void>((resolve) => hanging.server.close(() => resolve()));
+    }
+  });
+
+  await t.test("uses the tracking RPC for transaction receipt reconciliation", async () => {
+    const txHash = `0x${"9a".repeat(32)}`;
+    const artifact = reconciliationArtifacts({ txHash, key: requestKey("9") });
+    rpc.state.transactions[txHash] = artifact.transaction;
+    rpc.state.receipts[txHash] = artifact.receipt;
+    (CONFIG as any).RPC_URL = "http://127.0.0.1:1";
+    (CONFIG as any).TRACKING_RPC_URL = rpc.url;
+    try {
+      const result = await getRequestKeyFromTx(txHash, ACCOUNT);
+      assert.deepEqual(result, { request_key: requestKey("9"), is_open: true });
+    } finally {
+      (CONFIG as any).RPC_URL = rpc.url;
+      (CONFIG as any).TRACKING_RPC_URL = rpc.url;
     }
   });
 

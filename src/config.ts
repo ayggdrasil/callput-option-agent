@@ -4,6 +4,10 @@ export function resolveRpcUrl(env: NodeJS.ProcessEnv = process.env): string {
   return env.RPC_URL || env.BASE_RPC_URL || "https://mainnet.base.org";
 }
 
+export function resolveTrackingRpcUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env.CALLPUT_TRACKING_RPC_URL || env.TRACKING_RPC_URL || resolveRpcUrl(env);
+}
+
 export async function validateChainId(provider: any): Promise<void> {
   if (_chainValidated) return;
   const network = await provider.getNetwork();
@@ -15,6 +19,7 @@ export async function validateChainId(provider: any): Promise<void> {
 
 export const CONFIG = {
   RPC_URL: resolveRpcUrl(),
+  TRACKING_RPC_URL: resolveTrackingRpcUrl(),
   CHAIN_ID: 8453,
   EXECUTION_FEE_FALLBACK: 60_000_000_000_000n,
   MARKET_DATA_URL: "https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json",
