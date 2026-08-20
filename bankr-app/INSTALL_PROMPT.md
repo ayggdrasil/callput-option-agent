@@ -2,7 +2,7 @@
 
 Paste into a signed-in Bankr Terminal chat:
 
-> Build and install a Bankr App named **Callput — Stock, ETF & Crypto Options** with slug `callput-options`. Use viewer identity. It must use only `read:wallet`, `fetch:http`, and `prepare:transaction`; the App stores no private key, signature, or reviewed trade state, and reconciles a sent order from the transaction hash shown by Bankr. Copy the manifest, `index.html`, and all ten top-level backend scripts exactly from the immutable Callput release directory `bankr-app/`: https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.28/bankr-app . Do not add an agent invocation, secret, schedule, swap, transfer, signature, automatic execution, app-data, or file permission. Run only `assets`, `scan`, and `positions` for owner QA. Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track` during no-value QA. Audit all permissions before publication.
+> Build and install a Bankr App named **Callput — Stock, ETF & Crypto Options** with slug `callput-options`. Use viewer identity. It must use only `read:wallet`, `fetch:http`, and `prepare:transaction`; the App stores no private key, signature, or reviewed trade state. It is a scanner, unsigned transaction builder, position viewer, and Base transaction reconciler. Bankr chat execution is unavailable and every open, close, and settle confirmation control must remain disabled. Copy the manifest, `index.html`, and all ten top-level backend scripts exactly from the immutable Callput release directory `bankr-app/`: https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.29/bankr-app . Do not add an agent invocation, secret, schedule, swap, transfer, signature, automatic execution, app-data, or file permission. Run only `assets`, `scan`, and `positions` for owner QA. Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track` during no-value QA. Audit all permissions before publication.
 
 Then ask:
 
@@ -10,4 +10,4 @@ Then ask:
 
 After owner QA passes:
 
-> Audit the manifest one final time and make `callput-options` public. Confirm the directory listing describes synthetic on-chain crypto, stock, and ETF option spreads and states they are not broker-listed securities or ownership.
+> Audit the manifest one final time and make `callput-options` public. Confirm the directory listing describes a scanner and unsigned transaction builder for synthetic on-chain crypto, stock, and ETF option spreads, states they are not broker-listed securities or ownership, and explicitly states that Bankr chat execution is unavailable.

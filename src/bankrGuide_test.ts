@@ -31,21 +31,26 @@ function main() {
   );
 
   const html = readProjectFile("bankr/index.html");
+  assert.match(html, /Bankr chat execution (?:is currently )?unavailable/i, "the public guide must disclose the verified Bankr simulator limitation");
+  assert.match(html, /scanner and unsigned transaction builder/i, "the public App must be described by its verified capabilities");
+  assert.match(html, /authorized external signer/i, "the supported execution boundary must be explicit");
+  assert.match(html, /Bankr Wallet API\/CLI/i, "the advanced Bankr execution path must be named separately from the public App");
+  assert.doesNotMatch(html, /Defined-risk options, directly inside Bankr\./, "the guide must not imply end-to-end execution inside the public Bankr App");
+  assert.doesNotMatch(html, /approve Base transactions in Bankr chat/i, "metadata must not market the unavailable Bankr chat execution path");
   assert.match(html, /<html lang="en">/);
   assert.match(html, /<title>Callput for Bankr \| 24\/7 Defined-Risk On-Chain Options<\/title>/);
   assert.match(html, /rel="canonical" href="https:\/\/mcp\.callput\.app\/bankr"/);
   assert.match(html, /property="og:image" content="https:\/\/mcp\.callput\.app\/bankr\/og-callput-bankr\.png"/);
   assert.match(html, /href="\/bankr\/styles\.css"/);
   assert.match(html, /src="\/bankr\/app\.js"/);
-  assert.match(html, /Defined-risk options, directly inside Bankr\./);
+  assert.match(html, /Scan and prepare Callput options inside Bankr\./);
   assert.match(html, /Open Callput in Bankr/);
   assert.match(html, /id="new-user-start"/, "the guide must expose a single new-user path before advanced setup");
   assert.match(html, /No API key, MCP installation, or CLI is required for the public App path\./, "new users must not confuse the public App with builder setup");
   assert.match(html, /Bankr EVM wallet address[\s\S]*Base USDC[\s\S]*Base ETH/, "the guide must explain which new-wallet address and network assets to fund");
   assert.match(html, /Start with the default 0\.01 size/, "the guide must provide the same small first-trade size as the public App");
   assert.match(html, /Return to this App and check keeper execution/, "the guide must carry a first-time user through reconciliation");
-  assert.match(html, /Accept Bankr chat terms/i, "the new-user path must include the one-time Bankr chat terms gate");
-  assert.match(html, /If Bankr remains on (?:working|thinking)/i, "the guide must explain first-chat terms recovery");
+  assert.doesNotMatch(html, /Accept Bankr chat terms/i, "the new-user path must not route users into unavailable chat execution");
   const publicBankrAppUrl = "https://bankr.bot/u/0x27d94004169adfb965a6bc1adf1606cb6d82dfb4/apps/callput-options";
   assert.match(html, new RegExp(publicBankrAppUrl), "all users must be sent to the public app surface without owner Scripts controls");
   assert.doesNotMatch(
@@ -70,17 +75,17 @@ function main() {
     "the guide must describe the Bankr host UI without weakening viewer-identity guarantees"
   );
   assert.match(html, /No private keys/);
-  assert.match(html, /Not auto-submitted/);
+  assert.match(html, /Chat execution unavailable/);
   assert.match(html, /Synthetic on-chain/);
-  assert.match(html, /Scan[\s\S]*Review[\s\S]*Approve/);
-  assert.match(html, /Callput App[\s\S]*Bankr Chat[\s\S]*User Wallet/);
+  assert.match(html, /Scan[\s\S]*Review[\s\S]*Execute/);
+  assert.match(html, /Callput App[\s\S]*External Signer[\s\S]*Base \+ Reconcile/);
   for (const phrase of [
     "Close one position",
     "Settle one expired position",
     "Close all open positions",
     "Settle all expired positions"
   ]) assert.match(html, new RegExp(phrase, "i"), `the Bankr guide must document ${phrase}`);
-  assert.match(html, /Each position requires its own Bankr transaction review/i, "the Bankr guide must explain batch confirmation boundaries");
+  assert.match(html, /Each unsigned transaction requires an authorized external signer/i, "the Bankr guide must explain batch execution boundaries");
   for (const symbol of ["BTC", "ETH", "TSLA", "QQQ", "SPY", "EWY", "NVDA", "COIN", "SPCX", "MU", "SKHY"]) {
     assert.match(html, new RegExp(`>${symbol}<`), `the market section must expose ${symbol} as text`);
     assert.match(html, new RegExp(`data-asset="${symbol}"`), `the interactive demo must offer ${symbol}`);
@@ -93,7 +98,7 @@ function main() {
   for (const heading of [
     "Getting started in Bankr",
     "Markets, strategies, and funding",
-    "Review, approval, and execution",
+    "Review and execution boundaries",
     "Safety and product boundaries",
     "Failures and recovery",
     "Bankr agents, MCP, and social surfaces"

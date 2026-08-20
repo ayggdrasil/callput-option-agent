@@ -1,6 +1,6 @@
 ---
 name: callput-lite-trader
-description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; Bankr or another external wallet confirms and broadcasts them. Supports BTC/ETH plus synthetic stock/ETF spreads with full position lifecycle.
+description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; an authorized external wallet signs and broadcasts them. The public Bankr App is scan/prepare/reconcile only because Bankr chat execution is currently unavailable.
 version: 1.2.0
 homepage: https://callput.app
 license: MIT
@@ -14,13 +14,13 @@ mcp:
 
 # Callput Lite Trader
 
-Trade Callput crypto and synthetic stock/ETF spreads autonomously on Base using the MCP. The MCP builds unsigned transactions; Bankr agent handles signing and broadcasting.
+Trade Callput crypto and synthetic stock/ETF spreads on Base using the MCP. The MCP builds unsigned transactions; an authorized external wallet handles signing and broadcasting.
 
 ---
 
 ## Integration Pattern (Bankr)
 
-In the Bankr App, the backend passes validated Callput payloads to `bankr.tx.prepare`; the frontend then calls `bankr.confirmTransaction`. The user always sees Bankr's confirmation UI before Bankr broadcasts. Remote MCP clients connect to `https://mcp.callput.app/api/mcp`.
+The public Bankr App uses `bankr.tx.prepare` to scan and inspect validated Callput payloads, but its chat execution controls are disabled after repeated simulator false negatives. Remote MCP clients connect to `https://mcp.callput.app/api/mcp` and hand the returned unsigned transaction to an authorized external signer. Bankr Wallet API/CLI can be used only as an advanced separately configured signer path with a user-managed write key.
 
 ---
 
@@ -60,7 +60,7 @@ In the Bankr App, the backend passes validated Callput payloads to `bankr.tx.pre
 3. Use `callput_scan_spreads` as the primary market entry point for crypto or stock/ETF symbols.
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
-6. **MCP never holds private keys — Bankr confirmation or the external runtime handles signing.**
+6. **MCP never holds private keys — an authorized external runtime handles signing. Do not describe the public Bankr App chat path as production execution.**
 7. If `usdc_approval.sufficient == false`, verify that approve_tx grants exactly `usdc_approval.required` raw USDC, then send it before the main tx. Reject any larger approval.
 8. **Save every `request_key` from `get_request_key_from_tx`** — required for P&L.
 9. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them.
@@ -166,8 +166,8 @@ callput_portfolio_summary({ address, request_keys: agent_state.request_keys })
 
 ## One-Line Command Examples
 
-- `Scan TSLA bullish spreads and build rank 1 via Bankr.`
+- `Scan TSLA bullish spreads and build rank 1 as an unsigned transaction.`
 - `Check portfolio P&L for address 0x... with saved request_keys.`
 - `Close all positions expiring within 24 hours.`
 - `Settle expired positions and report realized P&L.`
-- `Execute a neutral-bearish NVDA or BTC call spread with Bankr signing.`
+- `Prepare a neutral-bearish NVDA or BTC call spread for an authorized external signer.`

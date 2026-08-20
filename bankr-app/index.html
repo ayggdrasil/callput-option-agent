@@ -32,8 +32,10 @@
 <main>
   <header>
     <div><h1>Callput</h1><p>24/7 risk-defined stock, ETF, and crypto option spreads on Base.</p><p>Synthetic on-chain options only; they are not broker-listed securities or ownership.</p></div>
-    <div class="badge">Base · explicit confirmation</div>
+    <div class="badge">Base · scanner live</div>
   </header>
+
+  <div class="warning"><strong>Bankr chat execution unavailable.</strong> The public App can scan markets, show exact risk, prepare unsigned transaction data, refresh positions, and reconcile a transaction hash. In repeated live tests, Bankr chat rejected valid Callput contract calls during its simulation step. Do not treat this App as a production signing or broadcast path.</div>
 
   <section class="panel">
     <h2>1. Find a spread</h2>
@@ -43,7 +45,7 @@
       <label for="size">Size<input id="size" type="number" value="0.01" min="0.000001" step="any" /></label>
       <button id="scan" class="primary" disabled>Scan</button>
     </div>
-    <button id="signIn" class="primary">Sign in to trade</button>
+    <button id="signIn" class="primary">Sign in to scan</button>
     <div id="scanStatus" class="status" role="status" aria-live="polite" tabindex="-1">Sign in to Bankr, then scan the live market.</div>
     <div id="cards" class="cards"></div>
   </section>
@@ -51,24 +53,23 @@
   <section id="review" class="panel hidden">
     <h2>2. Review the exact risk</h2>
     <div id="risk" class="risk"></div>
-    <div class="warning"><strong>First Bankr chat?</strong> Open Bankr Chat once and accept the Bankr Terms of Service before opening a transaction review. If Bankr stays on “working” or “thinking”, accept the terms, start a new chat, then return here and scan again. After sending an order, copy its transaction hash from Bankr for the keeper check below.</div>
-    <div class="warning">This prepares an on-chain options trade. Bankr opens the transaction details in chat; nothing is signed or submitted until you send and approve them there. A Bankr chat message or credit is required. The wallet also needs enough USDC for the maximum risk and ETH for the network fee. If Bankr blocks the review, nothing is submitted.</div>
+    <div class="warning">This review is an unsigned preparation only. Bankr chat execution is disabled because its simulator can reject a transaction that succeeds against the same Base state. Use Callput MCP with an authorized external signer. Advanced Bankr operators may separately configure the official Bankr Wallet API or Bankr CLI.</div>
     <div class="contract-links" aria-label="Canonical Base contracts"><strong>Verify contracts on Base:</strong><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">Base USDC</a><a href="https://basescan.org/address/0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2" target="_blank" rel="noopener noreferrer">Callput Router</a><a href="https://basescan.org/address/0x83B04701B227B045CBBAF921377137fF595a54af" target="_blank" rel="noopener noreferrer">Callput PositionManager</a></div>
-    <button id="confirm" class="primary">Open Bankr transaction review</button>
+    <button id="confirm" class="primary" disabled>Bankr chat execution unavailable</button>
     <button id="refreshApproval" class="hidden">I approved it — refresh allowance</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 
   <section class="panel">
     <h2>3. Check keeper execution</h2>
-    <label for="txHash">Bankr transaction hash (recommended after returning from chat)<input id="txHash" placeholder="0x… transaction hash from Bankr" autocomplete="off" spellcheck="false" /></label>
-    <button id="reconcile" disabled>Check my Callput request after sending it in Bankr</button>
+    <label for="txHash">Base transaction hash from an authorized external signer, Bankr Wallet API, or Bankr CLI<input id="txHash" placeholder="0x… successful Base transaction hash" autocomplete="off" spellcheck="false" /></label>
+    <button id="reconcile" disabled>Check this Callput request</button>
     <div id="reconcileStatus" class="status" role="status" aria-live="polite" tabindex="-1"></div>
   </section>
 
   <section class="panel">
     <h2>4. Manage positions</h2>
-    <p>Close unexpired positions or settle expired positions. Minimum outputs are positive raw USDC floors that you explicitly approve.</p>
+    <p>View unexpired and expired positions here. Close and settle transaction preparation remains available through Callput MCP, but public Bankr chat execution is disabled.</p>
     <div class="lifecycle-controls">
       <label for="closeMinAmount">Close minimum received (raw USDC)<input id="closeMinAmount" inputmode="numeric" placeholder="required" /></label>
       <label for="swapMinAmount">Swap minimum received (raw USDC)<input id="swapMinAmount" inputmode="numeric" placeholder="required" /></label>
@@ -76,9 +77,9 @@
       <button id="closeAll" disabled>Close all open</button>
       <button id="settleAll" disabled>Settle all expired</button>
     </div>
-    <div class="warning">Close all and settle all are reviewed batches, not one atomic transaction. Each position opens a separate Bankr transaction review and requires your explicit send and approval. Returning to the app does not prove submission.</div>
+    <div class="warning">Close, settle, close-all, and settle-all chat handoffs are unavailable for the same Bankr simulation reason. Use an authorized external signer and reconcile each successful Base transaction separately.</div>
     <div id="positions" class="cards"></div>
-    <button id="reviewNextLifecycle" class="primary hidden">Open next Bankr review</button>
+    <button id="reviewNextLifecycle" class="primary hidden" disabled>Bankr chat execution unavailable</button>
     <div id="positionsStatus" class="status" role="status" aria-live="polite" tabindex="-1">Sign in to Bankr to load positions.</div>
   </section>
 </main>
@@ -88,16 +89,14 @@
   let scannedCandidates = [];
   let prepared = null;
   let preparationVersion = 0;
-  let lastHandoffIntentFingerprint = null;
-  let lifecycleQueue = [];
-  let lifecycleQueueTotal = 0;
   const MAX_ALLOWANCE_REFRESH_ATTEMPTS=4;
+  const BANKR_CHAT_EXECUTION_AVAILABLE=false;
 
   function setStatus(id, text, cls="") { const el=$(id); el.textContent=text; el.className=`status ${cls}`; if (cls === "error") { el.setAttribute("role","alert"); el.setAttribute("aria-live","assertive"); el.focus(); } else { el.setAttribute("role","status"); el.setAttribute("aria-live","polite"); } }
   function signedIn() { return Boolean(bankr.auth.isAuthenticated); }
   function currentWalletAddress() { return String(bankr.ctx.walletAddress || bankr.wallet.evmAddress || bankr.wallet.address || ""); }
   async function requireSignIn() { if (!signedIn()) { await bankr.auth.requireSignIn(); return false; } return true; }
-  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("refreshPositions").disabled=!authenticated; $("closeAll").disabled=!authenticated; $("settleAll").disabled=!authenticated; $("signIn").classList.toggle("hidden",authenticated); setStatus("positionsStatus",authenticated ? "Refresh positions to load this wallet." : "Sign in to Bankr to load positions."); }
+  function syncAuthUi() { const authenticated=signedIn(); $("scan").disabled=!authenticated; $("reconcile").disabled=!authenticated; $("refreshPositions").disabled=!authenticated; $("confirm").disabled=true; $("closeAll").disabled=true; $("settleAll").disabled=true; $("reviewNextLifecycle").disabled=true; $("signIn").classList.toggle("hidden",authenticated); setStatus("positionsStatus",authenticated ? "Refresh positions to load this wallet. Chat execution is unavailable." : "Sign in to Bankr to load positions."); }
   function money(value) { return Number(value).toLocaleString(undefined,{maximumFractionDigits:4}); }
   function weiToEth(value) { return Number(value) / 1e18; }
   function validSize() { return Number.isFinite(Number($("size").value)) && Number($("size").value) > 0; }
@@ -141,8 +140,8 @@
       ...(prepared.approval_preview ? [addressField(prepared.approval_preview.token,prepared.approval_preview.token_address), addressField("Callput Router",prepared.approval_preview.spender), reviewField("Approval amount",`${money(prepared.approval_preview.amount_usdc)} USDC`)] : []),
       reviewField("Intent fingerprint",result.intent_fingerprint)
     ].join("");
-    $("confirm").disabled=false;
-    $("refreshApproval").classList.toggle("hidden",!prepared.approval);
+    $("confirm").disabled=true;
+    $("refreshApproval").classList.add("hidden");
   }
   async function scan() {
     if (!(await requireSignIn())) return;
@@ -174,36 +173,12 @@
       const result=await bankr.scripts.run("prepare", { strategy:candidate.strategy, long_leg_id:candidate.long_leg_id, short_leg_id:candidate.short_leg_id, size });
       if (currentPreparationVersion !== preparationVersion) return;
       showPrepared(result,candidate,size,currentPreparationVersion);
-      setStatus("tradeStatus",prepared.approval ? "Two confirmations required: bounded USDC approval, then the Callput order." : "One Callput order confirmation required.");
+      setStatus("tradeStatus","Unsigned Callput transaction prepared for inspection. Bankr chat execution is unavailable; use an authorized external signer.");
     } catch(error) { if (currentPreparationVersion === preparationVersion) setStatus("tradeStatus",error.message || String(error),"error"); }
   }
 
   async function confirmTrade() {
-    const confirmationIntent=prepared;
-    const confirmationVersion=preparationVersion;
-    if (!confirmationIntent || !(await requireSignIn())) return;
-    if (confirmationVersion !== preparationVersion || confirmationIntent !== prepared) { setStatus("tradeStatus","Trade details changed. Review the newly prepared transaction before confirming.","error"); return; }
-    const handoffKind=confirmationIntent.approval ? "approval" : "order";
-    $("confirm").disabled=true;
-    try {
-      if (confirmationIntent.approval) {
-        setStatus("tradeStatus","Opening the bounded USDC approval in Bankr chat…");
-        await bankr.confirmTransaction(confirmationIntent.approval);
-        setStatus("tradeStatus","Approval review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then return, scan again, and review the freshly priced order.");
-        $("refreshApproval").classList.remove("hidden");
-        $("confirm").disabled=false;
-        return;
-      }
-      setStatus("tradeStatus","Opening the Callput order in Bankr chat…");
-      await bankr.confirmTransaction(confirmationIntent.transaction);
-      lastHandoffIntentFingerprint=confirmationIntent.intent_fingerprint;
-      setStatus("tradeStatus","Order review opened in Bankr chat. Nothing has been submitted by this app. Review and send it there, copy its transaction hash, then use the keeper check below.","ok");
-      $("confirm").disabled=false;
-    } catch(error) {
-      const message=error.message || String(error);
-      setStatus("tradeStatus",`Bankr ${handoffKind} handoff did not complete: ${message}. Nothing was submitted by this app. Try opening the ${handoffKind} review again.`,"error");
-      $("confirm").disabled=false;
-    }
+    setStatus("tradeStatus","Bankr chat execution is unavailable. No transaction was opened or submitted. Use Callput MCP with an authorized external signer.","error");
   }
 
   async function refreshAllowance() {
@@ -225,7 +200,7 @@
         if (currentPreparationVersion !== preparationVersion) return;
         if (BigInt(result.allowance_preview.current_raw) >= BigInt(reviewedIntent.quote.amount_in_raw)) {
           showPrepared({ ...reviewedIntent, approval:null, approval_preview:null },candidate,size,currentPreparationVersion);
-          setStatus("tradeStatus","Allowance confirmed for the exact order you already reviewed. Review that same Callput order before opening it in Bankr chat.","ok");
+          setStatus("tradeStatus","Allowance confirmed for the exact unsigned order you already reviewed. Submit only through an authorized external signer.","ok");
           return;
         }
         if (!result.approval) break;
@@ -235,7 +210,7 @@
       if (prepared.approval) {
         setStatus("tradeStatus","Allowance is still insufficient or the live premium moved above it. A refreshed bounded approval is ready; review that exact amount again.","error");
       } else {
-        setStatus("tradeStatus","Allowance confirmed. Review the refreshed Callput order before opening it in Bankr chat.","ok");
+        setStatus("tradeStatus","Allowance confirmed. Review the refreshed unsigned Callput order before external signing.","ok");
       }
     } catch(error) {
       if (currentPreparationVersion === preparationVersion) setStatus("tradeStatus",`Allowance refresh failed: ${error.message || String(error)}. No order was opened or submitted.`,"error");
@@ -247,15 +222,15 @@
   async function reconcile() {
     if (!(await requireSignIn())) return;
     const txHash=$("txHash").value.trim();
-    if (txHash && !/^0x[0-9a-fA-F]{64}$/.test(txHash)) { setStatus("reconcileStatus","Paste the full 0x-prefixed 32-byte transaction hash shown by Bankr.","error"); return; }
-    if (!txHash && !lastHandoffIntentFingerprint) { setStatus("reconcileStatus","Paste the Bankr transaction hash after returning from chat. In the current page session, the exact reviewed intent can also be checked without a hash.","error"); return; }
-    const reconcileArgs=txHash ? { tx_hash:txHash } : { intent_fingerprint:lastHandoffIntentFingerprint };
-    setStatus("reconcileStatus","Checking the exact Base transaction or reviewed intent…");
+    if (txHash && !/^0x[0-9a-fA-F]{64}$/.test(txHash)) { setStatus("reconcileStatus","Paste the full 0x-prefixed 32-byte Base transaction hash from your authorized external signer.","error"); return; }
+    if (!txHash) { setStatus("reconcileStatus","Paste the successful Base transaction hash from your authorized external signer.","error"); return; }
+    const reconcileArgs={ tx_hash:txHash };
+    setStatus("reconcileStatus","Checking the exact Base transaction…");
     try {
       const result=await bankr.scripts.run("reconcile",reconcileArgs);
       if (result?.error) throw new Error(result.error);
       const checkedAt=new Date().toLocaleTimeString();
-      if (result.status === "not_found") { setStatus("reconcileStatus",`No matching on-chain Callput request was found. Opening the Bankr chat handoff did not prove submission. This does not prove failure. Check Bankr Activity or BaseScan for the reviewed transaction before preparing another order. Last checked ${checkedAt}.`); return; }
+      if (result.status === "not_found") { setStatus("reconcileStatus",`No matching on-chain Callput request was found. Unsigned preparation did not prove submission. This does not prove failure. Check the external signer or BaseScan for the reviewed transaction before preparing another order. Last checked ${checkedAt}.`); return; }
       if (result.status === "pending") { setStatus("reconcileStatus",`Pending · request ${result.request_key}. USDC may already be committed. Do not resubmit this intent. Check again after the keeper processes it. Last checked ${checkedAt}.`); return; }
       if (result.status === "cancelled") { setStatus("reconcileStatus",`Cancelled · request ${result.request_key}. Do not retry until you verify the returned USDC in your wallet or BaseScan before preparing another order. Last checked ${checkedAt}.`); return; }
       if (result.status === "executed") { setStatus("reconcileStatus",`Executed · request ${result.request_key}. Do not resubmit this intent. Last checked ${checkedAt}.`,"ok"); return; }
@@ -264,23 +239,13 @@
     catch(error) { setStatus("reconcileStatus",error.message || String(error),"error"); }
   }
 
-  function positiveRaw(id) { const value=$(id).value.trim(); return /^[1-9]\d*$/.test(value) ? value : null; }
-  function lifecycleArgs(position) {
-    return {
-      underlying_asset:position.underlying,
-      option_token_id:position.token_id,
-      size:Math.abs(Number(position.size)),
-      min_amount_out_raw:positiveRaw("closeMinAmount"),
-      min_out_when_swap_raw:positiveRaw("swapMinAmount")
-    };
-  }
   function renderPositions(result) {
     const root=$("positions"); root.innerHTML="";
     if (!result.positions?.length) { root.innerHTML='<div class="position-card"><strong>No active Callput position tokens found.</strong></div>'; return; }
     result.positions.forEach((position,index)=>{
       const card=document.createElement("article"); card.className="position-card";
       const action=position.lifecycle === "settleable" ? "Settle" : "Close";
-      card.innerHTML=`<div><strong>${escapeHtml(position.underlying)} ${escapeHtml(position.option_type)} spread</strong><div class="metrics"><span>${escapeHtml(position.naked_strike)} / ${escapeHtml(position.pair_strike)}</span><span>${escapeHtml(position.expiry_code)}</span><span>size <strong>${escapeHtml(position.size)}</strong></span><span>${escapeHtml(position.lifecycle)}</span></div></div><div class="position-actions"><button class="primary" data-position-action="${action.toLowerCase()}" data-position-index="${index}">${action} this position</button></div>`;
+      card.innerHTML=`<div><strong>${escapeHtml(position.underlying)} ${escapeHtml(position.option_type)} spread</strong><div class="metrics"><span>${escapeHtml(position.naked_strike)} / ${escapeHtml(position.pair_strike)}</span><span>${escapeHtml(position.expiry_code)}</span><span>size <strong>${escapeHtml(position.size)}</strong></span><span>${escapeHtml(position.lifecycle)}</span></div></div><div class="position-actions"><button class="primary" data-position-action="${action.toLowerCase()}" data-position-index="${index}" disabled>${action} unavailable in Bankr chat</button></div>`;
       root.appendChild(card);
     });
     root.querySelectorAll("[data-position-action]").forEach(button=>button.addEventListener("click",()=>prepareLifecycle(button.dataset.positionAction,result.positions[Number(button.dataset.positionIndex)])));
@@ -293,8 +258,8 @@
       if (result?.error) throw new Error(result.error);
       renderPositions(result);
       const incomplete=Boolean(result.position_data_warning);
-      $("closeAll").disabled=incomplete;
-      $("settleAll").disabled=incomplete;
+      $("closeAll").disabled=true;
+      $("settleAll").disabled=true;
       const closable=result.positions?.filter(position=>position.lifecycle === "closable").length || 0;
       const settleable=result.positions?.filter(position=>position.lifecycle === "settleable").length || 0;
       const warnings=[result.market_data_warning ? "live pricing unavailable" : "",incomplete ? "some assets unavailable; batch actions disabled" : ""].filter(Boolean);
@@ -302,70 +267,13 @@
     } catch(error) { setStatus("positionsStatus",error.message || String(error),"error"); }
   }
   async function prepareLifecycle(action,position) {
-    if (!(await requireSignIn())) return;
-    const args=lifecycleArgs(position);
-    if (!args.min_out_when_swap_raw || (action === "close" && !args.min_amount_out_raw)) { setStatus("positionsStatus","Enter positive raw USDC minimum outputs before preparing this action.","error"); return; }
-    setStatus("positionsStatus",`Preparing ${action} review for ${position.underlying}…`);
-    try {
-      const result=action === "close" ? await bankr.scripts.run("close",args) : await bankr.scripts.run("settle",args);
-      if (result.position_token_approval && !result.position_token_approval.sufficient) {
-        await bankr.confirmTransaction(result.position_token_approval.transaction);
-        setStatus("positionsStatus","Position-token approval review opened in Bankr chat. Nothing has been submitted by this app. Refresh positions and prepare the action again after the approval is confirmed.","ok");
-        return;
-      }
-      await bankr.confirmTransaction(result.transaction);
-      if (action === "close") lastHandoffIntentFingerprint=result.intent_fingerprint;
-      setStatus("positionsStatus",`${action === "close" ? "Close" : "Settlement"} review opened in Bankr chat. Nothing has been submitted by this app. Send and approve it there, then refresh positions.`,"ok");
-    } catch(error) { setStatus("positionsStatus",`${action} handoff failed: ${error.message || String(error)}. Nothing was submitted by this app.`,"error"); }
+    setStatus("positionsStatus","Bankr chat execution is unavailable. Prepare lifecycle transactions through Callput MCP and use an authorized external signer.","error");
   }
   async function prepareLifecycleBatch(action) {
-    if (!(await requireSignIn())) return;
-    const minSwap=positiveRaw("swapMinAmount"); const minClose=positiveRaw("closeMinAmount");
-    if (!minSwap || (action === "close-all" && !minClose)) { setStatus("positionsStatus","Enter positive raw USDC minimum outputs before preparing the batch.","error"); return; }
-    setStatus("positionsStatus",`Building the ${action === "close-all" ? "close" : "settlement"} review queue…`);
-    try {
-      const batchArgs={ min_amount_out_raw:minClose, min_out_when_swap_raw:minSwap };
-      const result=action === "close-all" ? await bankr.scripts.run("close-all",batchArgs) : await bankr.scripts.run("settle-all",batchArgs);
-      if (result?.error) throw new Error(result.error);
-      const expectedAction=action === "close-all" ? "close" : "settle";
-      lifecycleQueue=Array.from(result.transactions || []).map(item=>{
-        if (item.action !== expectedAction) throw new Error(`Unexpected batch action: ${item.action || "missing"}`);
-        const detail=expectedAction === "close" ? item.close : item.settle;
-        if (!detail?.asset || !detail?.option_token_id) throw new Error("Batch item is missing canonical lifecycle details.");
-        return {
-          ...item,
-          script_args:{
-            underlying_asset:detail.asset,
-            option_token_id:detail.option_token_id,
-            size:detail.size,
-            min_amount_out_raw:detail.min_amount_out_raw,
-            min_out_when_swap_raw:detail.min_out_when_swap_raw
-          }
-        };
-      });
-      lifecycleQueueTotal=lifecycleQueue.length;
-      if (!lifecycleQueueTotal) { $("reviewNextLifecycle").classList.add("hidden"); setStatus("positionsStatus",`No ${action === "close-all" ? "unexpired" : "expired"} positions are eligible.`); return; }
-      $("reviewNextLifecycle").classList.remove("hidden");
-      setStatus("positionsStatus",`${lifecycleQueueTotal} reviews prepared. Each position requires a separate click and Bankr approval; no transaction has been submitted.`,"ok");
-    } catch(error) { setStatus("positionsStatus",error.message || String(error),"error"); }
+    setStatus("positionsStatus","Bankr chat execution is unavailable. Prepare batch lifecycle transactions through Callput MCP and use an authorized external signer.","error");
   }
   async function reviewNextLifecycle() {
-    if (!lifecycleQueue.length) { $("reviewNextLifecycle").classList.add("hidden"); return; }
-    const item=lifecycleQueue.shift(); const current=lifecycleQueueTotal-lifecycleQueue.length;
-    try {
-      const staged=await bankr.scripts.run(item.action,item.script_args);
-      if (staged.position_token_approval && !staged.position_token_approval.sufficient) {
-        await bankr.confirmTransaction(staged.position_token_approval.transaction);
-        lifecycleQueue.unshift(item);
-        setStatus("positionsStatus","Position-token approval review opened in Bankr chat. Nothing has been submitted by this app. After approval is confirmed, return and open this review again; approval state will be read fresh.","ok");
-        return;
-      }
-      await bankr.confirmTransaction(staged.transaction);
-      if (staged.action === "close") lastHandoffIntentFingerprint=staged.intent_fingerprint;
-      $("reviewNextLifecycle").textContent=lifecycleQueue.length ? `Open next Bankr review (${current + 1}/${lifecycleQueueTotal})` : "All reviews opened";
-      $("reviewNextLifecycle").classList.toggle("hidden",!lifecycleQueue.length);
-      setStatus("positionsStatus",`Review ${current}/${lifecycleQueueTotal} opened. Nothing has been submitted by this app. Complete it in Bankr chat${lifecycleQueue.length ? ", then return for the next review" : ", then refresh positions"}.`,"ok");
-    } catch(error) { lifecycleQueue.unshift(item); setStatus("positionsStatus",`Review ${current}/${lifecycleQueueTotal} did not open: ${error.message || String(error)}. Nothing was submitted.`,"error"); }
+    setStatus("positionsStatus","Bankr chat execution is unavailable. No lifecycle transaction was opened or submitted.","error");
   }
 
   ["asset","bias","size"].forEach(id=>$(id).addEventListener("change",invalidatePrepared));
