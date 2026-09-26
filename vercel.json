@@ -24,6 +24,10 @@
     {
       "src": "sitemap.xml",
       "use": "@vercel/static"
+    },
+    {
+      "src": "llms.txt",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -45,6 +49,10 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/$1.ts"
+    },
+    {
+      "src": "/llms.txt",
+      "dest": "/llms.txt"
     },
     {
       "src": "/robots.txt",

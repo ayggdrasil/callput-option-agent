@@ -46,7 +46,16 @@ export const CONFIG = {
     OPTIONS_TOKEN_COIN: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641",
     OPTIONS_TOKEN_SPCX: "0xd866425f79603d444b21ba6c6b17e31c00e1692f",
     OPTIONS_TOKEN_MU: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711",
-    OPTIONS_TOKEN_SKHY: "0xe99db918aafac955fdb22a52e37a1a514c4332ef"
+    OPTIONS_TOKEN_SKHY: "0xe99db918aafac955fdb22a52e37a1a514c4332ef",
+    OPTIONS_TOKEN_SNDK: "0xa504da11dd80311a7288f628d45dfb68e61dd1f4",
+    OPTIONS_TOKEN_DRAM: "0xfb5b322f9bac5390a756e9349abbde6922bdbdbe",
+    OPTIONS_TOKEN_META: "0x9895295b7c9106ff638a8eb3abc7699d2d9aae85",
+    OPTIONS_TOKEN_GOOGL: "0x667caebb1504b05d10a337b7623632b41441ee82",
+    OPTIONS_TOKEN_AAPL: "0xeaec004aa3a97b83bf718e053d15a7e6da417e55",
+    OPTIONS_TOKEN_CRCL: "0x45a0d59e1af36f29c429394e10272a582553877d",
+    OPTIONS_TOKEN_AMZN: "0xf89d1500cc8e1fe7c314e12475bc6c6acbf9792e",
+    OPTIONS_TOKEN_MSFT: "0xdcd9bae81ae3f528476c7d6170172c8e98f8e5e1",
+    OPTIONS_TOKEN_PLTR: "0x11e66d4a97ab5709ba1d541d8d01bb5b733d1ec2"
   },
   UNDERLYINGS: {
     BTC: { index: 1, decimals: 8, marketType: "CRYPTO", optionsToken: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444" },
@@ -59,7 +68,16 @@ export const CONFIG = {
     COIN: { index: 8, decimals: 18, marketType: "STOCK", optionsToken: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641" },
     SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: "0xd866425f79603d444b21ba6c6b17e31c00e1692f" },
     MU: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711" },
-    SKHY: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xe99db918aafac955fdb22a52e37a1a514c4332ef" }
+    SKHY: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xe99db918aafac955fdb22a52e37a1a514c4332ef" },
+    SNDK: { index: 12, decimals: 18, marketType: "STOCK", optionsToken: "0xa504da11dd80311a7288f628d45dfb68e61dd1f4" },
+    DRAM: { index: 13, decimals: 18, marketType: "STOCK", optionsToken: "0xfb5b322f9bac5390a756e9349abbde6922bdbdbe" },
+    META: { index: 14, decimals: 18, marketType: "STOCK", optionsToken: "0x9895295b7c9106ff638a8eb3abc7699d2d9aae85" },
+    GOOGL: { index: 15, decimals: 18, marketType: "STOCK", optionsToken: "0x667caebb1504b05d10a337b7623632b41441ee82" },
+    AAPL: { index: 16, decimals: 18, marketType: "STOCK", optionsToken: "0xeaec004aa3a97b83bf718e053d15a7e6da417e55" },
+    CRCL: { index: 17, decimals: 18, marketType: "STOCK", optionsToken: "0x45a0d59e1af36f29c429394e10272a582553877d" },
+    AMZN: { index: 18, decimals: 18, marketType: "STOCK", optionsToken: "0xf89d1500cc8e1fe7c314e12475bc6c6acbf9792e" },
+    MSFT: { index: 19, decimals: 18, marketType: "STOCK", optionsToken: "0xdcd9bae81ae3f528476c7d6170172c8e98f8e5e1" },
+    PLTR: { index: 20, decimals: 18, marketType: "STOCK", optionsToken: "0x11e66d4a97ab5709ba1d541d8d01bb5b733d1ec2" }
   },
   ASSETS: {
     BTC: { index: 1, decimals: 8 },
@@ -73,6 +91,15 @@ export const CONFIG = {
     SPCX: { index: 9, decimals: 18 },
     MU: { index: 10, decimals: 18 },
     SKHY: { index: 11, decimals: 18 },
+    SNDK: { index: 12, decimals: 18 },
+    DRAM: { index: 13, decimals: 18 },
+    META: { index: 14, decimals: 18 },
+    GOOGL: { index: 15, decimals: 18 },
+    AAPL: { index: 16, decimals: 18 },
+    CRCL: { index: 17, decimals: 18 },
+    AMZN: { index: 18, decimals: 18 },
+    MSFT: { index: 19, decimals: 18 },
+    PLTR: { index: 20, decimals: 18 },
     USDC: { decimals: 6 }
   }
 } as const;

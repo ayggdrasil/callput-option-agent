@@ -1,27 +1,7 @@
-const markets = [
-  { symbol: "BTC", type: "crypto", live: true },
-  { symbol: "ETH", type: "crypto", live: true },
-  { symbol: "TSLA", type: "stock", live: true },
-  { symbol: "QQQ", type: "etf", live: true },
-  { symbol: "SPY", type: "etf", live: true },
-  { symbol: "EWY", type: "etf", live: true },
-  { symbol: "NVDA", type: "stock", live: true },
-  { symbol: "COIN", type: "stock", live: true },
-  { symbol: "SPCX", type: "stock", live: true },
-  { symbol: "MU", type: "stock", live: true },
-  { symbol: "SKHY", type: "stock", live: true },
-];
+import { normalizeMarketStatus } from "./market-status.js";
 
-const scanRows = [
-  { rank: 1, symbol: "TSLA", spread: "440/450 Call Debit", expiry: "05JUN26", metric: "IV 40.5" },
-  { rank: 2, symbol: "NVDA", spread: "215/225 Call Debit", expiry: "05JUN26", metric: "IV 38.9" },
-  { rank: 3, symbol: "COIN", spread: "185/195 Put Debit", expiry: "05JUN26", metric: "IV 51.2" },
-  { rank: 4, symbol: "SPCX", spread: "190/200 Call Debit", expiry: "18JUN26", metric: "IV 158.6" },
-  { rank: 5, symbol: "ETH", spread: "2800/3000 Call Debit", expiry: "05JUN26", metric: "IV 66.1" },
-  { rank: 6, symbol: "BTC", spread: "105000/108000 Put Credit", expiry: "05JUN26", metric: "IV 58.4" },
-  { rank: 7, symbol: "QQQ", spread: "ATM Call Debit", expiry: "Live feed", metric: "Ready" },
-  { rank: 8, symbol: "SKHY", spread: "ATM Call Debit", expiry: "Live feed", metric: "Ready" },
-];
+let markets = [];
+let activeSymbol = "TSLA";
 
 const contractItems = [
   {
@@ -103,7 +83,8 @@ const symbolTabs = document.getElementById("symbolTabs");
 const scanTable = document.getElementById("scanTable");
 const contractList = document.getElementById("contractList");
 const liveAvailabilityStatus = document.getElementById("liveAvailabilityStatus");
-const defaultSymbol = "TSLA";
+const liveSymbolCount = document.getElementById("liveSymbolCount");
+const configuredSymbolCount = document.getElementById("configuredSymbolCount");
 const copyButtons = document.querySelectorAll("[data-copy-target]");
 
 for (const button of copyButtons) {
@@ -126,24 +107,34 @@ for (const button of copyButtons) {
   });
 }
 
-for (const market of markets) {
-  const card = document.createElement("article");
-  card.className = `market-card${market.live ? " live" : ""}`;
-  card.dataset.marketSymbol = market.symbol;
-  card.innerHTML = `<strong>${market.symbol}</strong><span data-market-count>${market.live ? "checking live feed" : market.type}</span>`;
-  marketGrid.appendChild(card);
-
-  const tab = document.createElement("button");
-  tab.className = `symbol-tab${market.symbol === defaultSymbol ? " active" : ""}`;
-  tab.type = "button";
-  tab.textContent = market.symbol;
-  tab.dataset.symbol = market.symbol;
-  tab.setAttribute("aria-pressed", String(market.symbol === defaultSymbol));
-  tab.addEventListener("click", () => setActiveSymbol(market.symbol));
-  symbolTabs.appendChild(tab);
+function renderMarkets() {
+  marketGrid.replaceChildren();
+  symbolTabs.replaceChildren();
+  if (!markets.some(market => market.symbol === activeSymbol)) activeSymbol = markets[0]?.symbol ?? "";
+  for (const market of markets) {
+    const card = document.createElement("article");
+    card.className = `market-card${market.count > 0 ? " live" : ""}`;
+    card.dataset.marketSymbol = market.symbol;
+    const symbol = document.createElement("strong");
+    symbol.textContent = market.symbol;
+    const count = document.createElement("span");
+    count.textContent = market.count > 0 ? `${market.count.toLocaleString()} available option rows` : "no available option rows";
+    card.append(symbol, count);
+    marketGrid.appendChild(card);
+    const tab = document.createElement("button");
+    tab.className = `symbol-tab${market.symbol === activeSymbol ? " active" : ""}`;
+    tab.type = "button";
+    tab.textContent = market.symbol;
+    tab.dataset.symbol = market.symbol;
+    tab.setAttribute("aria-pressed", String(market.symbol === activeSymbol));
+    tab.addEventListener("click", () => setActiveSymbol(market.symbol));
+    symbolTabs.appendChild(tab);
+  }
+  renderScanTable(activeSymbol);
 }
 
 function setActiveSymbol(symbol) {
+  activeSymbol = symbol;
   document.querySelectorAll(".symbol-tab").forEach((item) => {
     const isActive = item.dataset.symbol === symbol;
     item.classList.toggle("active", isActive);
@@ -153,72 +144,52 @@ function setActiveSymbol(symbol) {
 }
 
 function renderScanTable(symbol) {
-  const market = markets.find((item) => item.symbol === symbol);
-  const rows = scanRows.filter((row) => row.symbol === symbol);
-
-  scanTable.innerHTML = `
-    <div class="scan-row header">
-      <span>Rank</span><span>Symbol</span><span>Best spread</span><span>Expiry</span><span>Signal</span>
-    </div>
-  `;
-
-  if (rows.length === 0) {
-    const item = document.createElement("div");
-    item.className = "scan-row scan-row-empty";
-    item.innerHTML = `
-      <span>-</span>
-      <span>${symbol}</span>
-      <span>${market?.live ? "Feed supported; scan live candidates" : "Configured alias; confirm live feed before trading"}</span>
-      <span>${market?.type ?? "feed"}</span>
-      <span class="gain">${market?.live ? "Ready" : "Check"}</span>
-    `;
-    scanTable.appendChild(item);
+  scanTable.replaceChildren();
+  const market = markets.find(item => item.symbol === symbol);
+  if (!market) {
+    const message = document.createElement("p");
+    message.textContent = "Current market status is unavailable. Check the live feed before scanning.";
+    scanTable.appendChild(message);
     return;
   }
-
-  rows.forEach((row, index) => {
-    const item = document.createElement("div");
-    item.className = "scan-row";
-    item.innerHTML = `
-      <span>${index + 1}</span>
-      <span>${row.symbol}</span>
-      <span>${row.spread}</span>
-      <span>${row.expiry}</span>
-      <span class="gain">${row.metric}</span>
-    `;
-    scanTable.appendChild(item);
+  const rows = [
+    ["Symbol", "Type", "Reference price", "Option rows", "Status"],
+    [market.symbol, market.type.toUpperCase(), market.spot === null ? "Unavailable" : `$${market.spot.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+      market.count.toLocaleString(), market.count > 0 ? "Available" : "Unavailable"]
+  ];
+  rows.forEach((values, index) => {
+    const row = document.createElement("div");
+    row.className = `scan-row${index === 0 ? " header" : ""}`;
+    for (const value of values) {
+      const cell = document.createElement("span");
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    scanTable.appendChild(row);
   });
 }
 
-renderScanTable(defaultSymbol);
-
 async function refreshLiveAvailability() {
   try {
-    const response = await fetch("/api/bankr/assets", { headers: { accept: "application/json" } });
+    const response = await fetch("/api/bankr/assets", { cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } });
     if (!response.ok) throw new Error(`assets endpoint returned ${response.status}`);
-    const payload = await response.json();
-    if (!Array.isArray(payload.assets)) throw new Error("assets endpoint returned an invalid payload");
-
-    const liveAssets = payload.assets.filter((asset) => Number(asset.tradable_options) > 0);
-    for (const asset of payload.assets) {
-      const market = markets.find((item) => item.symbol === asset.symbol);
-      if (!market) continue;
-      market.live = Number(asset.tradable_options) > 0;
-      const card = marketGrid.querySelector(`[data-market-symbol="${asset.symbol}"]`);
-      if (!card) continue;
-      card.classList.toggle("live", market.live);
-      const count = card.querySelector("[data-market-count]");
-      if (count) count.textContent = market.live ? `${asset.tradable_options} options live` : "no live contracts";
-    }
-
-    const optionCount = liveAssets.reduce((sum, asset) => sum + Number(asset.tradable_options), 0);
-    liveAvailabilityStatus.textContent = `${liveAssets.length} symbols tradable now · ${optionCount.toLocaleString()} live option contracts · Base 8453`;
+    const status = normalizeMarketStatus(await response.json());
+    markets = status.assets;
+    renderMarkets();
+    liveSymbolCount.textContent = String(status.activeCount);
+    configuredSymbolCount.textContent = String(markets.length);
+    liveAvailabilityStatus.textContent = `${status.activeCount} symbols with available options · ${status.optionCount.toLocaleString()} unexpired available option rows · checked ${new Date(status.checkedAt).toLocaleString()} · Base 8453`;
   } catch {
-    liveAvailabilityStatus.textContent = "11 configured symbols shown · live availability could not be refreshed";
+    markets = [];
+    renderMarkets();
+    liveSymbolCount.textContent = "—";
+    configuredSymbolCount.textContent = "—";
+    liveAvailabilityStatus.textContent = "Live availability could not be refreshed. No current availability is confirmed; check the feed or retry later.";
   }
 }
 
 void refreshLiveAvailability();
+window.setInterval(refreshLiveAvailability, 60_000);
 
 for (const item of contractItems) {
   const el = document.createElement("article");

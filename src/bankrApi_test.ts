@@ -169,7 +169,11 @@ let preparedFactory = (input: any) => prepared({
 const deps = {
   getMarketSnapshot: async () => ({
     spot: { BTC: 100, ETH: 10, TSLA: 200, QQQ: 300, SPY: 400, EWY: 50, NVDA: 120, COIN: 90, SPCX: 180, MU: 80, SKHY: 70 },
-    options: [{ underlying: "TSLA", isAvailable: true }]
+    options: [
+      { underlying: "TSLA", isAvailable: true, expirySec: Math.floor(Date.now() / 1000) + 86400 },
+      { underlying: "TSLA", isAvailable: true, expirySec: Math.floor(Date.now() / 1000) - 1 },
+      { underlying: "TSLA", isAvailable: false, expirySec: Math.floor(Date.now() / 1000) + 86400 }
+    ]
   }),
   scanSpreads: async () => ({ asset: "TSLA", strategy: "BuyCallSpread", candidates: [{ rank: 1 }] }),
   executeSpread: async (input: { minFillRatio?: number }) => {
@@ -405,7 +409,12 @@ async function main() {
 
   const assets = await handleBankrApiRequest("assets", new Request("https://mcp.callput.app/api/bankr/assets"), deps);
   assert.equal(assets.status, 200);
-  assert.equal((await assets.json() as any).assets.find((asset: any) => asset.symbol === "TSLA").tradable_options, 1);
+  const assetsPayload = await assets.json() as any;
+  assert.equal(assetsPayload.assets.find((asset: any) => asset.symbol === "TSLA").tradable_options, 1,
+    "expired and unavailable rows must not count as currently available options");
+  assert.ok(Math.abs(Date.now() - Date.parse(assetsPayload.checked_at)) < 5000,
+    "market status must include the time it was checked");
+  assert.ok(assetsPayload.assets.every((asset: any) => asset.symbol in CONFIG.UNDERLYINGS));
 
   const scan = await post("scan", { underlying_asset: "TSLA", bias: "bullish", max_results: 1 });
   assert.equal(scan.status, 200);

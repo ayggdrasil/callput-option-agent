@@ -555,13 +555,17 @@ export async function handleBankrApiRequest(
   try {
     if (action === "assets") {
       const snapshot = await deps.getMarketSnapshot();
+      const checkedAt = new Date();
+      const nowSec = Math.floor(checkedAt.getTime() / 1000);
       const assets = Object.entries(CONFIG.UNDERLYINGS).map(([symbol, config]) => ({
         symbol,
         market_type: config.marketType,
         spot_price: snapshot.spot[symbol as keyof typeof snapshot.spot],
-        tradable_options: snapshot.options.filter((option) => option.underlying === symbol && option.isAvailable).length
+        tradable_options: snapshot.options.filter((option) =>
+          option.underlying === symbol && option.isAvailable && option.expirySec > nowSec
+        ).length
       }));
-      return response(200, { chain_id: CONFIG.CHAIN_ID, chain: "base", assets }, origin);
+      return response(200, { chain_id: CONFIG.CHAIN_ID, chain: "base", checked_at: checkedAt.toISOString(), assets }, origin);
     }
 
     const raw = await readJson(request);

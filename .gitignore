@@ -10,6 +10,7 @@ __pycache__/
 FINAL_QA_REPORT.txt
 *.txt
 !robots.txt
+!llms.txt
 
 # Duplicate tool reference (canonical version is callput/references/TOOL_REFERENCE.md)
 /TOOL_REFERENCE.md

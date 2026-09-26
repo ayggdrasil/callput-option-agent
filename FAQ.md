@@ -35,3 +35,6 @@ Agents can scan, validate, and build unsigned transactions for supported Callput
 
 ## 12. Which spread strategies can be composed?
 The base workflow supports `BuyCallSpread`, `BuyPutSpread`, `SellCallSpread`, and `SellPutSpread`. Agents can compose those spreads into butterfly and iron condor structures while keeping each transaction unsigned until the external signer approves it.
+
+## 13. Are stock and RWA options live, including the latest MCP markets?
+Yes. Synthetic stock and ETF options are live. MCP v0.5.30 adds SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT and PLTR, bringing configured coverage to 20 markets. Check `/api/bankr/assets` and scan fresh option chains before selecting a spread. CRCL now has option chains. These instruments confer no shares, dividends, voting rights or physical asset delivery.

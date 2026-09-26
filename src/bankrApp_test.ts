@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { CONFIG } from "./config.js";
 
 const read = (path: string) => fs.readFileSync(path, "utf8");
 
@@ -14,6 +15,10 @@ function main() {
   assert.ok(manifest.tags.includes("crypto"));
 
   const html = read("bankr-app/index.html");
+  const assetSelect = html.match(/<select id="asset">([\s\S]*?)<\/select>/)?.[1] ?? "";
+  const selectableAssets = [...assetSelect.matchAll(/<option>([^<]+)<\/option>/g)].map(match => match[1]);
+  assert.deepEqual(selectableAssets.sort(), Object.keys(CONFIG.UNDERLYINGS).sort(),
+    "the Bankr App must let a user scan every registered underlying");
   const prepareScript = read("bankr-app/scripts/prepare.ts");
   const trackScript = read("bankr-app/scripts/track.ts");
   assert.match(html, /Bankr chat execution unavailable/i, "the public App must disclose the verified Bankr simulator limitation");
@@ -169,7 +174,7 @@ function main() {
   assert.match(html, /minimum_fill_ratio/);
 
   const installPrompt = read("bankr-app/INSTALL_PROMPT.md");
-  assert.match(installPrompt, /tree\/v0\.5\.29\/bankr-app/);
+  assert.match(installPrompt, /tree\/v0\.5\.30\/bankr-app/);
   assert.match(installPrompt, /Run only `assets`, `scan`, and `positions`/);
   assert.match(installPrompt, /Do not run `prepare`, `close`, `settle`, `close-all`, `settle-all`, or `track`/);
   assert.doesNotMatch(installPrompt, /each read-only script/i);

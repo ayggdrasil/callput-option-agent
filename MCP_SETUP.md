@@ -10,12 +10,12 @@ This server is for external agents that should trade Callput crypto and syntheti
 
 ## Supported underlyings
 
-Crypto: `BTC`, `ETH`. Currently tradable stock/ETF symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `MU`, `SKHY`. All 11 symbols have deployed option-token contracts; live availability is still feed-driven.
+Crypto: `BTC`, `ETH`. Configured synthetic stock/ETF symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `MU`, `SKHY`, `SNDK`, `DRAM`, `META`, `GOOGL`, `AAPL`, `CRCL`, `AMZN`, `MSFT`, `PLTR`. All 20 symbols have deployed option-token contracts; live availability is still feed-driven.
 
 ## Build
 
 ```bash
-git clone https://github.com/ayggdrasil/callput-option-agent.git
+git clone --branch v0.5.30 https://github.com/ayggdrasil/callput-option-agent.git
 cd callput-option-agent
 npm install
 npm run build

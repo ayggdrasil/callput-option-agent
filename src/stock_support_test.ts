@@ -233,19 +233,12 @@ async function main() {
   assert.doesNotMatch(configSource, /SAMSUNG: \{ index:/);
 
   const frontendApp = readProjectFile("frontend-v1/app.js");
-  assert.match(frontendApp, /symbol: "SPCX", type: "stock", live: true/);
-  assert.match(frontendApp, /symbol: "QQQ", type: "etf", live: true/);
-  assert.match(frontendApp, /symbol: "MU", type: "stock", live: true/);
-  assert.match(frontendApp, /symbol: "SKHY", type: "stock", live: true/);
-  assert.doesNotMatch(frontendApp, /symbol: "HYNIX"/);
-  assert.doesNotMatch(frontendApp, /symbol: "SAMSUNG"/);
-  assert.match(frontendApp, /fetch\("\/api\/bankr\/assets"/, "the root console must refresh live tradability from the public assets endpoint");
-  assert.match(frontendApp, /tradable_options/, "the root console must render live tradable option counts");
+  assert.doesNotMatch(frontendApp, /05JUN26|18JUN26|const scanRows/, "market status must not present expired sample spreads");
+  assert.match(frontendApp, /fetch\("\/api\/bankr\/assets"/, "the root console must refresh from the public assets endpoint");
 
   const frontendHtml = readProjectFile("frontend-v1/index.html");
-  assert.match(frontendHtml, /TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY/);
-  assert.match(frontendHtml, /<strong>11<\/strong> <span>currently tradable/);
-  assert.match(frontendHtml, /id="liveAvailabilityStatus"[^>]*role="status"/, "the root console must expose live market availability status");
+  assert.doesNotMatch(frontendHtml, /<strong>11<\/strong> <span>currently tradable/);
+  assert.match(frontendHtml, /id="liveAvailabilityStatus"[^>]*role="status"/);
   for (const heading of [
     "Callput and MCP basics",
     "Installation and agent compatibility",

@@ -13,7 +13,7 @@ The supported production boundary is `Callput MCP → authorized external signer
 
 Paste this stable release URL into Bankr:
 
-`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.29/callput`
+`https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.30/callput`
 
 The public Skill teaches the agent when and how to call the MCP. Installing the Skill does not automatically add the per-wallet MCP server below.
 

@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Callput Lite MCP for External Agents | Setup, GitHub, MCP Server</title>
+    <title>Callput MCP | Live Crypto, Stock &amp; ETF Options for Agents</title>
     <meta
       name="description"
-      content="Canonical setup page for Callput Lite MCP: GitHub repo, MCP server id, package name, supported crypto and synthetic stock option spreads, and unsigned transaction workflow."
+      content="Synthetic stock and ETF options are live on Callput. Connect agents to 20 configured markets on Base, check live availability, and prepare unsigned transactions."
     />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <meta name="author" content="ayggdrasil" />
@@ -80,7 +80,7 @@
             ],
             "applicationCategory": "DeveloperApplication",
             "operatingSystem": "Node.js",
-            "softwareVersion": "0.5.11",
+            "softwareVersion": "0.5.30",
             "codeRepository": "https://github.com/ayggdrasil/callput-option-agent",
             "programmingLanguage": [
               "TypeScript",
@@ -99,7 +99,7 @@
                 "@type": "HowToStep",
                 "position": 1,
                 "name": "Clone the source repository",
-                "text": "Run git clone https://github.com/ayggdrasil/callput-option-agent.git and enter the callput-option-agent directory."
+                "text": "Run git clone --branch v0.5.30 https://github.com/ayggdrasil/callput-option-agent.git and enter the callput-option-agent directory."
               },
               {
                 "@type": "HowToStep",
@@ -218,15 +218,15 @@
                 "name": "Which assets can Callput currently scan?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. Live candidates depend on the current feed, expiry set, direction, and option availability."
+                  "text": "The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. Live candidates depend on the current feed, expiry set, direction, and option availability."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Are Callput stock and ETF options broker-listed securities?",
+                "name": "Are Callput stock and RWA options live?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY products are synthetic on-chain options. They do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights."
+                  "text": "Yes. Synthetic stock and ETF options are live on Callput alongside BTC and ETH options. Individual markets depend on available unexpired option rows in the current feed. These synthetic on-chain options do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights."
                 }
               },
               {
@@ -465,7 +465,7 @@
             </div>
             <h3>Clone the source repo</h3>
             <p>Install dependencies, build the MCP server, and verify stock-option support before connecting a runtime.</p>
-            <pre class="prompt"><code id="installCommands">git clone https://github.com/ayggdrasil/callput-option-agent.git
+            <pre class="prompt"><code id="installCommands">git clone --branch v0.5.30 https://github.com/ayggdrasil/callput-option-agent.git
 cd callput-option-agent
 npm install
 npm run build
@@ -511,7 +511,7 @@ npm run verify:mcp</code></pre>
         </div>
         <div class="link-strip" aria-label="Repository links">
           <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Source repo</a>
-          <a href="https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.11/callput" target="_blank" rel="noreferrer">Install Bankr Skill</a>
+          <a href="https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.30/callput" target="_blank" rel="noreferrer">Install Bankr Skill</a>
           <a href="https://callput.app" target="_blank" rel="noreferrer">Callput.app</a>
         </div>
       </section>
@@ -578,8 +578,8 @@ npm run verify:mcp</code></pre>
             <h3 id="faq-root-markets">Supported markets and strategies</h3><p class="faq-group-lede">Assets, synthetic products, and defined-risk structures.</p>
             <div class="faq-list">
               <details class="faq-item"><summary>Which blockchain does Callput use?</summary><p>Callput transaction preparation targets Base mainnet, chain ID 8453. Wallet funds, token approvals, gas handling, and transaction review must therefore use Base-compatible assets and addresses.</p></details>
-              <details class="faq-item"><summary>Which assets can Callput currently scan?</summary><p>The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY. Live candidates depend on the current feed, expiry set, direction, and option availability.</p></details>
-              <details class="faq-item"><summary>Are Callput stock and ETF options broker-listed securities?</summary><p>No. TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, and SKHY products are synthetic on-chain options. They do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights.</p></details>
+              <details class="faq-item"><summary>Which assets can Callput currently scan?</summary><p>The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. Live candidates depend on the current feed, expiry set, direction, and option availability.</p></details>
+              <details class="faq-item"><summary>Are Callput stock and RWA options live?</summary><p>Yes. Synthetic stock and ETF options are live on Callput alongside BTC and ETH options. Individual markets depend on available unexpired option rows in the current feed. These synthetic on-chain options do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights.</p></details>
               <details class="faq-item"><summary>Which option spread strategies are supported?</summary><p>Agents can scan and prepare BuyCallSpread, BuyPutSpread, SellCallSpread, and SellPutSpread verticals. Those capped-risk legs can also be composed into structures such as butterflies or iron condors when the agent and user manage every leg explicitly.</p></details>
               <details class="faq-item"><summary>Does a configured symbol always have a tradable spread?</summary><p>No. A configured symbol can return no candidates when contracts are unavailable, expired, stale, structurally invalid, or outside the selected constraints. Agents should query the live feed instead of assuming availability from the symbol list.</p></details>
             </div>
@@ -620,12 +620,16 @@ npm run verify:mcp</code></pre>
       <section id="markets" class="panel">
         <div class="panel-head">
           <h2>Supported Markets</h2>
-          <p>Live tradability depends on the Callput feed. The MCP can still normalize configured symbols and aliases.</p>
+          <p>Synthetic stock and ETF options are live on Callput. Availability below is read from the current feed; a listed symbol is not a guarantee that a spread will execute.</p>
         </div>
+        <p><strong>20 configured markets:</strong> BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR.</p>
+        <p><strong>Added to MCP v0.5.30:</strong> SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. Coverage reviewed on September 26, 2026. CRCL now has option chains; it is no longer described as reference-only.</p>
+        <p>These are synthetic onchain options. They do not confer shares, ETF ownership, dividends, voting rights, or physical delivery of the referenced asset. USDC is a quote asset, not an option underlying.</p>
+        <p><a href="https://docs.callput.app/live-scope-and-markets">Product documentation</a> · <a href="/api/bankr/assets">Current MCP market status</a> · <a href="https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json">Canonical market feed</a> · <a href="/llms.txt">AI documentation index</a></p>
         <p id="liveAvailabilityStatus" class="availability-status" role="status" aria-live="polite">Checking current Callput market availability…</p>
-        <div class="scan-card" aria-label="Example market scan">
+        <div class="scan-card" aria-label="Current market availability">
           <div class="scan-head">
-            <span>Example scan result</span>
+            <span>Current market availability</span>
             <strong>Base 8453</strong>
           </div>
           <div class="symbol-tabs" id="symbolTabs"></div>
@@ -633,8 +637,8 @@ npm run verify:mcp</code></pre>
         </div>
         <div class="market-grid" id="marketGrid"></div>
         <div class="market-summary" aria-label="Market support summary">
-          <div><strong>11</strong> <span>currently tradable symbols across crypto, stocks, and ETFs</span></div>
-          <div><strong>11</strong> <span>configured option-token contracts wired in the package registry</span></div>
+          <div><strong id="liveSymbolCount">—</strong> <span>symbols with available unexpired option rows</span></div>
+          <div><strong id="configuredSymbolCount">—</strong> <span>configured markets reported by the MCP server</span></div>
         </div>
       </section>
 
@@ -778,6 +782,6 @@ npm run verify:mcp</code></pre>
       <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">GitHub</a>
     </footer>
 
-    <script src="/frontend-v1/app.js" defer></script>
+    <script src="/frontend-v1/app.js" type="module"></script>
   </body>
 </html>

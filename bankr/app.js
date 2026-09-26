@@ -151,16 +151,16 @@ async function refreshLiveMarkets() {
       const ticker = document.querySelector(`[data-market-symbol="${asset.symbol}"]`);
       if (ticker) {
         ticker.textContent = `${asset.symbol} · ${asset.tradable_options}`;
-        ticker.title = `${asset.tradable_options} tradable option contracts in the current feed`;
+        ticker.title = `${asset.tradable_options} available unexpired option rows in the current feed`;
       }
       const demoButton = document.querySelector(`[data-asset="${asset.symbol}"]`);
-      if (demoButton) demoButton.title = `${asset.tradable_options} tradable option contracts in the current feed`;
+      if (demoButton) demoButton.title = `${asset.tradable_options} available unexpired option rows in the current feed`;
     }
 
     const optionCount = liveAssets.reduce((sum, asset) => sum + Number(asset.tradable_options), 0);
-    liveMarketStatus.textContent = `${liveAssets.length} symbols tradable now · ${optionCount.toLocaleString()} live option contracts · Base 8453`;
+    liveMarketStatus.textContent = `${liveAssets.length} symbols with available options · ${optionCount.toLocaleString()} unexpired available option rows · Base 8453`;
   } catch {
-    liveMarketStatus.textContent = "11 configured symbols shown · live availability could not be refreshed";
+    liveMarketStatus.textContent = "Configured symbols shown · current live availability could not be verified";
   }
 }
 

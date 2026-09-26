@@ -1,0 +1,21 @@
+# Callput MCP
+
+> Synthetic stock and ETF options are live on Callput alongside BTC and ETH options on Base (chain ID 8453). This MCP scans markets and prepares unsigned transactions. It never holds private keys, signs or broadcasts.
+
+## Current scope
+
+MCP v0.5.30 supports 20 configured underlyings: BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, PLTR.
+
+Added to this MCP release: SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT and PLTR. Coverage reviewed September 26, 2026. CRCL now has option chains. USDC is a quote asset, not an option underlying. A configured symbol does not guarantee a tradable spread: always inspect current unexpired available option rows and validate the selected legs.
+
+Synthetic stock/ETF options are not shares, ETFs, tokenized securities, broker-listed option contracts, dividends, voting rights, issuer ownership or physical delivery of real-world assets.
+
+## Sources
+
+- [Setup, market status and FAQs](https://mcp.callput.app/): Canonical public MCP guide.
+- [Live market status](https://mcp.callput.app/api/bankr/assets): Registered symbols, reference prices, unexpired available option-row counts and checked_at. Re-fetch for current availability.
+- [Canonical market feed](https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json): Current expiries, option rows and reference indices; symbol presence alone is not tradability.
+- [Callput Docs](https://docs.callput.app/): Product mechanics and integration documentation.
+- [MCP endpoint](https://mcp.callput.app/api/mcp): Streamable HTTP; begin with tools/list and read-only scans.
+- [Versioned source and agent skill](https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.30): Reproducible release source.
+- [Bankr guide](https://mcp.callput.app/bankr): Viewer/scan/prepare/reconcile support; public Bankr chat execution remains unavailable.

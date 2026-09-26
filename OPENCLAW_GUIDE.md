@@ -18,14 +18,14 @@ Use exactly one GitHub source repo:
 
 ## Supported Underlyings
 
-Crypto: `BTC`, `ETH`. Currently tradable stock/ETF symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `MU`, `SKHY`. Configured option-token contracts cover all 11 symbols; live tradability still depends on the market feed. `HYNIX` and `SK Hynix` inputs normalize to `SKHY` for compatibility. Stock options are synthetic on-chain options, not broker-listed options or tokenized shares.
+Crypto: `BTC`, `ETH`. Configured synthetic stock/ETF symbols: `TSLA`, `QQQ`, `SPY`, `EWY`, `NVDA`, `COIN`, `SPCX`, `MU`, `SKHY`, `SNDK`, `DRAM`, `META`, `GOOGL`, `AAPL`, `CRCL`, `AMZN`, `MSFT`, `PLTR`. Configured option-token contracts cover all 20 symbols; live tradability still depends on the market feed. `HYNIX` and `SK Hynix` inputs normalize to `SKHY` for compatibility. Stock options are synthetic on-chain options, not broker-listed options or tokenized shares.
 
 ---
 
 ## Step 1 — Clone & Build
 
 ```bash
-git clone https://github.com/ayggdrasil/callput-option-agent.git
+git clone --branch v0.5.30 https://github.com/ayggdrasil/callput-option-agent.git
 cd callput-option-agent
 npm install
 npm run build
