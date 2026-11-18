@@ -76,9 +76,9 @@ export function registerAccountTools(server: McpServer, network: string) {
               "action_begin: only wallet_request_may_execute=true permits starting the exact wallet request",
               "wallet approval: existing wallet personal_sign/typed Grant or eth_sendTransaction; separate local device typed order",
               "action_submit: signature, existing transfer hash, or empty result for sponsored creation; preserve same original action",
-              "action_status: prove canonical receipt, request key, keeper executed, position delta; included is not executed",
+              "action_status: track relay admission, canonical receipt and request key; finalized keeper execution/cancellation is separate from inclusion",
               "session_revoke: owner signature remains available alongside an unresolved order",
-              "workflow_recover: finalized expired zero-use proof only, archive tracking RPC required; unknown orders keep budget reserved",
+              "workflow_recover: expires only with finalized zero use; a signed open/close also requires a finalized unused nonce and matching relay lookup. Unknown remains reserved without proof",
             ],
             open_input: { size: "0.0001", min_fill_ratio: 0.78 },
             close_input_fields: [
@@ -235,7 +235,7 @@ export function registerAccountTools(server: McpServer, network: string) {
   );
   register(
     "callput_action_submit",
-    "Submit only the result of the exact prepared action: signature for SIWE/typed data, transaction_hash for owner-sent deposit, or empty result for sponsored creation. Enforces signer/identity/digest and preserves original signed result on retry. Private keys/passwords are forbidden.",
+    "Submit only the result of the exact prepared action: signature for SIWE/typed data, transaction_hash for owner-sent deposit, or empty result for sponsored creation. Enforces signer/identity/digest. If an unacknowledged trade is eligible for retry, reuses only the original UUID, nonce and signed result. Private keys/passwords are forbidden.",
     action
       .extend({
         result: z
@@ -268,7 +268,7 @@ export function registerAccountTools(server: McpServer, network: string) {
   );
   register(
     "callput_action_status",
-    "Observe the durable action and independently reconcile receipt, keeper and position evidence. Included is not executed. Never creates a replacement action.",
+    "Observe the durable action: admission, relay status, nonce/digest/session/deadline, transaction hash, and request key. Included is not executed. Check finalized keeper outcome and position change; a missing relay record is inconclusive. Never submits a replacement.",
     action,
     async (a) => {
       await engine(network).status(a.workflow_id);
@@ -291,7 +291,7 @@ export function registerAccountTools(server: McpServer, network: string) {
   );
   register(
     "callput_workflow_recover",
-    "Recover an expired unused grant only with independent finalized code/ownership/zero-use proof and no saved signed order. Archives proof and preserves the original user cap. Missing historical state or unknown orders keep the budget reserved.",
+    "Release an expired unused grant only with independent finalized code, ownership and zero-use proof. Signed opens/closes additionally require a finalized unused nonce and no known relay admission or transaction, plus a fresh relay lookup. Missing proof preserves the original reservation.",
     base,
     (a) => engine(network).recover(a.workflow_id),
   );

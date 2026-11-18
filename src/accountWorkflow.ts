@@ -21,7 +21,6 @@ import { withNetwork } from "./config.js";
 import {
   scanSpreads,
   getPortfolioSummary,
-  checkRequestStatus,
   parseOptionTokenId,
 } from "./core.js";
 
@@ -37,6 +36,27 @@ const integer = (x: any, max = 2n ** 256n - 1n) => {
   );
   return x as string;
 };
+// /v1/trades accepts client-assigned nonces in the high half; the relay's
+// legacy trade reservation allocator owns [0, 2^128).
+const TRADE_NONCE_MIN = 1n << 128n;
+const UINT256_MAX = (1n << 256n) - 1n;
+const tradeStep = (step: string) => step === "open" || step === "close";
+const isTerminal = (state: string) =>
+  ["confirmed", "executed", "cancelled"].includes(state);
+const canSignTrade = (a: any) =>
+  !tradeStep(a.step) || BigInt(integer(a.envelope?.intent?.nonce)) >= TRADE_NONCE_MIN;
+const relayNotFound = "relay_404_not_found";
+const definitiveTradeRejections = new Set(["relay_400_trade_nonce_range_invalid"]);
+const orderIdentity = (a: any) => a.envelope?.intent && {
+  digest: a.digest,
+  relay_request_id: a.id,
+  grant_request_id: a.tradeGrantId ?? null,
+  session_id: a.envelope.intent.sessionId,
+  nonce: a.envelope.intent.nonce,
+  deadline: a.envelope.intent.deadline,
+  request_key: a.evidence?.request_key ?? null,
+};
+type ExpiringOrder = { nonce: string; deadline: string };
 const exact = (value: any, keys: string[]) =>
   check(
     value &&
@@ -78,7 +98,7 @@ export interface WorkflowPorts {
   requestProof?(state: any, action: any, hash: string): Promise<any>;
   portfolio?(state: any): Promise<any>;
   fill?(state: any, key: string, isOpen: boolean): Promise<any>;
-  expiredProof?(state: any): Promise<any>;
+  expiredProof?(state: any, orders: ExpiringOrder[]): Promise<any>;
   settlementProof?(state: any, action: any, hash: string): Promise<any>;
   positionBalance?(state: any, id: string): Promise<string>;
 }
@@ -112,7 +132,7 @@ export function productionWorkflowPorts(): WorkflowPorts {
     depositTransaction: (s, data) => chain.depositTransaction(s, data),
     nonceUsed: (s, n) => chain.sessionNonce(s, n),
     requestProof: (...args) => chain.requestProof(...args),
-    expiredProof: (s) => chain.expiredProof(s),
+    expiredProof: (...args) => chain.expiredProof(...args),
     settlementProof: (...args) => chain.settlementProof(...args),
     positionBalance: (s, id) => chain.positionBalance(s, id),
     async relay(s, path, body) {
@@ -204,8 +224,7 @@ export function productionWorkflowPorts(): WorkflowPorts {
       }),
     portfolio: (s) =>
       withNetwork(s.network, () => getPortfolioSummary({ address: s.account })),
-    fill: (s, key, isOpen) =>
-      withNetwork(s.network, () => checkRequestStatus(key, isOpen)),
+    fill: (...args) => chain.finalizedFill(...args),
   };
 }
 /** Server owns deterministic sequencing. Wallets own all owner/device keys. */
@@ -265,14 +284,13 @@ export class AccountWorkflow {
       context,
       actions: [] as any[],
       created_at: new Date().toISOString(),
-      next_nonce: "0",
+      next_nonce: TRADE_NONCE_MIN.toString(),
     };
     const token = await this.store.create(s);
     return this.view(s, token);
   }
   private view(s: any, token: string) {
-    const unfinished = (a: any) =>
-        !["confirmed", "executed", "cancelled"].includes(a.state),
+    const unfinished = (a: any) => !isTerminal(a.state),
       m = accountManifest(s.network),
       trade = accountTradeSelection(m.network, s.policy),
       active =
@@ -316,6 +334,11 @@ export class AccountWorkflow {
               : state === "session_ready"
                 ? "open"
                 : undefined;
+    const grantExpired = s.grant &&
+      BigInt(s.context.blockTimestamp) > BigInt(s.grant.validUntil);
+    const signedTrade = s.actions.some((a: any) =>
+      (tradeStep(a.step) || a.step === "settle") && !!a.result &&
+      a.reason !== "finalized_unused_expired");
     const next_actions = active
       ? [
           {
@@ -347,6 +370,8 @@ export class AccountWorkflow {
               arguments: { workflow_id: token, step, input: {} },
             },
           ]
+        : grantExpired && state === "blocked" && !signedTrade
+          ? [{ tool: "callput_workflow_recover", arguments: { workflow_id: token } }]
         : state === "wallet_required"
           ? [
               {
@@ -380,6 +405,11 @@ export class AccountWorkflow {
         : null,
       wallet_approval_url: `${m.origin}/mcp-wallet.html#${token}`,
       next_actions,
+      recovery_evidence: s.history?.at(-1)?.proof ?? null,
+      recovery: grantExpired ? {
+        tool: "callput_workflow_recover",
+        requires: "finalized_expired_zero_use_and_signed_order_reconciliation",
+      } : null,
       blocked_reason:
         active?.reason ??
         (s.grant && state === "blocked"
@@ -394,6 +424,10 @@ export class AccountWorkflow {
         transaction_hash: a.hash,
         evidence: a.evidence,
         reason: a.reason,
+        admission: a.admission ?? null,
+        observation_reason: a.observationReason ?? null,
+        relay_state: a.relayState ?? null,
+        trade: orderIdentity(a) ?? null,
       })),
       wallet_capabilities_required: [
         "personal_sign",
@@ -431,9 +465,16 @@ export class AccountWorkflow {
         s.sessionId,
       );
       for (const active of s.actions.filter(
-        (a: any) => a.state === "submitted" || a.state === "unknown",
-      ))
-        await this.observe(s, active, checkpoint);
+        (a: any) => a.state === "submitted" || a.state === "unknown" ||
+          (tradeStep(a.step) && a.state === "blocked" && a.result),
+      )) {
+        try {
+          await this.observe(s, active, checkpoint);
+        } catch (error) {
+          active.state = "unknown";
+          active.reason = active.observationReason = safeWorkflowError(error);
+        }
+      }
       return this.view(s, token);
     });
   }
@@ -485,6 +526,7 @@ export class AccountWorkflow {
     return this.store.update(token, async (s) => {
       const a = s.actions.find((x: any) => x.id === id);
       check(a, "action_not_found");
+      check(canSignTrade(a), "legacy_trade_nonce_requires_reconciliation");
       const mayExecute = a.state === "prepared";
       check(mayExecute || a.state === "wallet_pending", "action_not_ready");
       if (mayExecute) {
@@ -519,6 +561,7 @@ export class AccountWorkflow {
           a.wallet_request?.params?.[0]?.nonce !== undefined,
         "deposit_nonce_not_fixed",
       );
+      check(canSignTrade(a), "legacy_trade_nonce_requires_reconciliation");
       a.state = "prepared";
       return this.publicAction(s, a, token);
     });
@@ -552,6 +595,7 @@ export class AccountWorkflow {
           step === "login" &&
           existing?.step === "login" &&
           (["blocked", "unknown"].includes(existing.state) ||
+            (!existing.result && existing.expires_at && Date.parse(existing.expires_at) <= Date.now()) ||
             (existing.challenge &&
               !existing.challenge.message.startsWith(accountManifest(s.network).origin + " ")))
         ) {
@@ -817,12 +861,14 @@ export class AccountWorkflow {
               "positive_close_floor_required",
             );
           }
-          const nonce = s.next_nonce;
-          check(
-            !(await this.ports.nonceUsed?.(s, nonce)),
-            "session_nonce_already_used",
-          );
-          s.next_nonce = (BigInt(nonce) + 1n).toString();
+          // Upgrade only the allocator, never an existing envelope. Old counters
+          // were in the relay-reserved range; the chain bitmap scopes this per session.
+          check(s.next_nonce !== null, "session_trade_nonce_exhausted");
+          const next = BigInt(integer(s.next_nonce));
+          const nonce = (next < TRADE_NONCE_MIN ? TRADE_NONCE_MIN : next).toString();
+          check(this.ports.nonceUsed && !(await this.ports.nonceUsed(s, nonce)),
+            "session_nonce_already_used_or_unverified");
+          s.next_nonce = BigInt(nonce) === UINT256_MAX ? null : (BigInt(nonce) + 1n).toString();
           const intent = {
             sessionId: s.sessionId,
             epoch: s.grant.epoch,
@@ -849,6 +895,7 @@ export class AccountWorkflow {
             { ...intent, params },
             s.device,
           );
+          a.tradeGrantId = s.grantId;
           a.envelope = {
             version: 1,
             chainId: String(m.chainId),
@@ -986,12 +1033,20 @@ export class AccountWorkflow {
       check(a && a.state !== "preparing", "action_not_ready");
       if (a.result) {
         check(equal(a.result, result), "signed_result_must_be_preserved");
-        if (["confirmed", "executed"].includes(a.state))
-          return this.publicAction(s, a, token);
+        if (isTerminal(a.state)) return this.publicAction(s, a, token);
         await this.observe(s, a, checkpoint);
         if (a.state !== "unknown") return this.publicAction(s, a, token);
-        check(a.retry404, "submission_outcome_unknown_observe_only");
+        if (tradeStep(a.step)) {
+          if (a.admission?.state === "rejected_before_admission" ||
+              a.admission?.state === "accepted" || a.hash || !canSignTrade(a) ||
+              Date.parse(a.expires_at) <= Date.now())
+            return this.publicAction(s, a, token);
+          check(a.observationReason === relayNotFound, "submission_outcome_unknown_observe_only");
+        } else {
+          check(a.retry404, "submission_outcome_unknown_observe_only");
+        }
       } else {
+        check(canSignTrade(a), "legacy_trade_nonce_requires_reconciliation");
         check(
           a.state === "prepared" || a.state === "wallet_pending",
           "action_not_prepared",
@@ -1028,6 +1083,7 @@ export class AccountWorkflow {
             "creation_has_no_wallet_transaction",
           );
         a.result = result;
+        if (tradeStep(a.step)) a.tradeGrantId ??= s.grantId;
         a.state = "submitted";
         if (result.transaction_hash) a.hash = result.transaction_hash;
         if (a.envelope && result.signature)
@@ -1084,11 +1140,19 @@ export class AccountWorkflow {
               grant: a.grant,
               signature: result.signature,
             });
-          if (a.step === "open" || a.step === "close")
+          if (tradeStep(a.step)) {
+            check(a.envelope.intent.sessionId === s.sessionId &&
+              (!a.tradeGrantId || a.tradeGrantId === s.grantId), "trade_session_changed");
+            check(BigInt(a.envelope.intent.deadline) >= BigInt(s.context.blockTimestamp),
+              "action_expired_budget_reserved");
+            // A crash immediately before/after POST is indistinguishable on restart.
+            a.admission = { state: "outcome_unknown", reason: "awaiting_relay_ack" };
+            await checkpoint();
             response = await this.ports.relay(s, "/v1/trades", {
-              grantRequestId: s.grantId,
+              grantRequestId: a.tradeGrantId ?? s.grantId,
               order: a.envelope,
             });
+          }
           if (a.step === "settle")
             response = await this.ports.relay(s, "/v1/session-settlements", {
               grantRequestId: s.grantId,
@@ -1115,12 +1179,28 @@ export class AccountWorkflow {
             a.step === "settle" || response.id === a.id,
             "relay_request_id_mismatch",
           );
+          check(!response.hash || hash(response.hash), "invalid_relay_transaction_hash");
+          if (tradeStep(a.step)) {
+            check((!response.action || response.action === a.step) &&
+              (!response.digest || response.digest === a.digest), "relay_trade_digest_mismatch");
+            a.admission = { state: "accepted" };
+            a.relayState = response.state;
+            a.state = "submitted";
+            delete a.reason;
+            delete a.observationReason;
+          }
           a.relayId = response.id;
-          a.hash = response.hash ?? null;
+          a.hash = response.hash ?? a.hash ?? null;
         }
       } catch (error) {
         a.state = "unknown";
         a.reason = safeWorkflowError(error);
+        if (tradeStep(a.step) && a.admission?.state === "outcome_unknown") {
+          a.admission = {
+            state: definitiveTradeRejections.has(a.reason) ? "rejected_before_admission" : "outcome_unknown",
+            reason: a.reason,
+          };
+        }
         await checkpoint();
         throw Error(a.reason);
       }
@@ -1171,6 +1251,8 @@ export class AccountWorkflow {
       s.sessionRevoked = true;
       return;
     }
+    if (tradeStep(a.step) && !a.admission && definitiveTradeRejections.has(a.reason))
+      a.admission = { state: "rejected_before_admission", reason: a.reason };
     const id = a.relayId ?? a.id,
       path = ["open", "close", "settle"].includes(a.step)
         ? `/v1/trades/${id}`
@@ -1182,51 +1264,53 @@ export class AccountWorkflow {
       r = await this.ports.relay(s, path);
     } catch (error) {
       a.state = "unknown";
-      a.reason = safeWorkflowError(error);
-      a.retry404 = /^relay_404_/.test(a.reason);
-      return;
+      a.reason = a.observationReason = safeWorkflowError(error);
+      a.retry404 = a.observationReason === relayNotFound;
+      // A status outage cannot discard a transaction hash already observed.
+      if (!tradeStep(a.step) || !a.hash) return;
     }
-    check(
-      r.account === s.account && r.id === id,
-      "relay_status_identity_mismatch",
-    );
-    a.retry404 = false;
-    a.relayId = id;
-    a.hash = r.hash ?? a.hash;
-    if (
-      ["reverted", "transport_cancelled", "blocked", "resolved"].includes(
-        r.state,
-      )
-    ) {
-      a.state = "blocked";
-      a.reason = "relay_" + r.state;
-      return;
+    if (r) {
+      check(r.account === s.account && r.id === id, "relay_status_identity_mismatch");
+      check(!r.hash || hash(r.hash), "invalid_relay_transaction_hash");
+      if (tradeStep(a.step)) {
+        check((!r.action || r.action === a.step) && (!r.digest || r.digest === a.digest),
+          "relay_trade_digest_mismatch");
+        a.admission = { state: "accepted" };
+        a.relayState = r.state;
+      }
+      delete a.observationReason;
+      delete a.reason;
+      a.state = "submitted";
+      a.retry404 = false;
+      a.relayId = id;
+      a.hash = r.hash ?? a.hash;
+      if (["reverted", "transport_cancelled", "blocked", "resolved"].includes(r.state)) {
+        a.state = "blocked";
+        a.reason = "relay_" + r.state;
+        // Transport cancellation/revert conveys no PositionManager outcome.
+        return;
+      }
     }
     if (a.step === "create" && s.context.created) {
       a.state = "confirmed";
       a.evidence = { account: s.account, block_hash: s.context.blockHash };
       return;
     }
-    if ((a.step === "open" || a.step === "close") && a.hash) {
+    if (tradeStep(a.step) && a.hash) {
       const proof = await this.ports.requestProof!(s, a, a.hash);
       if (!proof) return;
       a.evidence = proof;
       await checkpoint();
-      const fill = await this.ports.fill!(
-        s,
-        proof.request_key,
-        a.step === "open",
-      );
+      const fill = await this.ports.fill!(s, proof.request_key, a.step === "open");
+      if (fill.status !== "executed" && fill.status !== "cancelled") return;
+      check(fill.account?.toLowerCase() === s.account &&
+        fill.request_key === proof.request_key, "keeper_request_identity_mismatch");
       if (fill.status === "cancelled") {
-        a.state = "blocked";
+        a.state = "cancelled";
+        a.evidence = { ...proof, keeper: fill };
         a.reason = "keeper_cancelled";
         return;
       }
-      if (fill.status !== "executed") return;
-      check(
-        fill.account?.toLowerCase() === s.account,
-        "keeper_account_mismatch",
-      );
       const after = await this.ports.portfolio!(s);
       if (a.step === "open") {
         check(BigInt(fill.size_out) > 0n, "empty_keeper_fill");
@@ -1264,6 +1348,7 @@ export class AccountWorkflow {
       }
       a.evidence = { ...proof, keeper: fill, position_verified: true };
       a.state = "executed";
+      delete a.reason;
     }
     if (a.step === "settle" && a.hash) {
       const proof = await this.ports.settlementProof!(s, a, a.hash);
@@ -1287,17 +1372,40 @@ export class AccountWorkflow {
   async recover(token: string) {
     return this.store.update(token, async (s, checkpoint) => {
       check(s.grant, "no_reserved_grant");
-      check(
-        !s.actions.some(
-          (a: any) => ["open", "close", "settle"].includes(a.step) && a.result,
-        ),
-        "signed_order_requires_reconciliation",
-      );
-      const proof = await this.ports.expiredProof!(s);
+      const signed = s.actions.filter((a: any) =>
+        (tradeStep(a.step) || a.step === "settle") && a.result &&
+        a.reason !== "finalized_unused_expired");
+      const orders: ExpiringOrder[] = [];
+      for (const a of signed) {
+        const intent = a.envelope?.intent;
+        check(tradeStep(a.step) && intent?.sessionId === s.sessionId &&
+          (!a.tradeGrantId || a.tradeGrantId === s.grantId) &&
+          hash(a.digest) && intent.epoch === s.grant.epoch &&
+          !a.hash && !a.evidence?.request_key && a.admission?.state !== "accepted" &&
+          (!a.relayId || a.relayId === a.id), "signed_order_requires_reconciliation");
+        const deadline = integer(intent.deadline);
+        check(BigInt(deadline) <= BigInt(s.grant.validUntil) &&
+          BigInt(s.context.blockTimestamp) > BigInt(s.grant.validUntil),
+          "signed_order_requires_reconciliation");
+        // Absence is only supporting evidence; the chain proof below is mandatory.
+        let absent = false;
+        try { await this.ports.relay(s, `/v1/trades/${a.id}`); }
+        catch (error) { absent = safeWorkflowError(error) === relayNotFound; }
+        check(absent, "signed_order_requires_reconciliation");
+        orders.push({ nonce: integer(intent.nonce), deadline });
+      }
+      let proof: any;
+      try { proof = await this.ports.expiredProof!(s, orders); }
+      catch (error) {
+        const reason = safeWorkflowError(error);
+        throw Error(reason === "workflow_verification_failed" ? "finalized_recovery_rpc_unavailable" : reason);
+      }
       check(
         proof.kind === "finalized_unused_expired" &&
           proof.session_id === s.sessionId &&
-          proof.grant_id === s.grantId,
+          proof.grant_id === s.grantId &&
+          orders.every(({ nonce }) => proof.order_nonces?.some(
+            (entry: any) => entry.nonce === nonce && entry.used === false)),
         "recovery_proof_mismatch",
       );
       s.history ??= [];
@@ -1308,16 +1416,18 @@ export class AccountWorkflow {
         proof,
       });
       for (const a of s.actions)
-        if (!["confirmed", "executed", "cancelled"].includes(a.state)) {
+        if (["register", "revoke", "open", "close", "settle"].includes(a.step) &&
+            !isTerminal(a.state)) {
           a.state = "cancelled";
           a.reason = "finalized_unused_expired";
+          if (signed.includes(a)) a.evidence = { ...proof, relay_lookup: "not_found" };
         }
       delete s.grant;
       delete s.grantId;
       delete s.sessionId;
       s.sessionInstalled = false;
       s.sessionRevoked = false;
-      s.next_nonce = "0";
+      s.next_nonce = TRADE_NONCE_MIN.toString();
       await checkpoint();
       s.context = await this.ports.resolve(
         s.network,

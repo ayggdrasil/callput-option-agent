@@ -1,15 +1,6 @@
 ---
-
-## Existing Web3 wallet and account workflow — source v0.8.0
-
-The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
-
-The initial account opening strategy is ETH BuyCallSpread (one open/one close, 10-minute Grant). Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
-
-Runbook: [Account workflow](https://mcp.callput.app/account-workflow). Deployment configuration, wallet-origin proxy and recovery boundaries: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
-
 name: callput-lite-trader
-description: Spread-only on-chain options trading skill for Base, Robinhood Chain and GIWA Sepolia testnet. MCP builds unsigned direct-wallet transactions; account-session execution remains in the CallPut app. The public Bankr App is scan/prepare/reconcile only because Bankr chat execution is currently unavailable.
+description: Spread-only on-chain options trading skill for Base, Robinhood Chain and GIWA Sepolia testnet. MCP builds unsigned direct-wallet transactions and coordinates separately signed account-session actions on Robinhood and GIWA. The public Bankr App is scan/prepare/reconcile only because Bankr chat execution is currently unavailable.
 version: 1.2.0
 homepage: https://callput.app
 license: MIT
@@ -23,7 +14,15 @@ mcp:
 
 # Callput Lite Trader
 
-Trade Callput crypto and synthetic stock/ETF spreads through the MCP's direct-wallet route. The MCP prepares unsigned transactions; an authorized external wallet handles signing and broadcasting. CallPut Account session execution remains in the app.
+## Existing Web3 wallet and account workflow — source v0.8.1
+
+The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
+
+ETH BuyCallSpread is the default. Set one configured underlying and one supported spread strategy (one open and one close per 10-minute Grant). Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
+
+Runbook: [Account workflow](https://mcp.callput.app/account-workflow). Deployment configuration, wallet-origin proxy and recovery boundaries: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
+
+Trade Callput crypto and synthetic stock/ETF spreads through the MCP's direct-wallet route. The MCP prepares unsigned transactions; an authorized external wallet handles signing and broadcasting. For Robinhood/GIWA account custody, follow the separate Account workflow above.
 
 ---
 

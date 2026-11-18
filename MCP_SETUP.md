@@ -1,12 +1,12 @@
 # MCP Setup (Callput Lite)
 
-## Existing Web3 wallet and account workflow — source v0.8.0
+## Existing Web3 wallet and account workflow — source v0.8.1
 
 The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 
-The initial account opening strategy is ETH BuyCallSpread (one open/one close, 10-minute Grant). Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
+ETH BuyCallSpread is the default. Set one configured underlying and one supported spread strategy (one open and one close per 10-minute Grant). Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
 
-Runbook: [Account workflow](https://mcp.callput.app/account-workflow). Deployment configuration, wallet-origin proxy and recovery boundaries: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
+Runbook: [Account workflow](https://mcp.callput.app/account-workflow). See the [Robinhood relay recovery runbook](docs/robinhood-relay-recovery.md). Deployment configuration and wallet-origin proxy: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
 
 
 This server is for external agents that should trade Callput crypto and synthetic stock/ETF options with minimal setup.
@@ -31,7 +31,7 @@ Keep the selected network with each quote, wallet, transaction and request key. 
 
 All three CallPut apps offer `email_otp` through Privy and `external_wallet` connections through wagmi. Email OTP connects a Privy embedded EVM owner wallet; external wallets connect directly without Privy wallet login or a connect-time signature. Social login providers are not enabled. Email and Privy user IDs are login identities, not signing addresses. Base trading uses direct wallet custody; GIWA and Robinhood app modes are deposit-only and may use a separate CallPut Account contract for funds and positions.
 
-The connected owner wallet authorizes a separate CallPut Account holding collateral and positions. Use source v0.8.0 account workflow tools for session-relay execution. `execution_route="callput_account"` remains rejected by the original direct-wallet tools; use `callput_workflow_start` instead. For read-only portfolio or position-history calls, pass the actual address that holds the positions.
+The connected owner wallet authorizes a separate CallPut Account holding collateral and positions. Use source v0.8.1 account workflow tools for session-relay execution. `execution_route="callput_account"` remains rejected by the original direct-wallet tools; use `callput_workflow_start` instead. For read-only portfolio or position-history calls, pass the actual address that holds the positions.
 
 The v0.7.0 source accepts `execution_route="direct_wallet"` for writes. Base keeps its direct-wallet default when omitted; GIWA and Robinhood require the explicit route. Prepared transactions remain unsigned and must be reviewed and signed by the connected owner wallet. This source documentation does not mean the hosted MCP endpoint has been upgraded. Public frontend evidence: [Base bundle](https://app.callput.app/assets/index-dc9b0e57.js), [GIWA bundle](https://giwa.callput.app/assets/index-d5646322.js), [Robinhood bundle](https://robin.callput.app/assets/index-74211fbb.js), observed 2026-11-04; no real OTP, signature, or transaction test was performed.
 

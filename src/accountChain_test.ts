@@ -291,3 +291,44 @@ test("sponsored receipt checks the mined block pins and matching account/manager
     /intent_mismatch/,
   );
 });
+
+test("unused signed expiry proof pins the nonce bit to the same finalized block as the zero counters", async () => {
+  const block = { number: 10, hash: "0x" + "a".repeat(64), timestamp: 100 };
+  const sessionId = "0x" + "b".repeat(64);
+  const account = "0x" + "c".repeat(40);
+  const nonceAbi = new Interface(["function sessionNonceUsed(bytes32,uint256) view returns(bool)"]);
+  let bit = false, unavailable = false;
+  class Fake extends AccountChain {
+    override async use<T>(network: string, fn: (p: any) => Promise<T>, historical: boolean) {
+      assert.equal(network, "robinhood");
+      assert.equal(historical, true);
+      return fn({
+        getBlock: async (tag: string | number) => {
+          assert.ok(tag === "finalized" || tag === 10);
+          return block;
+        },
+        send: async (method: string, [tx, tag]: any[]) => {
+          assert.equal(method, "eth_call");
+          assert.equal(tx.to, account);
+          assert.deepEqual(tag, { blockHash: block.hash, requireCanonical: true });
+          assert.deepEqual([...nonceAbi.decodeFunctionData("sessionNonceUsed", tx.data)], [sessionId, 0n]);
+          if (unavailable) throw Error("historical state unavailable");
+          return nonceAbi.encodeFunctionResult("sessionNonceUsed", [bit]);
+        },
+      });
+    }
+    override async resolve(_n: string, _o: string, _i?: string, _a?: string, _s?: string, at?: number): Promise<any> {
+      assert.equal(at, block.number);
+      return { blockHash: block.hash, sessions: [{ sessionId, opens: "0", closes: "0",
+        amountSpent: "0", feesSpent: "0" }] };
+    }
+  }
+  const chain = new Fake();
+  const state = { network: "robinhood", account, owner: account, sessionId, grantId: "g", grant: { validUntil: "99" } };
+  const orders = [{ nonce: "0", deadline: "98" }];
+  assert.deepEqual((await chain.expiredProof(state, orders)).order_nonces, [{ nonce: "0", used: false }]);
+  bit = true;
+  await assert.rejects(chain.expiredProof(state, orders), /signed_order_nonce_used/);
+  unavailable = true;
+  await assert.rejects(chain.expiredProof(state, orders), /historical state unavailable/);
+});

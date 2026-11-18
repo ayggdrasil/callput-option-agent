@@ -1,12 +1,12 @@
 # Callput Lite MCP + Skill
 
-## Existing Web3 wallet and account workflow — source v0.8.0
+## Existing Web3 wallet and account workflow — source v0.8.1
 
 The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 
 Set `underlying_asset` and `strategy` in `callput_workflow_start` before the owner signs the Grant. All configured option markets on Robinhood and GIWA support `BuyCallSpread`, `SellCallSpread`, `BuyPutSpread`, and `SellPutSpread` when quotes are available. Each 10-minute Grant authorizes one selected underlying and strategy, one open, and one close. Omitting the fields selects ETH and BuyCallSpread. Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
 
-Runbook: [Account workflow](https://mcp.callput.app/account-workflow). Deployment configuration, wallet-origin proxy and recovery boundaries: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
+Runbook: [Account workflow](https://mcp.callput.app/account-workflow). See the [Robinhood relay recovery runbook](docs/robinhood-relay-recovery.md). Deployment configuration and wallet-origin proxy: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
 
 
 Minimal documentation package for external agents (OpenClaw, Bankr, others) to trade Callput crypto and synthetic stock/ETF options on Base, Robinhood Chain and GIWA Sepolia.
@@ -31,7 +31,7 @@ Keep the selected network with each quote, wallet, transaction and request key. 
 
 All three CallPut apps currently offer `email_otp` through Privy and `external_wallet` connections through wagmi. Email OTP connects a Privy embedded EVM owner wallet; external wallet rows connect directly, without Privy wallet login or a connect-time signature. Social login providers are not enabled. Email and Privy user IDs are not signing addresses. Base trading uses direct wallet custody. GIWA and Robinhood app modes are deposit-only and can use a separate CallPut Account contract for funds and positions.
 
-The owner wallet authorizes the distinct CallPut Account holding collateral and positions. Source v0.8.0 account workflows prepare and submit owner/device-authorized relay actions. The original unsigned tools still reject execution_route=callput_account; use callput_workflow_start instead. For portfolio/history, use the actual account holding the positions.
+The owner wallet authorizes the distinct CallPut Account holding collateral and positions. Source v0.8.1 account workflows prepare and submit owner/device-authorized relay actions. The original unsigned tools still reject execution_route=callput_account; use callput_workflow_start instead. For portfolio/history, use the actual account holding the positions.
 
 The MCP source accepts `execution_route="direct_wallet"` on write tools. Base may omit it for backward compatibility; GIWA and Robinhood require it explicitly. Direct-wallet preparation returns an unsigned transaction for the connected owner wallet to review and sign. It does not sign or broadcast. Inspect hosted initialization and runtime readiness; a source build does not establish a deployed version.
 
@@ -39,7 +39,7 @@ Observed public app bundles (2026-11-04): [Base](https://app.callput.app/assets/
 
 ## Collateral and compatibility
 
-The separate local sponsored-account adapter in `scripts/sponsored-account-mcp.mjs` adds eight tools for pinned account reads, local owner authentication, a bounded session, sponsored open submission and status. It does not alter the hosted unsigned MCP. `scripts/run-sponsored-trade.command` imports/unlocks a local encrypted keystore and runs the external-client validation through the two MCP connections. The user must enter secrets locally; no private key is accepted as an MCP argument. Current release status and the remaining live-trade verification are documented in `docs/releases/2026-11-05-sponsored-account-local.md`. This historical adapter was not proven by a live authenticated trade; the supported v0.8.0 installation path is the new account workflow above.
+The legacy local sponsored-account adapter in `scripts/sponsored-account-mcp.mjs` is pinned to the pre-consolidation deployment and is not the production Robinhood path. It includes historical tools for account reads, owner authentication and sponsored opens. It does not alter the hosted unsigned MCP. `scripts/run-sponsored-trade.command` imports/unlocks a local encrypted keystore and runs the external-client validation through the two MCP connections. The user must enter secrets locally; no private key is accepted as an MCP argument. Current release status and the remaining live-trade verification are documented in `docs/releases/2026-11-05-sponsored-account-local.md`. This historical adapter was not proven by a live authenticated trade; the supported v0.8.0 installation path is the new account workflow above.
 
 Call `callput_get_network_info` first. Its `collateral` object identifies the selected token's symbol, address, decimals and testnet status. Successful tool responses and the read-only asset API include the same metadata.
 
@@ -65,7 +65,7 @@ Use the GitHub repo URL for `git clone`. Use the MCP server id only inside `mcpS
 - **What is Callput Lite MCP?** A Model Context Protocol server and external-agent skill package for scanning Callput option spreads and building unsigned transaction payloads on Base, Robinhood Chain and GIWA Sepolia testnet.
 - **Which GitHub should agents use?** Clone `https://github.com/ayggdrasil/callput-option-agent.git`; do not treat the MCP server id or package name as separate GitHub repositories.
 - **Which MCP server should agents configure?** Use `callput-lite-agent-mcp` in the external runtime `mcpServers` config.
-- **Does this MCP sign trades?** No. It returns `unsigned_tx` payloads only. Private keys, signing, broadcasting, and wallet policy stay in the external agent runtime or signer. Non-Base write preparation requires `execution_route="direct_wallet"` in the v0.7.0 source.
+- **Does this MCP sign trades?** The wallet or device signer owns keys and signs. Direct-wallet tools return `unsigned_tx`; account workflow tools submit the exact externally signed action to the relay and track the result. Non-Base write preparation requires `execution_route="direct_wallet"` in the v0.7.0 source.
 - **Can it support stock options?** Yes, for Callput synthetic stock/ETF option feed symbols when live contracts are available. These are on-chain synthetic options, not broker-listed equity options or tokenized stock ownership.
 - **Which strategies are described?** Buy/sell call spreads, buy/sell put spreads, and composed butterfly or iron condor structures using the same spread workflow.
 
@@ -111,7 +111,7 @@ This package is designed for:
 - Live tradability is determined by the market feed. If a symbol has no available contracts, `callput_scan_spreads` returns no candidates.
 - Stock options are synthetic on-chain options. They are not broker-listed options, shares, ETFs, or tokenized stock ownership.
 
-## MCP Tool Set (13 tools)
+## Market and direct-wallet tools (13 of 25 on account networks)
 - `callput_get_network_info` — Bound network, contracts, symbols and environment
 - `callput_scan_spreads` — Market scan with ranked spread candidates
 - `callput_execute_spread` — Build unsigned spread transaction
@@ -191,8 +191,9 @@ V1 note:
 - Market analysis template is deferred to V2.
 
 ## Execution Model
-- MCP preview/build mode: tools return unsigned transactions only. Nothing is signed or broadcast by the MCP server.
-- Live execution: the external agent runtime signs and broadcasts `unsigned_tx` using its own wallet, HSM, Bankr signer, Ledger, or equivalent signer.
+- Direct-wallet: tools return unsigned transactions for the external runtime to broadcast.
+- CallPut Account: separate owner/device signatures authorize the action, and the sponsored relay submits it. Use account action status to reconcile acceptance and finalized results.
+- Signing is performed by the wallet or external signer, which retains its private keys.
 - If `usdc_approval.sufficient == false`, the agent signs and broadcasts `usdc_approval.approve_tx` before the main transaction. The approval is bounded to the exact `required` raw collateral-token units amount for that prepared order; agents must reject any larger approval.
 
 ## Mandatory Trading Rules

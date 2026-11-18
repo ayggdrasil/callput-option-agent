@@ -16,6 +16,7 @@ import {
   resolveRpcUrl,
   resolveTrackingRpcUrl,
   getNetworkConfig,
+  POSITION_MANAGER_ABI,
 } from "./config.js";
 const abi = new Interface([
   "function INITCODE_HASH() view returns(bytes32)",
@@ -39,6 +40,7 @@ const abi = new Interface([
   "event SessionRequest(bytes32 indexed sessionId,uint256 indexed nonce,bytes32 indexed digest,bytes32 requestKey,bool isOpen,uint256 executionFee)",
   "event GenerateRequestKey(address indexed account,bytes32 indexed key,bool indexed isOpen)",
 ]);
+const positionManagerAbi = new Interface(POSITION_MANAGER_ABI);
 const ensure = (ok: unknown, code: string) => {
   if (!ok) throw Error(code);
 };
@@ -402,7 +404,7 @@ export class AccountChain {
         .toString() as string;
     });
   }
-  async expiredProof(state: any) {
+  async expiredProof(state: any, orders: { nonce: string; deadline: string }[] = []) {
     return this.use(
       state.network,
       async (p) => {
@@ -431,6 +433,20 @@ export class AccountChain {
             ),
           "session_used_budget_remains_reserved",
         );
+        const tag = { blockHash: block!.hash, requireCanonical: true };
+        const order_nonces = [];
+        for (const { nonce, deadline } of orders) {
+          ensure(BigInt(block!.timestamp) > BigInt(deadline), "order_not_finalized_expired");
+          const raw = await p.send("eth_call", [{
+            to: state.account,
+            data: abi.encodeFunctionData("sessionNonceUsed", [state.sessionId, nonce]),
+          }, tag]);
+          const [used] = abi.decodeFunctionResult("sessionNonceUsed", raw);
+          ensure(used === false, "signed_order_nonce_used");
+          order_nonces.push({ nonce, used: false });
+        }
+        ensure((await p.getBlock(block!.number))?.hash === block!.hash,
+          "canonical_block_changed");
         return {
           kind: "finalized_unused_expired",
           block_hash: block!.hash,
@@ -439,10 +455,34 @@ export class AccountChain {
           grant_id: state.grantId,
           valid_until: state.grant.validUntil,
           counters: selected,
+          order_nonces,
         };
       },
       true,
     );
+  }
+  async finalizedFill(state: any, requestKey: string, isOpen: boolean) {
+    return this.use(state.network, async (p) => {
+      const block = await p.getBlock("finalized");
+      ensure(block?.hash, "finalized_keeper_state_unavailable");
+      const method = isOpen ? "openPositionRequests" : "closePositionRequests";
+      const result = positionManagerAbi.decodeFunctionResult(method, await p.send("eth_call", [
+        {
+          to: accountManifest(state.network).positionManager,
+          data: positionManagerAbi.encodeFunctionData(method, [requestKey]),
+        },
+        { blockHash: block!.hash, requireCanonical: true },
+      ]));
+      const account = result.account.toLowerCase();
+      const status = account === "0x" + "0".repeat(40) ? "not_found"
+        : result.status === 2n ? "executed" : result.status === 1n ? "cancelled" : "pending";
+      return {
+        request_key: requestKey, account, status,
+        block_number: block!.number, block_hash: block!.hash,
+        ...(isOpen ? { size_out: result.sizeOut.toString() } : { amount_out: result.amountOut.toString() }),
+        execution_price: result.executionPrice.toString(),
+      };
+    }, true);
   }
   async settlementProof(state: any, action: any, hash: string) {
     return this.use(

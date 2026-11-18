@@ -10,6 +10,8 @@ const fields=s=>s.split(',').map(v=>{const[type,name]=v.split(' ');return {name,
 const grantTypes={Grant:fields('address signer,uint256 nonce,uint256 epoch,uint48 validAfter,uint48 validUntil,uint16[] underlyings,uint16 strategies,uint256 maxAmountPerOpen,uint256 maxAmount,uint32 maxOpens,uint32 maxCloses,uint256 maxFeePerTrade,uint256 maxFees')};
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 const uint=v=>{check(typeof v==='string'&&/^(0|[1-9][0-9]{0,77})$/.test(v),'Invalid unsigned integer');return BigInt(v);};
+// One open per legacy grant. Use the relay's client-assigned nonce range.
+const directTradeNonce=(1n<<128n).toString();
 const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 
 export class SponsoredRelay {
@@ -29,7 +31,7 @@ export class SponsoredRelay {
       check((!this.#device||grant.signer===this.#device.address.toLowerCase())&&grant.maxAmount==='100000'&&grant.maxAmountPerOpen==='100000'&&grant.maxOpens==='1'&&grant.maxCloses==='0'&&grant.strategies==='32'&&eq(grant.underlyings,['2'])&&uint(grant.validUntil)>uint(grant.validAfter)&&uint(grant.validUntil)-uint(grant.validAfter)<=600n,'Invalid recovered grant');
       check(verifyTypedData(this.domain,grantTypes,grant,ownerSignature).toLowerCase()===address,'Recovered owner signature mismatch');
       this.#grant={id,grant,ownerSignature,sessionId:TypedDataEncoder.hashStruct('Grant',grantTypes,grant)};
-      if(order){this.validateOpen(order.envelope.params);check(order.envelope.account===account&&order.envelope.chainId===this.identity.chainId&&eq(order.envelope.grant,grant)&&order.envelope.intent.nonce==='0'&&order.envelope.intent.sessionId===this.#grant.sessionId&&verifyTypedData(this.domain,openTypes,{...order.envelope.intent,params:order.envelope.params},order.envelope.signature).toLowerCase()===grant.signer,'Recovered order mismatch');this.#order=order;}
+      if(order){this.validateOpen(order.envelope.params);check(order.envelope.account===account&&order.envelope.chainId===this.identity.chainId&&eq(order.envelope.grant,grant)&&['0',directTradeNonce].includes(order.envelope.intent.nonce)&&order.envelope.intent.sessionId===this.#grant.sessionId&&verifyTypedData(this.domain,openTypes,{...order.envelope.intent,params:order.envelope.params},order.envelope.signature).toLowerCase()===grant.signer,'Recovered order mismatch');this.#order=order;}
     }
   }
   info(){return {...this.identity,network:this.network,sponsored:true,max_user_collateral_raw:'100000',signer_available:!!this.#ownerSigner,session:this.#grant?{id:this.#grant.id,sessionId:this.#grant.sessionId,grant:this.#grant.grant}:null};}
@@ -152,11 +154,12 @@ export class SponsoredRelay {
       await this.verifyContext(c);
       const state=c.sessions?.find(v=>v.sessionId===this.#grant.sessionId);
       check(c.epoch===this.#grant.grant.epoch&&state?.installed&&!state.revoked&&uint(state.opens)===0n,'Session not installed or already consumed');
-      const intent={sessionId:this.#grant.sessionId,epoch:this.#grant.grant.epoch,nonce:'0',deadline:((uint(c.blockTimestamp)+120n)<uint(this.#grant.grant.validUntil)?(uint(c.blockTimestamp)+120n):uint(this.#grant.grant.validUntil)).toString(),source:'0'};
+      const intent={sessionId:this.#grant.sessionId,epoch:this.#grant.grant.epoch,nonce:directTradeNonce,deadline:((uint(c.blockTimestamp)+120n)<uint(this.#grant.grant.validUntil)?(uint(c.blockTimestamp)+120n):uint(this.#grant.grant.validUntil)).toString(),source:'0'};
       check(BigInt(intent.deadline)>=uint(c.blockTimestamp)+30n&&BigInt(intent.deadline)>=BigInt(Math.floor(Date.now()/1000))+30n,'Session expiring');
       const reservation=randomUUID(),signature=await this.#device.signTypedData(this.domain,openTypes,{...intent,params});
       this.#order={fingerprint,envelope:{version:1,chainId:this.identity.chainId,account:this.identity.account,reservation,action:'open',grant:this.#grant.grant,intent,params,signature}};
     }
+    check(this.#order.envelope.intent.nonce===directTradeNonce,'Legacy signed order requires status reconciliation');
     await this.saveSession();
     const result=await this.request('/v1/trades',{grantRequestId:this.#grant.id,order:this.#order.envelope});
     check(result.id===this.#order.envelope.reservation&&result.account===this.identity.account,'Order submission identity mismatch');

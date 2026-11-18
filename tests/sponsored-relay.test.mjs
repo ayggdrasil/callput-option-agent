@@ -49,6 +49,7 @@ test('sponsored adapter pins identity, authenticates privately, bounds grant and
   assert.equal(savedOrderAttempts,2,'retry must persist before submitting');
   await adapter.open(params);await adapter.open(params);
   const sent=requests.filter(r=>new URL(r.url).pathname==='/v1/trades').map(r=>JSON.parse(r.init.body));
+  assert.equal(sent[0].order.intent.nonce,(1n<<128n).toString());
   assert.equal(sent.length,3);assert.deepEqual(sent[0],sent[1]);assert.deepEqual(sent[1],sent[2]);
   assert.equal(verifyTypedData(adapter.domain,adapter.openTypes,{...sent[0].order.intent,params},sent[0].order.signature).toLowerCase(),grant.grant.signer.toLowerCase());
   await assert.rejects(adapter.open({...params,amountIn:'3001'}),/different|already/);
@@ -56,6 +57,15 @@ test('sponsored adapter pins identity, authenticates privately, bounds grant and
   assert.ok(!JSON.stringify(recovered.info()).includes(saved.at(-1).devicePrivateKey));
   await recovered.open(params);
   assert.deepEqual(JSON.parse(requests.at(-1).init.body),sent[0]);
+  const legacy=structuredClone(saved.at(-1));
+  legacy.order.envelope.intent.nonce='0';
+  legacy.order.envelope.signature=await new Wallet(legacy.devicePrivateKey).signTypedData(
+    adapter.domain,adapter.openTypes,{...legacy.order.envelope.intent,params});
+  const legacyAdapter=new SponsoredRelay({network:'robinhood',owner:owner.address,
+    fetchImpl,verifyContext:async()=>{},resumeSession:legacy});
+  const before=requests.length;
+  await assert.rejects(legacyAdapter.open(params),/Legacy signed order requires status reconciliation/);
+  assert.equal(requests.length,before);
   assert.throws(()=>new SponsoredRelay({network:'evil',owner:owner.address}),/network/);
 });
 

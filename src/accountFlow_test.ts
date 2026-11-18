@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { flowFixture } from "./accountFlowFixtures.js";
-import { productionWorkflowPorts } from "./accountWorkflow.js";
+import { AccountWorkflow, productionWorkflowPorts } from "./accountWorkflow.js";
 for (const [strategy, mask, isBuy, isCall, asset, assetIndex, minSize] of [
   ["BuyCallSpread", "32", true, true, "ETH", "2", "78000000000000"],
   ["SellCallSpread", "64", false, true, "TSLA", "3", "78000000000000"],
@@ -314,4 +314,156 @@ test("other unresolved grants block a replacement before reserving or signing an
   } finally {
     await f.cleanup();
   }
+});
+
+async function installedFlow(t: {after(fn: () => Promise<void>): void}) {
+  const f = await flowFixture();
+  t.after(f.cleanup);
+  const grant = await f.engine.prepare(f.token, "register", {});
+  await f.engine.submit(f.token, grant.action_id, await f.sign(grant));
+  await f.engine.status(f.token);
+  return f;
+}
+
+test("legacy counter upgrades to the direct relay range without signing nonce zero", async (t) => {
+  const f = await installedFlow(t);
+  await f.store.update(f.token, async (s) => { s.next_nonce = "0"; });
+  const open = await f.engine.prepare(f.token, "open", {});
+  const nonce = JSON.parse(open.wallet_request.params[1]).message.nonce;
+  assert.equal(nonce, (1n << 128n).toString());
+  assert.equal((await f.store.read(f.token)).next_nonce, (1n + (1n << 128n)).toString());
+  await f.engine.submit(f.token, open.action_id, await f.sign(open));
+  assert.equal((await f.engine.status(f.token)).actions.at(-1).state, "executed");
+});
+
+test("uint256 maximum is signed exactly once and exhaustion creates no wallet request", async (t) => {
+  const f = await installedFlow(t);
+  const max = (1n << 256n) - 1n;
+  await f.store.update(f.token, async (s) => { s.next_nonce = max.toString(); });
+  const open = await f.engine.prepare(f.token, "open", {});
+  assert.equal(JSON.parse(open.wallet_request.params[1]).message.nonce, max.toString());
+  await f.engine.submit(f.token, open.action_id, await f.sign(open));
+  await f.engine.status(f.token);
+  await assert.rejects(f.engine.prepare(f.token, "close", {
+    option_token_id: "291", size_raw: "1", min_amount_out_raw: "1",
+  }), /session_trade_nonce_exhausted/);
+});
+
+test("definite 400 survives a later 404 and is never retransmitted", async (t) => {
+  const f = await installedFlow(t);
+  const original = f.ports.relay;
+  let posts = 0;
+  f.ports.relay = async (s, p, b) => {
+    if (p === "/v1/trades") {
+      posts++;
+      throw Error("relay_400_trade_nonce_range_invalid");
+    }
+    return original(s, p, b);
+  };
+  const open = await f.engine.prepare(f.token, "open", {});
+  const signed = await f.sign(open);
+  await assert.rejects(f.engine.submit(f.token, open.action_id, signed), /trade_nonce_range_invalid/);
+  const restarted = new AccountWorkflow(f.store, f.ports);
+  const row = (await restarted.status(f.token)).actions.at(-1);
+  assert.equal(row.state, "unknown");
+  assert.equal(row.admission.state, "rejected_before_admission");
+  assert.equal(row.admission.reason, "relay_400_trade_nonce_range_invalid");
+  assert.equal(row.observation_reason, "relay_404_not_found");
+  assert.equal(row.trade.relay_request_id, open.action_id);
+  assert.equal(row.trade.nonce, (1n << 128n).toString());
+  await restarted.submit(f.token, open.action_id, signed);
+  assert.equal(posts, 1);
+  await assert.rejects(restarted.recover(f.token), /signed_order_requires_reconciliation/);
+});
+
+test("lost POST before admission retries only the saved identity after a relay miss", async (t) => {
+  const f = await installedFlow(t);
+  const original = f.ports.relay;
+  const bodies: unknown[] = [];
+  f.ports.relay = async (s, p, b) => {
+    if (p === "/v1/trades") {
+      bodies.push(structuredClone(b));
+      if (bodies.length === 1) throw Error("relay_outcome_unknown");
+    }
+    return original(s, p, b);
+  };
+  const a = await f.engine.prepare(f.token, "open", {});
+  const signed = await f.sign(a);
+  await assert.rejects(f.engine.submit(f.token, a.action_id, signed), /relay_outcome_unknown/);
+  const restarted = new AccountWorkflow(f.store, f.ports);
+  const result = await restarted.submit(f.token, a.action_id, signed);
+  assert.deepEqual(bodies, [bodies[0], bodies[0]]);
+  assert.equal(result.actions.at(-1).admission.state, "accepted");
+  const done = (await restarted.status(f.token)).actions.at(-1);
+  assert.equal(done.state, "executed");
+  assert.equal(done.evidence.request_key, "0x" + "c".repeat(64));
+});
+
+test("expired unused stock grant is recoverable with evidence and retains its policy", async (t) => {
+  const f = await flowFixture("BuyCallSpread", "TSLA");
+  t.after(f.cleanup);
+  const g = await f.engine.prepare(f.token, "register", {});
+  await f.engine.submit(f.token, g.action_id, await f.sign(g));
+  await f.engine.status(f.token);
+  await f.store.update(f.token, async (s) => { s.grant.validUntil = "1"; });
+  const before = await f.engine.status(f.token);
+  assert.equal(before.state, "blocked");
+  assert.equal(before.next_actions[0].tool, "callput_workflow_recover");
+  const after = await f.engine.recover(f.token);
+  assert.equal(after.state, "session_required");
+  assert.deepEqual(before.policy, after.policy);
+  assert.equal(Reflect.get(after, "recovery_evidence")?.kind, "finalized_unused_expired");
+  const fresh = await f.engine.prepare(f.token, "register", {});
+  assert.notEqual(fresh.action_id, g.action_id);
+  assert.equal(JSON.parse(fresh.wallet_request.params[1]).message.maxAmount, "100000");
+});
+
+test("legacy signed order requires finalized unused nonce and an independent relay read", async (t) => {
+  const f = await installedFlow(t);
+  const original = f.ports.relay;
+  f.ports.relay = async (s, p, b) => {
+    if (p === "/v1/trades") throw Error("relay_outcome_unknown");
+    return original(s, p, b);
+  };
+  const open = await f.engine.prepare(f.token, "open", {});
+  await assert.rejects(f.engine.submit(f.token, open.action_id, await f.sign(open)), /unknown/);
+  await f.store.update(f.token, async (s) => {
+    const a = s.actions.at(-1);
+    delete a.admission;
+    s.grant.validUntil = "2";
+    a.envelope.intent.deadline = "1";
+  });
+  f.ports.expiredProof = async (s, orders?: {nonce: string}[]) => ({
+    kind: "finalized_unused_expired", session_id: s.sessionId, grant_id: s.grantId,
+    order_nonces: (orders ?? []).map((o) => ({ nonce: o.nonce, used: false })),
+  });
+  f.flags.unavailableStatus = true;
+  await assert.rejects(f.engine.recover(f.token), /signed_order_requires_reconciliation/);
+  f.flags.unavailableStatus = false;
+  const recovered = await f.engine.recover(f.token);
+  const row = recovered.actions.at(-1);
+  assert.equal(row.state, "cancelled");
+  assert.equal(row.reason, "finalized_unused_expired");
+  assert.equal(row.evidence.relay_lookup, "not_found");
+  assert.equal(recovered.state, "session_required");
+});
+
+test("transaction and request key survive restart and relay outage until finalized cancellation", async (t) => {
+  const f = await installedFlow(t);
+  const open = await f.engine.prepare(f.token, "open", {});
+  await f.engine.submit(f.token, open.action_id, await f.sign(open));
+  f.flags.unavailableStatus = true;
+  f.ports.fill = async () => ({ status: "pending" });
+  const restarted = new AccountWorkflow(f.store, f.ports);
+  const pending = (await restarted.status(f.token)).actions.at(-1);
+  assert.equal(pending.state, "unknown");
+  assert.equal(pending.admission.state, "accepted");
+  assert.equal(pending.trade.request_key, "0x" + "c".repeat(64));
+  f.ports.fill = async (_s, request_key) => ({ status: "cancelled", account: f.account,
+    request_key, block_hash: "0x" + "a".repeat(64) });
+  const terminal = (await restarted.status(f.token)).actions.at(-1);
+  assert.equal(terminal.state, "cancelled");
+  assert.equal(terminal.reason, "keeper_cancelled");
+  assert.equal(terminal.evidence.request_key, pending.trade.request_key);
+  assert.equal(f.requests.filter((r) => r.path === "/v1/trades").length, 1);
 });

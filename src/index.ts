@@ -100,7 +100,7 @@ server.registerTool(
   "callput_execute_spread",
   {
     description:
-      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. CallPut Account session execution is unsupported; never substitute the login owner or account address. Build an unsigned spread transaction for crypto or supported stock/ETF options. Enforces the configured per-trade risk cap (100 selected-network collateral units by default) and validates all prepared calldata before returning it. Collateral is USDG on Robinhood Chain and USDC on Base or GIWA testnet; read collateral metadata first. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. The legacy usdc_approval key refers to that collateral token: if sufficient=false, sign and send the bounded approve_tx first. Legacy amount_in_usdc and estimated_open_fee_usdc values are also denominated in the selected collateral token. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
+      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. Use the separate CallPut Account workflow tools for sponsored account actions on Robinhood/GIWA. Never substitute the login owner or account address on this direct-wallet route. Build an unsigned spread transaction for crypto or supported stock/ETF options. Enforces the configured per-trade risk cap (100 selected-network collateral units by default) and validates all prepared calldata before returning it. Collateral is USDG on Robinhood Chain and USDC on Base or GIWA testnet; read collateral metadata first. Returns unsigned_tx (to/data/value/chain_id) for the agent to sign and broadcast. The legacy usdc_approval key refers to that collateral token: if sufficient=false, sign and send the bounded approve_tx first. Legacy amount_in_usdc and estimated_open_fee_usdc values are also denominated in the selected collateral token. After broadcast, call callput_get_request_key_from_tx with the tx hash.",
     inputSchema: bankrExecuteSpreadMcpInputSchema.extend({ execution_route: executionRouteSchema })
   },
   async (args) => withNetwork(network, async () => {
@@ -193,7 +193,7 @@ server.registerTool(
   "callput_close_position",
   {
     description:
-      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. CallPut Account session execution is unsupported; never substitute the login owner or account address. Build an unsigned close-position transaction for a wallet-owned, unexpired position. Requires explicit positive raw-unit minimum output floors; derive them from the user's approved slippage tolerance. Returns unsigned_tx for external confirmation.",
+      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. Use the separate CallPut Account workflow tools for sponsored account actions on Robinhood/GIWA. Never substitute the login owner or account address on this direct-wallet route. Build an unsigned close-position transaction for a wallet-owned, unexpired position. Requires explicit positive raw-unit minimum output floors; derive them from the user's approved slippage tolerance. Returns unsigned_tx for external confirmation.",
     inputSchema: z.object({
       execution_route: executionRouteSchema,
       underlying_asset: z.string(),
@@ -227,7 +227,7 @@ server.registerTool(
   "callput_settle_position",
   {
     description:
-      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. CallPut Account session execution is unsupported; never substitute the login owner or account address. Build an unsigned settle transaction for a wallet-owned expired position. Requires an explicit positive raw-unit minimum swap output floor approved by the user.",
+      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. Use the separate CallPut Account workflow tools for sponsored account actions on Robinhood/GIWA. Never substitute the login owner or account address on this direct-wallet route. Build an unsigned settle transaction for a wallet-owned expired position. Requires an explicit positive raw-unit minimum swap output floor approved by the user.",
     inputSchema: z.object({
       execution_route: executionRouteSchema,
       underlying_asset: z.string(),
@@ -257,7 +257,7 @@ server.registerTool(
   "callput_close_all_positions",
   {
     description:
-      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. CallPut Account session execution is unsupported; never substitute the login owner or account address. Discover every wallet-owned unexpired Callput position and build one unsigned full-close transaction per position. The positive raw minimum floors apply to each transaction, not the aggregate. Every transaction requires a separate external wallet review; nothing is signed or broadcast by MCP.",
+      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. Use the separate CallPut Account workflow tools for sponsored account actions on Robinhood/GIWA. Never substitute the login owner or account address on this direct-wallet route. Discover every wallet-owned unexpired Callput position and build one unsigned full-close transaction per position. The positive raw minimum floors apply to each transaction, not the aggregate. Every transaction requires a separate external wallet review; nothing is signed or broadcast by MCP.",
     inputSchema: z.object({
       execution_route: executionRouteSchema,
       from_address: z.string(),
@@ -285,7 +285,7 @@ server.registerTool(
   "callput_settle_all_positions",
   {
     description:
-      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. CallPut Account session execution is unsupported; never substitute the login owner or account address. Discover every wallet-owned expired Callput position and build one unsigned settlement transaction per position. The positive raw swap floor applies to each transaction. Every transaction requires a separate external wallet review; nothing is signed or broadcast by MCP.",
+      "Direct-wallet route only: on GIWA/Robinhood explicitly set execution_route=direct_wallet and use a separately funded signer that owns the positions. Use the separate CallPut Account workflow tools for sponsored account actions on Robinhood/GIWA. Never substitute the login owner or account address on this direct-wallet route. Discover every wallet-owned expired Callput position and build one unsigned settlement transaction per position. The positive raw swap floor applies to each transaction. Every transaction requires a separate external wallet review; nothing is signed or broadcast by MCP.",
     inputSchema: z.object({
       execution_route: executionRouteSchema,
       from_address: z.string(),

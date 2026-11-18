@@ -1,6 +1,6 @@
 # FAQ (Frontend V1)
 
-## Existing Web3 wallet and account workflow — source v0.8.0
+## Existing Web3 wallet and account workflow — source v0.8.1
 
 The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 
@@ -37,7 +37,7 @@ Use request-status polling, then review open positions and run close/settle oper
 Use `https://github.com/ayggdrasil/callput-option-agent.git`. The MCP server id is `callput-lite-agent-mcp`, and the package name is `callput-lite-mcp-skill`; those are identifiers inside the same repository, not separate GitHub repositories.
 
 ## 10. Does the MCP sign or broadcast trades?
-No. The MCP returns unsigned transaction payloads only. Private keys, signing, broadcasting, and wallet policy remain in the external agent runtime or signer.
+The MCP holds no signing keys. Direct-wallet tools return unsigned transactions for the wallet to broadcast. The Account workflow submits externally authorized actions through the sponsored relay on Robinhood or GIWA.
 
 ## 11. Can agents trade stock options through this package?
 Agents can scan, validate, and build unsigned transactions for supported Callput synthetic stock/ETF option feed symbols when live contracts are available. These are on-chain synthetic options, not broker-listed equity options or tokenized stock ownership.

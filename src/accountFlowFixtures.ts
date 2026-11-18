@@ -178,7 +178,8 @@ export async function flowFixture(strategy?: SpreadStrategy, underlying?: "ETH" 
       account,
       is_open: a.step === "open",
     }),
-    fill: async () => ({
+    fill: async (_s, key) => ({
+      request_key: key,
       status: "executed",
       account,
       size_out: "100000000000000",
