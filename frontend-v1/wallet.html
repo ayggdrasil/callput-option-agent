@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://mcp.callput.app; img-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>CallPut wallet approval</title>
+    <link rel="stylesheet" href="/mcp-wallet-assets/wallet.css" />
+    <script defer src="/mcp-wallet-assets/vendor/ethers.umd.min.js"></script>
+    <script defer src="/mcp-wallet-assets/wallet.js"></script>
+  </head>
+  <body>
+    <main>
+      <a href="/account">CallPut</a>
+      <h1>Review with your wallet</h1>
+      <p>
+        Keep your existing wallet. Approve each deposit and trading permission
+        here. Your agent follows the result.
+      </p>
+      <p id="status" role="status" aria-live="polite">Loading your request…</p>
+      <dl id="identity"></dl>
+      <label for="provider">Wallet</label
+      ><select id="provider"></select
+      ><button id="connect" type="button">Connect existing wallet</button>
+      <section id="review" hidden>
+        <h2 id="action-title">Review request</h2>
+        <p id="summary"></p>
+        <details>
+          <summary>See exact request</summary>
+          <pre id="details"></pre>
+        </details>
+        <button id="approve" type="button">Approve this request</button
+        ><button id="retry" type="button" hidden>
+          Recover or review the same request
+        </button>
+      </section>
+      <section id="recovery" hidden>
+        <h2>Recover an existing result</h2>
+        <p>
+          Do not send another deposit. If your wallet already sent it, enter its
+          transaction hash.
+        </p>
+        <label for="hash">Transaction hash</label
+        ><input id="hash" autocomplete="off" spellcheck="false" /><button
+          id="recover"
+          type="button"
+        >
+          Check existing transfer
+        </button>
+      </section>
+      <p>
+        Your owner key stays in your wallet. A separate trading key is encrypted
+        in this browser and receives only the permission you approve. Keep this
+        browser's storage until the session is revoked or expires.
+      </p>
+    </main>
+  </body>
+</html>

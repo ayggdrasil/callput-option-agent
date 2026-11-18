@@ -1,21 +1,57 @@
 # Callput MCP
 
-> Synthetic stock and ETF options are live on Callput alongside BTC and ETH options on Base (chain ID 8453). This MCP scans markets and prepares unsigned transactions. It never holds private keys, signs or broadcasts.
+## Existing Web3 wallet and account workflow — source v0.8.0
+
+The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
+
+The initial account opening strategy is ETH BuyCallSpread (one open/one close, 10-minute Grant). Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
+
+Runbook: [Account workflow](https://mcp.callput.app/account-workflow). Deployment configuration, wallet-origin proxy and recovery boundaries: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
+
+
+> Callput MCP scans configured synthetic stock, ETF, BTC, and ETH option markets on Base, Robinhood Chain, and GIWA, then prepares network-bound unsigned transactions. It never holds owner/device private keys. Existing-wallet account workflows forward explicitly signed results to the selected protocol relay.
 
 ## Current scope
 
-MCP v0.5.30 supports 20 configured underlyings: BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, PLTR.
+The hosted MCP release is v0.6.1 and exposes 13 tools. The current source adds a v0.7.0 wallet-context contract; it is not evidence that the hosted endpoint has been upgraded. The source documents the same network profiles:
 
-Added to this MCP release: SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT and PLTR. Coverage reviewed September 26, 2026. CRCL now has option chains. USDC is a quote asset, not an option underlying. A configured symbol does not guarantee a tradable spread: always inspect current unexpired available option rows and validate the selected legs.
+- Base mainnet, chain ID 8453: `https://mcp.callput.app/api/mcp` or local `CALLPUT_NETWORK=base`.
+- Robinhood Chain mainnet, chain ID 4663: `https://mcp.callput.app/api/mcp?network=robinhood` or local `CALLPUT_NETWORK=robinhood`.
+- GIWA Sepolia testnet, chain ID 91342: `https://mcp.callput.app/api/mcp?network=giwa` or local `CALLPUT_NETWORK=giwa`.
+
+Base and Robinhood Chain have 20 configured underlyings: BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, PLTR. GIWA has 13 configured underlyings: BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM. Collateral and settlement use USDC on Base, USDG (Global Dollar) on Robinhood Chain, and test USDC on GIWA Sepolia; all three collateral tokens use 6 decimals. These collateral tokens are not option underlyings.
+
+A configured symbol does not guarantee a tradable spread. Always inspect current unexpired available option rows and validate the selected network and legs. The server fails closed on stale market data; quotes and new trade preparation remain paused until fresh data returns.
 
 Synthetic stock/ETF options are not shares, ETFs, tokenized securities, broker-listed option contracts, dividends, voting rights, issuer ownership or physical delivery of real-world assets.
+
+## Collateral and compatibility
+
+Call `callput_get_network_info` first. Its `collateral` object identifies the selected token's symbol, address, decimals and testnet status. Successful tool responses and the read-only asset API include the same metadata.
+
+| Network | Collateral | Token address | Decimals |
+| --- | --- | --- | --- |
+| Base | USDC | `0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913` | 6 |
+| Robinhood Chain | USDG (Global Dollar) | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` | 6 |
+| GIWA Sepolia testnet | Test USDC | `0x79AD98fA252D64A9095f83cc6FaF4243E0d01d48` | 6 |
+
+Legacy names such as `contracts.usdc`, `usdc_approval`, `usdc_balance`, `amount_in_usdc`, `estimated_open_fee_usdc` and `BANKR_MAX_USDC_RISK_PER_TRADE` remain for compatibility. On Robinhood they represent USDG collateral amounts and approval, not a separate USDC token. Never infer a token symbol from these keys. Native gas and execution fees use ETH. Account trading native fees are sponsored; direct deposit gas is owner-paid and separately bounded. Bankr REST trading and the public Bankr app remain Base-only.
+
+## Wallet identity and execution routes (source v0.7.0)
+
+All three CallPut apps offer `email_otp` via Privy (connecting an embedded EVM owner wallet) or `external_wallet` via wagmi. Email and Privy user IDs are not signing addresses. Social login is disabled. Base trading uses direct wallet custody; GIWA/Robinhood are deposit-only app modes and may use a separate CallPut Account contract for funds and positions. MCP does not support CallPut Account session-relay execution.
+
+The five MCP write tools accept `execution_route` values `direct_wallet` or `callput_account`. Only `direct_wallet` is supported: Base may omit the route for backward-compatible direct mode; Robinhood and GIWA require explicit `direct_wallet`. `callput_account` is rejected. For read-only position APIs, pass the actual position-holding address. This MCP returns unsigned transactions only. Bankr REST behavior is unchanged and remains Base-only.
+
+Observed public app bundles (2026-11-04): [Base](https://app.callput.app/assets/index-dc9b0e57.js), [GIWA](https://giwa.callput.app/assets/index-d5646322.js), [Robinhood](https://robin.callput.app/assets/index-74211fbb.js). See [Privy email OTP docs](https://docs.privy.io/authentication/user-authentication/login-methods/email), [GIWA network docs](https://docs.giwa.io/giwa-chain/en/get-started/connect-to-giwa), and [Robinhood wallet docs](https://docs.robinhood.com/chain/add-network-to-wallet/). No OTP login, wallet signature, or transaction was tested; hosted MCP v0.7.0 is not confirmed.
 
 ## Sources
 
 - [Setup, market status and FAQs](https://mcp.callput.app/): Canonical public MCP guide.
-- [Live market status](https://mcp.callput.app/api/bankr/assets): Registered symbols, reference prices, unexpired available option-row counts and checked_at. Re-fetch for current availability.
-- [Canonical market feed](https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json): Current expiries, option rows and reference indices; symbol presence alone is not tradability.
+- [Base market status](https://mcp.callput.app/api/bankr/assets): Base profile, registered symbols, reference prices, unexpired available option-row counts and checked_at.
+- [Robinhood market status](https://mcp.callput.app/api/bankr/assets?network=robinhood): Robinhood Chain profile and current feed status.
+- [GIWA market status](https://mcp.callput.app/api/bankr/assets?network=giwa): GIWA Sepolia testnet profile and current feed status.
 - [Callput Docs](https://docs.callput.app/): Product mechanics and integration documentation.
-- [MCP endpoint](https://mcp.callput.app/api/mcp): Streamable HTTP; begin with tools/list and read-only scans.
-- [Versioned source and agent skill](https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.30): Reproducible release source.
+- [MCP endpoint](https://mcp.callput.app/api/mcp): Streamable HTTP; select the network query first, then begin with `callput_get_network_info`, `tools/list`, and read-only scans.
+- [Source and agent skill](https://github.com/ayggdrasil/callput-option-agent): Canonical repository; use the current checkout unless a verified release tag is available.
 - [Bankr guide](https://mcp.callput.app/bankr): Viewer/scan/prepare/reconcile support; public Bankr chat execution remains unavailable.

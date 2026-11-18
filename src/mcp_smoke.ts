@@ -12,6 +12,10 @@ async function main() {
 
     // Verify the complete position lifecycle toolset is registered
     const expectedTools = [
+      "callput_get_network_info",
+      "callput_wallet_connect", "callput_account_resolve", "callput_workflow_start", "callput_workflow_status",
+      "callput_action_prepare", "callput_action_begin", "callput_action_retry_wallet", "callput_action_submit", "callput_action_status",
+      "callput_session_status", "callput_session_revoke", "callput_workflow_recover",
       "callput_scan_spreads",
       "callput_execute_spread",
       "callput_get_request_key_from_tx",

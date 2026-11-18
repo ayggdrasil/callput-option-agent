@@ -1,0 +1,9 @@
+.git
+node_modules
+build
+.superpowers
+marketing
+.worktrees
+.env
+.env.*
+.account-workflows

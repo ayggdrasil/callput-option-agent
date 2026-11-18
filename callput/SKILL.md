@@ -1,6 +1,15 @@
 ---
+
+## Existing Web3 wallet and account workflow — source v0.8.0
+
+The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
+
+The initial account opening strategy is ETH BuyCallSpread (one open/one close, 10-minute Grant). Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
+
+Runbook: [Account workflow](https://mcp.callput.app/account-workflow). Deployment configuration, wallet-origin proxy and recovery boundaries: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
+
 name: callput-lite-trader
-description: Spread-only on-chain options trading skill for Base. MCP builds unsigned transactions; an authorized external wallet signs and broadcasts them. The public Bankr App is scan/prepare/reconcile only because Bankr chat execution is currently unavailable.
+description: Spread-only on-chain options trading skill for Base, Robinhood Chain and GIWA Sepolia testnet. MCP builds unsigned direct-wallet transactions; account-session execution remains in the CallPut app. The public Bankr App is scan/prepare/reconcile only because Bankr chat execution is currently unavailable.
 version: 1.2.0
 homepage: https://callput.app
 license: MIT
@@ -14,9 +23,46 @@ mcp:
 
 # Callput Lite Trader
 
-Trade Callput crypto and synthetic stock/ETF spreads on Base using the MCP. The MCP builds unsigned transactions; an authorized external wallet handles signing and broadcasting.
+Trade Callput crypto and synthetic stock/ETF spreads through the MCP's direct-wallet route. The MCP prepares unsigned transactions; an authorized external wallet handles signing and broadcasting. CallPut Account session execution remains in the app.
 
 ---
+
+## Network connections — verify the deployed version at initialization
+
+Each MCP connection is bound to one deployment for its whole workflow.
+
+| Network | Chain ID | Environment | HTTP endpoint |
+| --- | --- | --- | --- |
+| Base | 8453 | Mainnet | `https://mcp.callput.app/api/mcp` |
+| Robinhood Chain | 4663 | Mainnet | `https://mcp.callput.app/api/mcp?network=robinhood` |
+| GIWA Sepolia | 91342 | Testnet | `https://mcp.callput.app/api/mcp?network=giwa` |
+
+Call `callput_get_network_info` first to discover the bound chain, contract destinations, approval spender and configured symbols. Base and Robinhood configure 20 symbols; GIWA configures 13 (BTC through DRAM). Availability depends on fresh, unexpired market data. Stale feeds reject scans and new trade preparation. Testnet balances and results are not mainnet funds.
+
+For local stdio on this version, set `CALLPUT_NETWORK=robinhood` or `CALLPUT_NETWORK=giwa`; omit it for Base. Optional RPC overrides are `CALLPUT_ROBINHOOD_RPC_URL` / `CALLPUT_GIWA_RPC_URL` and corresponding `CALLPUT_ROBINHOOD_TRACKING_RPC_URL` / `CALLPUT_GIWA_TRACKING_RPC_URL`. Base retains `RPC_URL`, `BASE_RPC_URL` and existing tracking overrides. A Base provider override is never reused for another chain.
+
+Keep the selected network with each quote, wallet, transaction and request key. Use the same connection through scan, unsigned preparation, external signing, receipt lookup, closing and settlement. Verify the response `network`, `chain_id` and `testnet` before signing. Owner/device signing remains in the wallet. The account relay broadcasts only explicitly signed account actions; direct-wallet unsigned transactions are broadcast externally. The Bankr REST trading adapter and Bankr public app remain Base-only; `GET /api/bankr/assets?network=...` supports network-specific read-only market status.
+
+## Wallet identity and custody
+
+All three CallPut apps offer `email_otp` via Privy, which connects an embedded EVM owner wallet, or `external_wallet` via wagmi. External wallet rows connect directly without Privy wallet login or a connect-time signature. Email and Privy user IDs are login identities, not signing addresses. Social login is disabled. Base trading uses direct wallet custody; GIWA and Robinhood app modes are deposit-only and may use a separate CallPut Account contract for funds and positions. See [Privy's email OTP documentation](https://docs.privy.io/authentication/user-authentication/login-methods/email) and the current [Base](https://app.callput.app/assets/index-dc9b0e57.js), [GIWA](https://giwa.callput.app/assets/index-d5646322.js), and [Robinhood](https://robin.callput.app/assets/index-74211fbb.js) public app bundles, observed 2026-11-04.
+
+The connected owner wallet may authorize a separate CallPut Account contract that holds collateral and positions. This MCP does not implement CallPut's session relay. In source v0.7.0, `execution_route="callput_account"` is rejected; account-mode order creation, close and settlement stay in the CallPut app. For read-only portfolio/position-history tools, pass the actual address that holds those positions.
+
+For direct-wallet writes, pass `execution_route="direct_wallet"`. Base can omit this field for compatibility; GIWA and Robinhood require it explicitly. The MCP prepares unsigned transactions only; an authorized external signer must review and sign using the connected owner wallet. This is v0.7.0 source guidance, not confirmation that the hosted MCP endpoint has been upgraded. No live OTP, wallet signature or transaction was tested.
+
+## Collateral and compatibility
+
+Call `callput_get_network_info` first. Its `collateral` object identifies the selected token's symbol, address, decimals and testnet status. Successful tool responses and the read-only asset API include the same metadata.
+
+| Network | Collateral | Token address | Decimals |
+| --- | --- | --- | --- |
+| Base | USDC | `0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913` | 6 |
+| Robinhood Chain | USDG (Global Dollar) | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` | 6 |
+| GIWA Sepolia testnet | Test USDC | `0x79AD98fA252D64A9095f83cc6FaF4243E0d01d48` | 6 |
+
+Legacy names such as `contracts.usdc`, `usdc_approval`, `usdc_balance`, `amount_in_usdc`, `estimated_open_fee_usdc` and `BANKR_MAX_USDC_RISK_PER_TRADE` remain for compatibility. On Robinhood they represent USDG collateral amounts and approval, not a separate USDC token. Never infer a token symbol from these keys. Native gas and execution fees use ETH. Bankr REST trading and the public Bankr app remain Base-only.
+
 
 ## Integration Pattern (Bankr)
 
@@ -37,13 +83,14 @@ The public Bankr App uses `bankr.tx.prepare` to scan and inspect validated Callp
 ## Preferred Flow
 
 ```
-1. callput_portfolio_summary(address)
-   ↓ check positions + USDC balance
+1. callput_get_network_info                 ← verify network and wallet context
+   callput_portfolio_summary(position_holder_address)
+   ↓ check positions + collateral balance
 2. callput_scan_spreads(asset, bias)
    ↓ get ranked candidates + atm_iv
-3. callput_execute_spread(address, strategy)
+3. callput_execute_spread(address, strategy, execution_route="direct_wallet")
    ↓ return unsigned_tx + calldata
-4. external wallet confirmation → sign and broadcast
+4. external signer reviews, then signs and broadcasts the direct-wallet transaction
 6. callput_get_request_key_from_tx(tx_hash)
    ↓ extract request_key from receipt
 7. persist request_key for P&L tracking
@@ -61,7 +108,7 @@ The public Bankr App uses `bankr.tx.prepare` to scan and inspect validated Callp
 4. Call spread ordering: long lower strike, short higher strike.
 5. Put spread ordering: long higher strike, short lower strike.
 6. **MCP never holds private keys — an authorized external runtime handles signing. Do not describe the public Bankr App chat path as production execution.**
-7. If `usdc_approval.sufficient == false`, verify that approve_tx grants exactly `usdc_approval.required` raw USDC, then send it before the main tx. Reject any larger approval.
+7. If `usdc_approval.sufficient == false`, verify that approve_tx grants exactly `usdc_approval.required` raw collateral-token units, then send it before the main tx. Reject any larger approval.
 8. **Save every `request_key` from `get_request_key_from_tx`** — required for P&L.
 9. If `request_keys` are lost, call `callput_list_positions_by_wallet` to recover them.
 10. Check `atm_iv` from scan output: high IV favors sell spreads. Use ETH/BTC thresholds only for ETH/BTC; evaluate stock IV relative to that symbol's regime.
@@ -77,7 +124,7 @@ The public Bankr App uses `bankr.tx.prepare` to scan and inspect validated Callp
 | neutral-bearish  | SellCallSpread  | Call        | Collect premium    | credit_pct_of_max ↑   |
 | neutral-bullish  | SellPutSpread   | Put         | Collect premium    | credit_pct_of_max ↑   |
 
-Sell spreads post `strikeDiff × size` USDC as collateral. Best used in high-IV environments.
+Sell spreads post `strikeDiff × size` collateral-token units as collateral. Best used in high-IV environments.
 
 ---
 
@@ -90,8 +137,8 @@ Sell spreads post `strikeDiff × size` USDC as collateral. Best used in high-IV 
 - **Prefer rank 1 unless days_to_expiry < 1**
 
 Manual guidance (if using raw chains):
-- ETH: target spread width of 100–200 USDC strike range
-- BTC: target spread width of 1000–3000 USDC strike range
+- ETH: target spread width of 100–200 USD strike range
+- BTC: target spread width of 1000–3000 USD strike range
 - Stocks/ETFs: start with scan-ranked adjacent widths; typical strikes are much tighter than BTC/ETH
 - Avoid spreads with `cost_pct_of_max > 40%`
 
@@ -114,7 +161,7 @@ Skip and wait if any of these are true:
 - **Pre-expiry**: use `callput_close_position` when `days_to_expiry < 1`
 - **Post-expiry**: use `callput_settle_position` for expired positions
 - **Profit taking**: close when `close_pnl_est_pct > 50` (50% gain)
-- **Slippage floors**: before close or settle, show the user the expected USDC output and obtain an explicit minimum. Pass the positive base-unit value in `min_amount_out_raw` / `min_out_when_swap_raw`; never use zero or silently default to `1`.
+- **Slippage floors**: before close or settle, show the user the expected collateral-token output and obtain an explicit minimum. Pass the positive base-unit value in `min_amount_out_raw` / `min_out_when_swap_raw`; never use zero or silently default to `1`.
 
 ---
 
@@ -150,15 +197,15 @@ callput_portfolio_summary({ address, request_keys: agent_state.request_keys })
 | Tool | Purpose |
 |---|---|
 | `callput_scan_spreads` | Primary market scan — ranked spread candidates + ATM IV |
-| `callput_execute_spread` | Build unsigned open-position tx + USDC allowance check |
+| `callput_execute_spread` | Build unsigned open-position tx + collateral allowance check |
 | `callput_get_request_key_from_tx` | Parse request_key from tx receipt after broadcast |
 | `callput_check_request_status` | Poll keeper until executed/cancelled |
-| `callput_portfolio_summary` | USDC balance + positions + P&L (pass request_keys) |
+| `callput_portfolio_summary` | Collateral balance + positions + P&L (pass request_keys) |
 | `callput_close_position` | Build unsigned close-position tx |
 | `callput_settle_position` | Build unsigned settle tx for expired positions |
-| `callput_close_all_positions` | Build one reviewed full-close tx per unexpired wallet position |
-| `callput_settle_all_positions` | Build one reviewed settlement tx per expired wallet position |
-| `callput_list_positions_by_wallet` | Recover request_keys from on-chain events |
+| `callput_close_all_positions` | Build reviewed direct-wallet closes; CallPut Account route unsupported |
+| `callput_settle_all_positions` | Build reviewed direct-wallet settlements; CallPut Account route unsupported |
+| `callput_list_positions_by_wallet` | Recover request_keys for the supplied position-holder address |
 | `callput_get_settled_pnl` | Realized payout history from SettlePosition events |
 | `callput_get_option_chains` | Raw crypto/stock chain data + IV (use scan_spreads first) |
 

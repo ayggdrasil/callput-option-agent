@@ -1,10 +1,14 @@
-node_modules/
+node_modules
 build/
 .venv/
 __pycache__/
 *.pyc
 .vercel
 .worktrees/
+.env
+.env.*
+!.env.example
+.account-workflows/
 
 # Agent-generated reports (not for repo)
 FINAL_QA_REPORT.txt

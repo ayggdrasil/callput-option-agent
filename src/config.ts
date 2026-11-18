@@ -1,108 +1,104 @@
-let _chainValidated = false;
+import { AsyncLocalStorage } from "node:async_hooks";
+import { BASE_CONFIG } from "./baseConfig.js";
+import { DEPLOYMENTS } from "./networkDeployments.js";
+import { walletConnectionInfo } from "./walletContext.js";
+import {accountManifest,workflowAvailability} from './accountManifest.js';
 
-export function resolveRpcUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return env.RPC_URL || env.BASE_RPC_URL || "https://mainnet.base.org";
+export type Network = "base" | "robinhood" | "giwa";
+export type RuntimeConfig = {
+  NETWORK: Network;
+  NETWORK_NAME: string;
+  TESTNET: boolean;
+  SITE_URL: string;
+  EXPLORER_URL: string;
+  RPC_URL: string;
+  TRACKING_RPC_URL: string;
+  CHAIN_ID: number;
+  EXECUTION_FEE_FALLBACK: bigint;
+  MARKET_DATA_URL: string;
+  CONTRACTS: Record<string, string>;
+  UNDERLYINGS: Record<string, { index: number; decimals: number; marketType: string; optionsToken: string }>;
+  ASSETS: typeof BASE_CONFIG.ASSETS;
+};
+
+export function resolveNetwork(value?: string | null): Network {
+  if (value === undefined || value === null) return "base";
+  if (value === "base" || value === "robinhood" || value === "giwa") return value;
+  throw new Error("Unknown network. Use base, robinhood, or giwa.");
 }
 
-export function resolveTrackingRpcUrl(env: NodeJS.ProcessEnv = process.env): string {
-  return env.CALLPUT_TRACKING_RPC_URL || env.TRACKING_RPC_URL || resolveRpcUrl(env);
+export function resolveRpcUrl(env: NodeJS.ProcessEnv = process.env, network: Network = "base"): string {
+  if (network === "base") return env.RPC_URL || env.BASE_RPC_URL || BASE_CONFIG.RPC_URL;
+  return env[`CALLPUT_${network.toUpperCase()}_RPC_URL`] || DEPLOYMENTS[network].rpcUrl;
 }
+
+export function resolveTrackingRpcUrl(env: NodeJS.ProcessEnv = process.env, network: Network = "base"): string {
+  if (network === "base") return env.CALLPUT_TRACKING_RPC_URL || env.TRACKING_RPC_URL || resolveRpcUrl(env);
+  return env[`CALLPUT_${network.toUpperCase()}_TRACKING_RPC_URL`] || resolveRpcUrl(env, network);
+}
+
+export function getNetworkConfig(network: Network, env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
+  const profile = DEPLOYMENTS[network];
+  const contracts = network === "base" ? BASE_CONFIG.CONTRACTS : profile.contracts;
+  const underlyings = network === "base" ? BASE_CONFIG.UNDERLYINGS : profile.underlyings;
+  return {
+    ...BASE_CONFIG,
+    NETWORK: network, NETWORK_NAME: profile.name, TESTNET: profile.testnet,
+    SITE_URL: profile.siteUrl, EXPLORER_URL: profile.explorerUrl,
+    CHAIN_ID: profile.chainId, MARKET_DATA_URL: profile.marketDataUrl,
+    CONTRACTS: contracts, UNDERLYINGS: underlyings,
+    RPC_URL: resolveRpcUrl(env, network), TRACKING_RPC_URL: resolveTrackingRpcUrl(env, network)
+  };
+}
+
+const context = new AsyncLocalStorage<RuntimeConfig>();
+export function withNetwork<T>(network: string, fn: () => T): T {
+  return context.run(getNetworkConfig(resolveNetwork(network)), fn);
+}
+
+// Existing core/validator reads are resolved within the active asynchronous request.
+// The proxy never mutates shared chain configuration, even when calls overlap.
+export const CONFIG = new Proxy({} as RuntimeConfig, {
+  get(_target, key) { return (context.getStore() ?? getNetworkConfig("base"))[key as keyof RuntimeConfig]; }
+});
 
 export async function validateChainId(provider: any): Promise<void> {
-  if (_chainValidated) return;
   const network = await provider.getNetwork();
   if (network.chainId !== BigInt(CONFIG.CHAIN_ID)) {
-    throw new Error(`RPC provider is on chain ${network.chainId}, expected Base (${CONFIG.CHAIN_ID})`);
+    throw new Error(`RPC provider is on chain ${network.chainId}, expected ${CONFIG.NETWORK_NAME} (${CONFIG.CHAIN_ID})`);
   }
-  _chainValidated = true;
 }
 
-export const CONFIG = {
-  RPC_URL: resolveRpcUrl(),
-  TRACKING_RPC_URL: resolveTrackingRpcUrl(),
-  CHAIN_ID: 8453,
-  EXECUTION_FEE_FALLBACK: 60_000_000_000_000n,
-  MARKET_DATA_URL: "https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json",
-  CONTRACTS: {
-    POSITION_MANAGER: "0x83B04701B227B045CBBAF921377137fF595a54af",
-    SETTLE_MANAGER: "0x81A58c7F737a18a8964F62A2C165675C1819E77C",
-    ROUTER: "0xfc61ba50AE7B9C4260C9f04631Ff28D5A2Fa4EB2",
-    USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    WBTC: "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c",
-    WETH: "0x4200000000000000000000000000000000000006",
-    OPTIONS_TOKEN_BTC: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444",
-    OPTIONS_TOKEN_ETH: "0x648DE615abD9339F5C85ed00cfD946C69BF858fA",
-    TSLA: "0xb0a617bCa4c67f7A57d96b3b9f70d00f66Da9D71",
-    OPTIONS_TOKEN_TSLA: "0xA6Bf25B9cB1BD079c9640aA9C798130d668600d9",
-    QQQ: "0x1e2A220B0c054580dD0E0dfE69a7694D9d1D2037",
-    OPTIONS_TOKEN_QQQ: "0x3886905F9990943631c252ebe01F53FA964f49Fa",
-    SPY: "0xBCE136f8d8EE722A6C910a3d4598bcab1F9404A3",
-    OPTIONS_TOKEN_SPY: "0x8257c5570240346DD00ddF952d750d71DEF25A3e",
-    EWY: "0x5100b47F48aAf1b31f9Af29c8E9D27823385a131",
-    OPTIONS_TOKEN_EWY: "0x68D167810e044641cc44178063a185BeA0F6EFf0",
-    NVDA: "0xcA00BFE890A30AF19c516eb042A63C14A394bE69",
-    OPTIONS_TOKEN_NVDA: "0x4f7A323E1067286962553269bA98386a5b44b118",
-    COIN: "0x7e6f70E84262254C519B77AE399E0015b7567504",
-    OPTIONS_TOKEN_COIN: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641",
-    OPTIONS_TOKEN_SPCX: "0xd866425f79603d444b21ba6c6b17e31c00e1692f",
-    OPTIONS_TOKEN_MU: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711",
-    OPTIONS_TOKEN_SKHY: "0xe99db918aafac955fdb22a52e37a1a514c4332ef",
-    OPTIONS_TOKEN_SNDK: "0xa504da11dd80311a7288f628d45dfb68e61dd1f4",
-    OPTIONS_TOKEN_DRAM: "0xfb5b322f9bac5390a756e9349abbde6922bdbdbe",
-    OPTIONS_TOKEN_META: "0x9895295b7c9106ff638a8eb3abc7699d2d9aae85",
-    OPTIONS_TOKEN_GOOGL: "0x667caebb1504b05d10a337b7623632b41441ee82",
-    OPTIONS_TOKEN_AAPL: "0xeaec004aa3a97b83bf718e053d15a7e6da417e55",
-    OPTIONS_TOKEN_CRCL: "0x45a0d59e1af36f29c429394e10272a582553877d",
-    OPTIONS_TOKEN_AMZN: "0xf89d1500cc8e1fe7c314e12475bc6c6acbf9792e",
-    OPTIONS_TOKEN_MSFT: "0xdcd9bae81ae3f528476c7d6170172c8e98f8e5e1",
-    OPTIONS_TOKEN_PLTR: "0x11e66d4a97ab5709ba1d541d8d01bb5b733d1ec2"
-  },
-  UNDERLYINGS: {
-    BTC: { index: 1, decimals: 8, marketType: "CRYPTO", optionsToken: "0xc399D89bd99B7b68026703482bb6A2B9c69cE444" },
-    ETH: { index: 2, decimals: 18, marketType: "CRYPTO", optionsToken: "0x648DE615abD9339F5C85ed00cfD946C69BF858fA" },
-    TSLA: { index: 3, decimals: 18, marketType: "STOCK", optionsToken: "0xA6Bf25B9cB1BD079c9640aA9C798130d668600d9" },
-    QQQ: { index: 4, decimals: 18, marketType: "STOCK", optionsToken: "0x3886905F9990943631c252ebe01F53FA964f49Fa" },
-    SPY: { index: 5, decimals: 18, marketType: "STOCK", optionsToken: "0x8257c5570240346DD00ddF952d750d71DEF25A3e" },
-    EWY: { index: 6, decimals: 18, marketType: "STOCK", optionsToken: "0x68D167810e044641cc44178063a185BeA0F6EFf0" },
-    NVDA: { index: 7, decimals: 18, marketType: "STOCK", optionsToken: "0x4f7A323E1067286962553269bA98386a5b44b118" },
-    COIN: { index: 8, decimals: 18, marketType: "STOCK", optionsToken: "0x2Ad942ca8F22761CDc5F40FDb70Dd5ac5fF40641" },
-    SPCX: { index: 9, decimals: 18, marketType: "STOCK", optionsToken: "0xd866425f79603d444b21ba6c6b17e31c00e1692f" },
-    MU: { index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711" },
-    SKHY: { index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xe99db918aafac955fdb22a52e37a1a514c4332ef" },
-    SNDK: { index: 12, decimals: 18, marketType: "STOCK", optionsToken: "0xa504da11dd80311a7288f628d45dfb68e61dd1f4" },
-    DRAM: { index: 13, decimals: 18, marketType: "STOCK", optionsToken: "0xfb5b322f9bac5390a756e9349abbde6922bdbdbe" },
-    META: { index: 14, decimals: 18, marketType: "STOCK", optionsToken: "0x9895295b7c9106ff638a8eb3abc7699d2d9aae85" },
-    GOOGL: { index: 15, decimals: 18, marketType: "STOCK", optionsToken: "0x667caebb1504b05d10a337b7623632b41441ee82" },
-    AAPL: { index: 16, decimals: 18, marketType: "STOCK", optionsToken: "0xeaec004aa3a97b83bf718e053d15a7e6da417e55" },
-    CRCL: { index: 17, decimals: 18, marketType: "STOCK", optionsToken: "0x45a0d59e1af36f29c429394e10272a582553877d" },
-    AMZN: { index: 18, decimals: 18, marketType: "STOCK", optionsToken: "0xf89d1500cc8e1fe7c314e12475bc6c6acbf9792e" },
-    MSFT: { index: 19, decimals: 18, marketType: "STOCK", optionsToken: "0xdcd9bae81ae3f528476c7d6170172c8e98f8e5e1" },
-    PLTR: { index: 20, decimals: 18, marketType: "STOCK", optionsToken: "0x11e66d4a97ab5709ba1d541d8d01bb5b733d1ec2" }
-  },
-  ASSETS: {
-    BTC: { index: 1, decimals: 8 },
-    ETH: { index: 2, decimals: 18 },
-    TSLA: { index: 3, decimals: 18 },
-    QQQ: { index: 4, decimals: 18 },
-    SPY: { index: 5, decimals: 18 },
-    EWY: { index: 6, decimals: 18 },
-    NVDA: { index: 7, decimals: 18 },
-    COIN: { index: 8, decimals: 18 },
-    SPCX: { index: 9, decimals: 18 },
-    MU: { index: 10, decimals: 18 },
-    SKHY: { index: 11, decimals: 18 },
-    SNDK: { index: 12, decimals: 18 },
-    DRAM: { index: 13, decimals: 18 },
-    META: { index: 14, decimals: 18 },
-    GOOGL: { index: 15, decimals: 18 },
-    AAPL: { index: 16, decimals: 18 },
-    CRCL: { index: 17, decimals: 18 },
-    AMZN: { index: 18, decimals: 18 },
-    MSFT: { index: 19, decimals: 18 },
-    PLTR: { index: 20, decimals: 18 },
-    USDC: { decimals: 6 }
-  }
-} as const;
+export function collateralInfo() {
+  return {
+    symbol: CONFIG.NETWORK === "robinhood" ? "USDG" : "USDC",
+    address: CONFIG.CONTRACTS.USDC,
+    decimals: CONFIG.ASSETS.USDC.decimals,
+    testnet: CONFIG.TESTNET,
+    legacy_field_note: "USDC/usdc field names are retained for API compatibility. Amounts and approvals refer to this selected network's collateral token; Robinhood Chain uses USDG."
+  };
+}
+
+export function networkInfo(): Record<string, unknown> {
+  return {
+    network: CONFIG.NETWORK, name: CONFIG.NETWORK_NAME, chain_id: CONFIG.CHAIN_ID,
+    testnet: CONFIG.TESTNET, site_url: CONFIG.SITE_URL, explorer_url: CONFIG.EXPLORER_URL,
+    mcp_url: `https://mcp.callput.app/api/mcp${CONFIG.NETWORK === "base" ? "" : `?network=${CONFIG.NETWORK}`}`,
+    market_data_url: CONFIG.MARKET_DATA_URL, execution: "unsigned_only",
+    collateral: collateralInfo(),
+    wallet_connection: walletConnectionInfo(),
+    account_workflow: CONFIG.NETWORK==='base'?null:{...workflowAvailability(CONFIG.NETWORK),deployment:accountManifest(CONFIG.NETWORK),first_tool:'callput_workflow_start'},
+    contracts: {
+      position_manager: CONFIG.CONTRACTS.POSITION_MANAGER, settle_manager: CONFIG.CONTRACTS.SETTLE_MANAGER,
+      collateral_token: CONFIG.CONTRACTS.USDC,
+      usdc: CONFIG.CONTRACTS.USDC, approval_spender: CONFIG.CONTRACTS.ROUTER
+    },
+    underlyings: Object.entries(CONFIG.UNDERLYINGS).map(([symbol, asset]) => ({
+      symbol, index: asset.index, decimals: asset.decimals, options_token: asset.optionsToken
+    })),
+    instructions: "Use this same network connection for scans, transaction preparation, receipts and position lifecycle. Never reuse a different network's quote, approval, transaction or request key. Signing and broadcasting remain external."
+  };
+}
 
 export const POSITION_MANAGER_ABI = [
   "function createOpenPosition(uint16 _underlyingAssetIndex, uint8 _length, bool[4] memory _isBuys, bytes32[4] memory _optionIds, bool[4] memory _isCalls, uint256 _minSize, address[] memory _path, uint256 _amountIn, uint256 _minOutWhenSwap, address _leadTrader) external payable returns (bytes32)",

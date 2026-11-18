@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { buildHealthReport } from "./health.js";
+import { CALLPUT_VERSION } from "./version.js";
 
 async function main() {
   const healthy = await buildHealthReport({
@@ -9,7 +10,7 @@ async function main() {
     checkMarket: async () => ({ assets: 11, tradableOptions: 100 })
   });
   assert.equal(healthy.status, "ok");
-  assert.equal(healthy.version, "0.5.30");
+  assert.equal(healthy.version, CALLPUT_VERSION);
   assert.equal(healthy.checks.rpc.chain_id, 8453);
   assert.equal(healthy.checks.rpc.dedicated_rpc_configured, true);
   assert.equal(healthy.checks.market.assets, 11);

@@ -94,7 +94,7 @@ function main() {
   assert.match(html, /https:\/\/mcp\.callput\.app\/api\/mcp/);
   assert.match(html, /callput-lite-agent-mcp/);
   assert.match(html, new RegExp(`"softwareVersion": "${CALLPUT_VERSION.replaceAll(".", "\\.")}"`));
-  assert.match(html, new RegExp(`https:\\/\\/github\\.com\\/ayggdrasil\\/callput-option-agent\\/tree\\/v${CALLPUT_VERSION.replaceAll(".", "\\.")}\\/callput`));
+  assert.ok(html.includes("https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.30/callput"), "Bankr keeps its published Base skill tag; MCP version bumps must not invent a release tag");
   for (const heading of [
     "Getting started in Bankr",
     "Markets, strategies, and funding",

@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { z } from "zod";
-import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI } from "./config.js";
+import { CONFIG, collateralInfo, resolveNetwork, withNetwork, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI } from "./config.js";
 import {
   DEFAULT_MIN_FILL_RATIO,
   calculateSpreadOpenQuote,
@@ -243,7 +243,7 @@ function lifecycleTransactionResponse(action: "close" | "settle", built: any) {
     action,
     intent_fingerprint: lifecycleIntentFingerprint(tx),
     transaction_preview: {
-      chain: "Base",
+      chain: CONFIG.NETWORK_NAME,
       chain_id: tx.chain_id,
       destination: tx.to,
       value_wei: tx.value,
@@ -538,6 +538,20 @@ export async function handleBankrApiRequest(
   request: Request,
   deps: BankrDependencies = defaultDependencies
 ): Promise<Response> {
+  let network;
+  try { network = resolveNetwork(new URL(request.url).searchParams.get("network")); }
+  catch { return response(400, { error: "Unknown network. Use base, robinhood, or giwa." }, null); }
+  if (action !== "assets" && network !== "base") {
+    return response(400, { error: "Bankr REST trading supports Base. Use the network-specific MCP endpoint for Robinhood or GIWA." }, null);
+  }
+  return withNetwork(network, () => handleBankrNetworkRequest(action, request, deps));
+}
+
+async function handleBankrNetworkRequest(
+  action: "assets" | "scan" | "prepare" | "reconcile" | "positions" | "close" | "settle" | "close-all" | "settle-all" | "events",
+  request: Request,
+  deps: BankrDependencies = defaultDependencies
+): Promise<Response> {
   const origin = request.headers.get("origin");
   if (!isAllowedHttpHost(request)) return response(421, { error: "Host is not allowed" }, null);
   if (origin && !BANKR_ORIGINS.has(origin)) return response(403, { error: "Origin is not allowed" }, null);
@@ -565,7 +579,7 @@ export async function handleBankrApiRequest(
           option.underlying === symbol && option.isAvailable && option.expirySec > nowSec
         ).length
       }));
-      return response(200, { chain_id: CONFIG.CHAIN_ID, chain: "base", checked_at: checkedAt.toISOString(), assets }, origin);
+      return response(200, { chain_id: CONFIG.CHAIN_ID, chain: CONFIG.NETWORK, network: CONFIG.NETWORK, testnet: CONFIG.TESTNET, collateral: collateralInfo(), checked_at: checkedAt.toISOString(), assets }, origin);
     }
 
     const raw = await readJson(request);
@@ -602,7 +616,7 @@ export async function handleBankrApiRequest(
         ...prepared,
         intent_fingerprint: fingerprint,
         risk_preview: {
-          chain: "Base",
+          chain: CONFIG.NETWORK_NAME,
           chain_id: CONFIG.CHAIN_ID,
           wallet: ethers.getAddress(input.from_address),
           asset: (prepared.validation.details as any).asset,

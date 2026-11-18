@@ -70,6 +70,22 @@
       }
     },
     {
+      "src": "/mcp-wallet.html",
+      "dest": "/frontend-v1/wallet.html"
+    },
+    {
+      "src": "/mcp-wallet",
+      "dest": "/frontend-v1/wallet.html"
+    },
+    {
+      "src": "/mcp-wallet-assets/(.*)",
+      "dest": "/frontend-v1/$1"
+    },
+    {
+      "src": "/account-workflow",
+      "dest": "/frontend-v1/account-workflow.html"
+    },
+    {
       "src": "/frontend-v1",
       "dest": "/frontend-v1/index.html"
     },

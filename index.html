@@ -6,7 +6,7 @@
     <title>Callput Lite MCP Operator Console</title>
     <meta
       name="description"
-      content="Callput Lite MCP now uses one operator console page for external agents trading crypto and stock option spreads on Base."
+      content="Callput Lite MCP now uses one operator console page for external agents trading crypto and synthetic stock/ETF option spreads on Base, Robinhood Chain and GIWA Sepolia."
     />
     <link rel="canonical" href="/frontend-v1/" />
     <meta property="og:type" content="website" />
@@ -14,7 +14,7 @@
     <meta property="og:title" content="Callput Lite MCP for External Agents" />
     <meta
       property="og:description"
-      content="Agentic options workflow for market scans, spread validation, unsigned transaction prep, and user-controlled signing on Base."
+      content="Agentic options workflow for market scans, spread validation, unsigned transaction prep, and user-controlled signing across Base, Robinhood Chain and GIWA Sepolia."
     />
     <meta property="og:url" content="https://mcp.callput.app/" />
     <meta property="og:image" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
@@ -27,7 +27,7 @@
     <meta name="twitter:title" content="Callput Lite MCP for External Agents" />
     <meta
       name="twitter:description"
-      content="Agentic options workflow for market scans, spread validation, unsigned transaction prep, and user-controlled signing on Base."
+      content="Agentic options workflow for market scans, spread validation, unsigned transaction prep, and user-controlled signing across Base, Robinhood Chain and GIWA Sepolia."
     />
     <meta name="twitter:image" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
     <meta name="twitter:image:alt" content="CallPut MCP agentic options preview with luminous blue trading tiles." />
@@ -106,6 +106,7 @@
     </main>
     <script>
       const target = new URL("/frontend-v1/", window.location.origin);
+      target.search = window.location.search;
       const legacyHashMap = {
         "#top": "#start",
         "#setup": "#start",

@@ -1,9 +1,60 @@
-import { normalizeMarketStatus } from "./market-status.js";
+import { createMarketStatusLoader } from "./market-status.js";
+import { walletGuide } from "./wallet-guide.js";
 
 let markets = [];
 let activeSymbol = "TSLA";
 
+const networks = {
+  base: {
+    slug: "base",
+    name: "Base",
+    chainId: 8453,
+    collateralSymbol: "USDC",
+    testnet: false,
+    rpcUrl: "https://mainnet.base.org",
+    rpcEnv: "RPC_URL",
+    domain: "mcp.callput.app",
+  },
+  robinhood: {
+    slug: "robinhood",
+    name: "Robinhood Chain",
+    chainId: 4663,
+    collateralSymbol: "USDG",
+    testnet: false,
+    rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+    rpcEnv: "CALLPUT_ROBINHOOD_RPC_URL",
+    domain: "robin.callput.app",
+  },
+  giwa: {
+    slug: "giwa",
+    name: "GIWA Sepolia",
+    chainId: 91342,
+    collateralSymbol: "test USDC",
+    testnet: true,
+    rpcUrl: "https://sepolia-rpc.giwa.io",
+    rpcEnv: "CALLPUT_GIWA_RPC_URL",
+    domain: "giwa.callput.app",
+  },
+};
+
+function initialNetworkSlug() {
+  const requested = new URLSearchParams(window.location.search).get("network");
+  if (requested && networks[requested]) return requested;
+  if (window.location.hostname === "robin.callput.app") return "robinhood";
+  if (window.location.hostname === "giwa.callput.app") return "giwa";
+  return "base";
+}
+
+let activeNetwork = networks[initialNetworkSlug()];
+const loadMarketStatus = createMarketStatusLoader();
+
 const contractItems = [
+  {
+    tool: "callput_get_network_info",
+    component: "NetworkInfoCard",
+    io: "Input: none | Output: selected network, chain ID, testnet status, verified contracts",
+    trigger: "Before the first network-bound action",
+  },
   {
     tool: "callput_scan_spreads",
     component: "MarketScanCard",
@@ -85,6 +136,16 @@ const contractList = document.getElementById("contractList");
 const liveAvailabilityStatus = document.getElementById("liveAvailabilityStatus");
 const liveSymbolCount = document.getElementById("liveSymbolCount");
 const configuredSymbolCount = document.getElementById("configuredSymbolCount");
+const networkButtons = document.querySelectorAll("[data-network]");
+const selectedNetworkName = document.getElementById("selectedNetworkName");
+const selectedNetworkChain = document.getElementById("selectedNetworkChain");
+const selectedNetworkMode = document.getElementById("selectedNetworkMode");
+const selectedEndpoint = document.getElementById("selectedEndpoint");
+const selectedMarketNetwork = document.getElementById("selectedMarketNetwork");
+const mcpEndpoint = document.getElementById("mcpEndpoint");
+const mcpConfig = document.getElementById("mcpConfig");
+const networkExpected = document.getElementById("networkExpected");
+const rpcRecovery = document.getElementById("rpcRecovery");
 const copyButtons = document.querySelectorAll("[data-copy-target]");
 
 for (const button of copyButtons) {
@@ -169,25 +230,95 @@ function renderScanTable(symbol) {
   });
 }
 
+function connectionConfig(network) {
+  return JSON.stringify({
+    mcpServers: {
+      "callput-lite-agent-mcp": {
+        command: "node",
+        args: ["/absolute/path/callput-option-agent/build/src/index.js"],
+        env: {
+          CALLPUT_NETWORK: network.slug,
+          [network.rpcEnv]: network.rpcUrl,
+        },
+      },
+    },
+  }, null, 2);
+}
+
+function endpointFor(network) {
+  return `https://mcp.callput.app/api/mcp${network.slug === "base" ? "" : `?network=${network.slug}`}`;
+}
+
+function renderSelectedNetwork() {
+  const mode = activeNetwork.testnet ? "Testnet" : "Mainnet";
+  networkButtons.forEach((button) => {
+    const selected = button.dataset.network === activeNetwork.slug;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  selectedNetworkName.textContent = activeNetwork.name;
+  selectedNetworkChain.textContent = `Chain ${activeNetwork.chainId}`;
+  selectedNetworkMode.textContent = mode;
+  document.getElementById("selectedNetworkCollateral").textContent = `Collateral ${activeNetwork.collateralSymbol}`;
+  selectedNetworkMode.classList.toggle("testnet", activeNetwork.testnet);
+  selectedEndpoint.textContent = endpointFor(activeNetwork);
+  selectedMarketNetwork.textContent = `${activeNetwork.name} ${activeNetwork.chainId} · ${mode.toLowerCase()}`;
+  mcpEndpoint.textContent = endpointFor(activeNetwork);
+  mcpConfig.textContent = connectionConfig(activeNetwork);
+  networkExpected.innerHTML = `Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as ${activeNetwork.name} ${mode.toLowerCase()}, chain ID <code>${activeNetwork.chainId}</code>.`;
+  rpcRecovery.innerHTML = `Set <code>CALLPUT_NETWORK=${activeNetwork.slug}</code> and <code>${activeNetwork.rpcEnv}=${activeNetwork.rpcUrl}</code>, then retry.`;
+  const guide = walletGuide(activeNetwork.slug);
+  document.getElementById("walletLogin").textContent = guide.login;
+  document.getElementById("walletCustody").textContent = guide.custody;
+  document.getElementById("walletExecution").textContent = guide.execution;
+  document.getElementById("walletAppLink").href = guide.accountUrl;
+  document.getElementById("walletAppLink").textContent = `Open ${activeNetwork.name} account ↗`;
+  document.getElementById("appLink").href = guide.appUrl;
+  document.getElementById("firstPrompt").textContent = guide.prompt;
+  document.getElementById("directWalletExample").textContent = guide.directExample;
+}
+
+async function selectNetwork(slug) {
+  if (!networks[slug]) return;
+  activeNetwork = networks[slug];
+  const url = new URL(window.location.href);
+  if (slug === "base") url.searchParams.delete("network");
+  else url.searchParams.set("network", slug);
+  window.history.replaceState({}, "", url);
+  markets = [];
+  renderMarkets();
+  liveSymbolCount.textContent = "—";
+  configuredSymbolCount.textContent = "—";
+  liveAvailabilityStatus.textContent = `Refreshing ${activeNetwork.name} market availability…`;
+  renderSelectedNetwork();
+  await refreshLiveAvailability();
+}
+
 async function refreshLiveAvailability() {
+  const requestedNetwork = activeNetwork;
   try {
-    const response = await fetch("/api/bankr/assets", { cache: "no-store", signal: AbortSignal.timeout(10_000), headers: { accept: "application/json" } });
-    if (!response.ok) throw new Error(`assets endpoint returned ${response.status}`);
-    const status = normalizeMarketStatus(await response.json());
+    const status = await loadMarketStatus(requestedNetwork);
+    if (!status || activeNetwork !== requestedNetwork) return;
     markets = status.assets;
     renderMarkets();
     liveSymbolCount.textContent = String(status.activeCount);
     configuredSymbolCount.textContent = String(markets.length);
-    liveAvailabilityStatus.textContent = `${status.activeCount} symbols with available options · ${status.optionCount.toLocaleString()} unexpired available option rows · checked ${new Date(status.checkedAt).toLocaleString()} · Base 8453`;
-  } catch {
+    const mode = status.testnet ? "testnet" : "mainnet";
+    liveAvailabilityStatus.textContent = `${status.activeCount} symbols with available options · ${status.optionCount.toLocaleString()} unexpired available option rows · checked ${new Date(status.checkedAt).toLocaleString()} · ${requestedNetwork.name} ${status.chainId} ${mode}`;
+  } catch (error) {
+    if (activeNetwork !== requestedNetwork) return;
     markets = [];
     renderMarkets();
     liveSymbolCount.textContent = "—";
     configuredSymbolCount.textContent = "—";
-    liveAvailabilityStatus.textContent = "Live availability could not be refreshed. No current availability is confirmed; check the feed or retry later.";
+    liveAvailabilityStatus.textContent = /stale/i.test(error instanceof Error ? error.message : "")
+      ? `${requestedNetwork.name} market feed is stale. Quotes and new trade preparation are paused until fresh data returns.`
+      : `${requestedNetwork.name} availability could not be verified. No current prices or option rows are shown; check the network feed or retry later.`;
   }
 }
 
+networkButtons.forEach((button) => button.addEventListener("click", () => void selectNetwork(button.dataset.network)));
+renderSelectedNetwork();
 void refreshLiveAvailability();
 window.setInterval(refreshLiveAvailability, 60_000);
 
@@ -213,17 +344,17 @@ const sellButterfly = buyButterfly.map((value) => -value);
 const sellIronCondor = spotPoints.map((spot) => 4 - putPayoff(spot, 45) + putPayoff(spot, 35) - callPayoff(spot, 55) + callPayoff(spot, 65));
 const buyIronCondor = sellIronCondor.map((value) => -value);
 const payoffCharts = {
-  "chart-bcs": [{ label: "Buy", values: spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3), color: "#93b878" }],
-  "chart-bps": [{ label: "Buy", values: spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3), color: "#93b878" }],
-  "chart-scs": [{ label: "Sell", values: spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)), color: "#93b878" }],
-  "chart-sps": [{ label: "Sell", values: spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)), color: "#93b878" }],
+  "chart-bcs": [{ label: "Buy", values: spotPoints.map((spot) => callPayoff(spot, 45) - callPayoff(spot, 55) - 3), color: "#71b842" }],
+  "chart-bps": [{ label: "Buy", values: spotPoints.map((spot) => putPayoff(spot, 55) - putPayoff(spot, 45) - 3), color: "#71b842" }],
+  "chart-scs": [{ label: "Sell", values: spotPoints.map((spot) => 3 - callPayoff(spot, 45) + callPayoff(spot, 55)), color: "#71b842" }],
+  "chart-sps": [{ label: "Sell", values: spotPoints.map((spot) => 3 - putPayoff(spot, 55) + putPayoff(spot, 45)), color: "#71b842" }],
   "chart-bfly": [
-    { label: "Buy", values: buyButterfly, color: "#93b878" },
-    { label: "Sell", values: sellButterfly, color: "#d8a34d", dash: [7, 5] },
+    { label: "Buy", values: buyButterfly, color: "#71b842" },
+    { label: "Sell", values: sellButterfly, color: "#e04a3f", dash: [7, 5] },
   ],
   "chart-icondor": [
-    { label: "Buy", values: buyIronCondor, color: "#93b878" },
-    { label: "Sell", values: sellIronCondor, color: "#d8a34d", dash: [7, 5] },
+    { label: "Buy", values: buyIronCondor, color: "#71b842" },
+    { label: "Sell", values: sellIronCondor, color: "#e04a3f", dash: [7, 5] },
   ],
 };
 
@@ -245,7 +376,7 @@ function drawPayoff(id, seriesList) {
   const scale = (value) => zeroY - (value / maxAbs) * (plotHeight / 2 - 6);
 
   ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = "rgba(218, 201, 164, 0.18)";
+  ctx.strokeStyle = "#292c33";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i += 1) {
     const y = topPad + (i * plotHeight) / 3;
@@ -283,9 +414,9 @@ function drawPayoff(id, seriesList) {
     const legendY = 12;
     const legendW = 92;
     const legendH = 38;
-    ctx.fillStyle = "rgba(17, 20, 15, 0.94)";
+    ctx.fillStyle = "#181a1f";
     ctx.fillRect(legendX, legendY, legendW, legendH);
-    ctx.strokeStyle = "rgba(218, 201, 164, 0.22)";
+    ctx.strokeStyle = "#292c33";
     ctx.lineWidth = 1;
     ctx.strokeRect(legendX, legendY, legendW, legendH);
 
@@ -300,16 +431,16 @@ function drawPayoff(id, seriesList) {
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = series.color;
-      ctx.font = "11px IBM Plex Mono, monospace";
+      ctx.font = "11px Host Grotesk, sans-serif";
       ctx.fillText(series.label, legendX + 38, labelY);
     });
   }
 
-  ctx.fillStyle = "#b8ad9b";
-  ctx.font = isMultiSeries ? "11px IBM Plex Mono, monospace" : "12px IBM Plex Mono, monospace";
+  ctx.fillStyle = "#8c8c8c";
+  ctx.font = isMultiSeries ? "11px Host Grotesk, sans-serif" : "12px Host Grotesk, sans-serif";
   ctx.fillText("Loss", sidePad, h - 14);
   ctx.fillText("Spot ->", w - sidePad - 56, h - 14);
-  ctx.fillStyle = "#93b878";
+  ctx.fillStyle = "#71b842";
   ctx.fillText("Profit", sidePad, isMultiSeries ? 25 : 22);
 }
 

@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Callput MCP | Live Crypto, Stock &amp; ETF Options for Agents</title>
+    <title>Callput MCP | Multi-Network Options for Agents</title>
     <meta
       name="description"
-      content="Synthetic stock and ETF options are live on Callput. Connect agents to 20 configured markets on Base, check live availability, and prepare unsigned transactions."
+      content="Connect agents to Callput options across Base, Robinhood Chain, and GIWA. Select a network, verify live availability, and prepare unsigned transactions."
     />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <meta name="author" content="ayggdrasil" />
@@ -16,7 +16,7 @@
     <meta property="og:title" content="Callput Lite MCP for External Agents" />
     <meta
       property="og:description"
-      content="Clone ayggdrasil/callput-option-agent, register callput-lite-agent-mcp, and build unsigned Callput option-spread transactions on Base."
+      content="Clone ayggdrasil/callput-option-agent, select Base, Robinhood Chain, or GIWA, and build unsigned Callput option-spread transactions."
     />
     <meta property="og:url" content="https://mcp.callput.app/" />
     <meta property="og:image" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
@@ -33,10 +33,10 @@
     />
     <meta name="twitter:image" content="https://mcp.callput.app/frontend-v1/og-callput-mcp.png" />
     <meta name="twitter:image:alt" content="CallPut MCP agentic options preview with luminous blue trading tiles." />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305080b'/%3E%3Cpath d='M14 18l13 14-13 14' fill='none' stroke='%2321c9ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M34 46h16' fill='none' stroke='%2341e77d' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" href="/frontend-v1/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/frontend-v1/styles.css" />
     <script type="application/ld+json">
       {
@@ -80,13 +80,13 @@
             ],
             "applicationCategory": "DeveloperApplication",
             "operatingSystem": "Node.js",
-            "softwareVersion": "0.5.30",
+            "softwareVersion": "0.8.0",
             "codeRepository": "https://github.com/ayggdrasil/callput-option-agent",
             "programmingLanguage": [
               "TypeScript",
               "JavaScript"
             ],
-            "description": "A Model Context Protocol server and external-agent skill package for scanning Callput option spreads and building unsigned transactions on Base."
+            "description": "A Model Context Protocol server and external-agent skill package for scanning Callput option spreads and building unsigned transactions across supported networks."
           },
           {
             "@type": "HowTo",
@@ -99,7 +99,7 @@
                 "@type": "HowToStep",
                 "position": 1,
                 "name": "Clone the source repository",
-                "text": "Run git clone --branch v0.5.30 https://github.com/ayggdrasil/callput-option-agent.git and enter the callput-option-agent directory."
+                "text": "Run git clone https://github.com/ayggdrasil/callput-option-agent.git and enter the callput-option-agent directory."
               },
               {
                 "@type": "HowToStep",
@@ -130,7 +130,7 @@
                 "name": "What is Callput Lite MCP?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Callput Lite MCP is a public Model Context Protocol server and agent skill for scanning and managing defined-risk synthetic option spreads on Base. It provides market data, validation, unsigned transaction preparation, request tracking, position closing, and settlement tools."
+                  "text": "Callput Lite MCP is a public Model Context Protocol server and agent skill for scanning and managing defined-risk synthetic option spreads on Base, Robinhood Chain, and GIWA. It provides network-bound market data, validation, unsigned transaction preparation, request tracking, position closing, and settlement tools."
                 }
               },
               {
@@ -138,7 +138,7 @@
                 "name": "What does the Callput MCP server do?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "The server reads the Callput market feed, validates option structures, ranks spread candidates, checks Base transaction constraints, and returns structured results to an agent. It does not hold a private key or sign a transaction."
+                  "text": "The server reads the selected network's Callput market feed, validates option structures, ranks spread candidates, checks chain-specific transaction constraints, and returns structured results to an agent. It does not hold a private key or sign a transaction."
                 }
               },
               {
@@ -146,7 +146,7 @@
                 "name": "What is the Callput MCP endpoint?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Use https://mcp.callput.app/api/mcp as a Streamable HTTP MCP endpoint. The public endpoint does not require an API key, although clients must still follow the server's origin, rate-limit, and safety policies."
+                  "text": "Use https://mcp.callput.app/api/mcp for Base, https://mcp.callput.app/api/mcp?network=robinhood for Robinhood Chain, or https://mcp.callput.app/api/mcp?network=giwa for GIWA. The public Streamable HTTP endpoint does not require an API key, although clients must still follow the server's origin, rate-limit, and safety policies."
                 }
               },
               {
@@ -170,7 +170,7 @@
                 "name": "How does an agent connect to Callput MCP?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Add https://mcp.callput.app/api/mcp as an HTTP MCP server with no authentication, then list the available tools before attempting a scan. Begin with a read-only prompt and do not prepare or submit a transaction until the user explicitly chooses a candidate."
+                  "text": "Add the selected network's https://mcp.callput.app/api/mcp endpoint as an HTTP MCP server with no authentication, then call callput_get_network_info and list the tools before attempting a scan. Begin with a read-only prompt and do not prepare or submit a transaction until the user explicitly chooses a candidate. Inspect wallet_connection to distinguish the connected owner wallet from a CallPut Account holding funds and positions. Use the actual holding address for read-only portfolio and history calls."
                 }
               },
               {
@@ -210,7 +210,7 @@
                 "name": "Which blockchain does Callput use?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Callput transaction preparation targets Base mainnet, chain ID 8453. Wallet funds, token approvals, gas handling, and transaction review must therefore use Base-compatible assets and addresses."
+                  "text": "Callput supports Base mainnet chain ID 8453, Robinhood Chain mainnet chain ID 4663, and GIWA Sepolia testnet chain ID 91342. Wallet funds, approvals, gas, contracts, and transaction review must match the selected network; GIWA is explicitly testnet."
                 }
               },
               {
@@ -218,7 +218,7 @@
                 "name": "Which assets can Callput currently scan?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. Live candidates depend on the current feed, expiry set, direction, and option availability."
+                  "text": "Base and Robinhood Chain configure BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. GIWA configures the first 13 symbols through DRAM. Candidates depend on a fresh selected-network feed, expiry set, direction, and option availability."
                 }
               },
               {
@@ -226,7 +226,7 @@
                 "name": "Are Callput stock and RWA options live?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Yes. Synthetic stock and ETF options are live on Callput alongside BTC and ETH options. Individual markets depend on available unexpired option rows in the current feed. These synthetic on-chain options do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights."
+                  "text": "Callput has configured synthetic stock and ETF option markets alongside BTC and ETH. A market is available only when the selected network returns fresh, unexpired option rows; stale feeds pause quotes and new trade preparation. These synthetic on-chain options do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights."
                 }
               },
               {
@@ -250,7 +250,7 @@
                 "name": "Does Callput MCP automatically execute trades?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "No. The MCP returns unsigned transaction data and cannot sign or broadcast it. A user-controlled wallet or authorized external signer must review and approve every on-chain action."
+                  "text": "Source v0.8.0 adds wallet-approved account workflows when persistent storage and wallet approval routes are configured. Existing wallets sign login and bounded device Grants; the device signs orders and the protocol relay sponsors execution. The MCP never receives private keys. Deposits require a separately authorized owner transaction and gas cap. Direct-wallet preparation still requires explicit execution_route=direct_wallet on GIWA and Robinhood. Check live capabilities before acting."
                 }
               },
               {
@@ -258,15 +258,15 @@
                 "name": "What is an `unsigned_tx` response?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "It is a transaction payload containing the destination, calldata, native value, and Base chain ID needed for external review. Receiving it does not mean that a transaction was signed, submitted, mined, or executed."
+                  "text": "It is a transaction payload containing the destination, calldata, native value, and selected chain ID needed for external review. Receiving it does not mean that a transaction was signed, submitted, mined, or executed."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Why can a Callput trade require USDC approval?",
+                "name": "Why can a Callput trade require collateral approval?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Premium or collateral may require the Base USDC allowance for the exact Callput spender. When allowance is insufficient, the response can include a bounded approval transaction that must be reviewed and confirmed before the option transaction."
+                  "text": "Premium or collateral may require the selected network's collateral-token allowance: USDC on Base, USDG on Robinhood Chain, and test USDC on GIWA Sepolia. When allowance is insufficient, the legacy usdc_approval response can include a bounded approval transaction. Verify its token address, spender and amount before confirming it."
                 }
               },
               {
@@ -274,15 +274,15 @@
                 "name": "How are maximum risk and minimum fill handled?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Callput enforces a configured per-trade USDC risk ceiling and returns the calculated maximum amount at risk for the requested size. It also encodes a minimum-fill constraint so an execution below the user's accepted threshold can be rejected."
+                  "text": "Callput enforces a configured per-trade risk ceiling in the selected network's collateral token: USDC on Base, USDG on Robinhood Chain, and test USDC on GIWA Sepolia. It returns the calculated maximum amount at risk and encodes a minimum-fill constraint so execution below the accepted threshold can be rejected."
                 }
               },
               {
                 "@type": "Question",
-                "name": "Why does the transaction include a Base ETH value?",
+                "name": "Why does the transaction include a native-token value?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Callput's request flow can require a native execution fee paid in Base ETH. The prepared transaction shows both the exact wei value and its ETH representation so the signer can verify it before approval."
+                  "text": "Callput's request flow can require a native execution fee on the selected network. The prepared transaction shows the exact wei value and its readable representation so the signer can verify it before approval."
                 }
               },
               {
@@ -343,10 +343,10 @@
               },
               {
                 "@type": "Question",
-                "name": "What happens when market data is stale or Base RPC fails?",
+                "name": "What happens when market data is stale or the selected RPC fails?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "The MCP rejects stale or malformed market data and rejects RPC responses from the wrong chain. Agents should surface the error, avoid transaction preparation, and retry only after the upstream feed or Base RPC is healthy."
+                  "text": "The MCP rejects stale or malformed market data and rejects RPC responses from the wrong chain. Agents should surface the error, avoid transaction preparation, and retry only after the selected network's feed and RPC are healthy."
                 }
               },
               {
@@ -354,7 +354,7 @@
                 "name": "Why can an externally submitted transaction simulation revert?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Common causes include insufficient Base USDC, insufficient allowance, insufficient Base ETH for the execution fee, expired calldata, changed market state, or contract-level validation. The agent should recheck balances and rebuild fresh transaction data instead of replaying a stale payload."
+                  "text": "Common causes include insufficient collateral or ETH gas on the selected network, insufficient allowance, expired calldata, changed market state, or contract-level validation. Robinhood Chain collateral is USDG; Base and GIWA use USDC, with GIWA explicitly testnet. Recheck balances and rebuild fresh transaction data instead of replaying a stale payload."
                 }
               },
               {
@@ -362,7 +362,7 @@
                 "name": "What is the safest first Callput workflow?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Start with a read-only scan, choose a small defined-risk spread, inspect maximum risk and minimum fill, then prepare an unsigned transaction. Sign only after verifying the Base chain, destination, calldata intent, USDC approval, and native execution fee."
+                  "text": "Start with callput_get_network_info and a read-only scan, choose a small defined-risk spread, inspect maximum risk and minimum fill, then prepare an unsigned transaction. Sign only after verifying the selected chain, destination, calldata intent, collateral token and approval, native execution fee, and testnet status."
                 }
               }
             ]
@@ -374,8 +374,8 @@
   <body>
     <header class="topbar">
       <a class="brand" href="#start">
-        <span class="brand-mark">&gt;_</span>
-        <span>Callput Lite MCP</span>
+        <img src="/frontend-v1/logo-callput.png" alt="CallPut.app" width="128" height="40" />
+        <span class="brand-mark">MCP</span>
       </a>
       <nav class="topnav" aria-label="Operator console navigation">
         <a href="#start">Runbook</a>
@@ -388,23 +388,24 @@
         <a href="/bankr">Bankr</a>
         <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
+      <a id="appLink" class="button primary app-link" href="https://app.callput.app" target="_blank" rel="noreferrer">Open app ↗</a>
     </header>
 
     <main class="wrap">
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Operator runbook</p>
-          <h1>Connect an agent to Callput options.</h1>
+          <p class="eyebrow">MCP for agents · Source v0.8.0</p>
+          <h1>One MCP. Three option networks.</h1>
           <p>
-            Clone the GitHub repo, register the MCP server id <code>callput-lite-agent-mcp</code>, then run one prompt that scans
-            supported crypto and stock-option spreads and returns an unsigned transaction for your external signer.
+            Route the same 13 agent tools to Base, Robinhood Chain, or GIWA. Every market response and unsigned transaction stays
+            bound to the network you select, with the chain identity verified before use.
           </p>
           <div class="chips">
             <span>5 minute setup</span>
-            <span>Base 8453 verified</span>
-            <span>Unsigned tx only</span>
+            <span>3 network profiles</span>
+            <span>25 MCP tools</span>
+            <span>Wallet-approved accounts</span>
             <span>Spread-only risk</span>
-            <span>Stock/ETF feed enabled</span>
           </div>
           <div class="hero-meta" aria-label="Name map">
             <span>Source repo <strong>ayggdrasil/callput-option-agent</strong></span>
@@ -417,45 +418,76 @@
             <a class="button" href="#start">Install and connect</a>
           </div>
         </div>
-        <aside class="activation-card" aria-label="Agent activation path">
+        <aside class="activation-card network-console" aria-label="Select the Callput network">
           <div class="activation-head">
-            <span>Activation path</span>
-            <strong>First value: unsigned_tx</strong>
+            <span>Network routing</span>
+            <strong>Choose before scanning</strong>
           </div>
-          <ol class="activation-list">
-            <li>
-              <span>01</span>
-              <div>
-                <strong>Install and verify</strong>
-                <p>Build the MCP server and run package smoke checks.</p>
-              </div>
-            </li>
-            <li>
-              <span>02</span>
-              <div>
-                <strong>Register MCP</strong>
-                <p>Point local runtimes at <code>build/src/index.js</code>, or connect to <code>https://mcp.callput.app/api/mcp</code>.</p>
-              </div>
-            </li>
-            <li>
-              <span>03</span>
-              <div>
-                <strong>Run first prompt</strong>
-                <p>Scan, validate, build unsigned calldata, then hand signing to your runtime.</p>
-              </div>
-            </li>
-          </ol>
+          <div class="network-grid" role="group" aria-label="Available networks">
+            <button class="network-card" type="button" data-network="base" aria-pressed="false">
+              <span class="network-monogram">B</span>
+              <span class="network-copy"><strong>Base</strong><small>Chain 8453</small></span>
+              <span class="network-badge">Mainnet</span>
+            </button>
+            <button class="network-card" type="button" data-network="robinhood" aria-pressed="false">
+              <span class="network-monogram robinhood">R</span>
+              <span class="network-copy"><strong>Robinhood</strong><small>Chain 4663</small></span>
+              <span class="network-badge">Mainnet</span>
+            </button>
+            <button class="network-card" type="button" data-network="giwa" aria-pressed="false">
+              <span class="network-monogram giwa">G</span>
+              <span class="network-copy"><strong>GIWA Sepolia</strong><small>Chain 91342</small></span>
+              <span class="network-badge testnet">Testnet</span>
+            </button>
+          </div>
+          <div class="connection-readout" aria-live="polite">
+            <div>
+              <span>Selected route</span>
+              <strong id="selectedNetworkName">Base</strong>
+            </div>
+            <div class="connection-pills">
+              <span id="selectedNetworkChain">Chain 8453</span>
+              <span id="selectedNetworkMode">Mainnet</span>
+              <span id="selectedNetworkCollateral">Collateral USDC</span>
+            </div>
+            <code id="selectedEndpoint">https://mcp.callput.app/api/mcp</code>
+          </div>
           <div class="activation-note">
-            <strong>Safety boundary</strong>
-            <span>The MCP never reads private keys and never broadcasts transactions.</span>
+            <strong>Unsigned boundary</strong>
+            <span>Network selection scopes reads and unsigned payloads. Keys, signing, and broadcast remain outside this MCP.</span>
           </div>
         </aside>
+      </section>
+
+      <section id="wallet-context" class="panel wallet-panel" aria-labelledby="walletGuideTitle">
+        <div class="panel-head">
+          <h2 id="walletGuideTitle">Login, wallet and trading account</h2>
+          <p>Selected-network guidance · checked 4 November 2026. App login stays in the app; the public MCP needs no login.</p>
+        </div>
+        <div class="wallet-guide-grid">
+          <article><h3>1. Connect in the app</h3><p id="walletLogin">Connect an external wallet, or use email + OTP for a Privy embedded EVM wallet. Social login is not enabled.</p></article>
+          <article><h3>2. Confirm who holds funds</h3><p id="walletCustody">The direct-wallet signer holds collateral and positions on Base. GIWA and Robinhood use a separate CallPut Account.</p></article>
+          <article><h3>3. Choose the execution path</h3><p id="walletExecution">Use callput_workflow_start for account deposits and wallet-approved trading sessions; check persistent storage readiness first.</p></article>
+        </div>
+        <div class="wallet-guide-actions">
+          <a id="walletAppLink" class="button" href="https://app.callput.app/account" target="_blank" rel="noreferrer">Open Base account ↗</a>
+          <span>Browser login and email OTP do not authorize an agent to sign.</span>
+        </div>
+        <details class="wallet-route-details">
+          <summary>Using a separately funded direct wallet with MCP</summary>
+          <p>On GIWA or Robinhood, explicitly choose this route for all open, close and settle preparation. This argument fragment belongs in a complete tool request after user review. It does not use your CallPut Account balance, sponsored session or account positions.</p>
+          <pre class="prompt"><code id="directWalletExample">{
+  "execution_route": "direct_wallet",
+  "from_address": "YOUR_SEPARATELY_FUNDED_SIGNER_ADDRESS"
+}</code></pre>
+          <p>Confirm the selected chain and signer address again after any account or network change. Keep OTP codes, Privy sessions and wallet credentials inside their authorized app or signer.</p>
+        </details>
       </section>
 
       <section id="start" class="panel setup-panel">
         <div class="panel-head">
           <h2>Runbook: connect in 5 minutes</h2>
-          <p>Follow these three steps to reach the first useful output: a validated spread candidate and unsigned transaction payload.</p>
+          <p>Connect the selected network, confirm its wallet and account model, then run a read-only market check.</p>
         </div>
         <div class="setup-grid">
           <article class="setup-step">
@@ -464,34 +496,37 @@
               <button type="button" data-copy-target="installCommands">Copy</button>
             </div>
             <h3>Clone the source repo</h3>
-            <p>Install dependencies, build the MCP server, and verify stock-option support before connecting a runtime.</p>
-            <pre class="prompt"><code id="installCommands">git clone --branch v0.5.30 https://github.com/ayggdrasil/callput-option-agent.git
+            <p>Source v0.8.0 adds existing-wallet account workflows. Check the hosted MCP initialize response for its deployed version; a source update does not update the hosted service. Inspect package.json before using a cloned checkout.</p>
+            <pre class="prompt"><code id="installCommands">git clone https://github.com/ayggdrasil/callput-option-agent.git
 cd callput-option-agent
+node -p "require('./package.json').version"
 npm install
 npm run build
 npm run verify
 npm run verify:mcp</code></pre>
-            <p class="expected">Expected: build succeeds, 12 MCP tools register, stock-option support test passes.</p>
+            <p class="expected">A matching v0.8.0 checkout should build and expose 25 MCP tools. Confirm its network profiles and collateral metadata before use.</p>
           </article>
           <article class="setup-step">
             <div class="step-top">
               <span>2</span>
               <button type="button" data-copy-target="mcpConfig">Copy</button>
             </div>
-            <h3>Register the MCP server</h3>
-            <p>Add the stdio server to your agent runtime. Keep wallet secrets in the runtime, not in this MCP.</p>
+            <h3>Register the selected network</h3>
+            <p>Use the endpoint for hosted access, or set <code>CALLPUT_NETWORK</code> for a local stdio server.</p>
+            <pre class="prompt endpoint-prompt"><code id="mcpEndpoint">https://mcp.callput.app/api/mcp</code></pre>
             <pre class="prompt"><code id="mcpConfig">{
   "mcpServers": {
     "callput-lite-agent-mcp": {
       "command": "node",
       "args": ["/absolute/path/callput-option-agent/build/src/index.js"],
       "env": {
+        "CALLPUT_NETWORK": "base",
         "RPC_URL": "https://mainnet.base.org"
       }
     }
   }
 }</code></pre>
-            <p class="expected">Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as Base mainnet, chain ID <code>8453</code>.</p>
+            <p id="networkExpected" class="expected">Expected: runtime lists <code>callput-lite-agent-mcp</code>; RPC is verified as Base mainnet, chain ID <code>8453</code>.</p>
           </article>
           <article class="setup-step">
             <div class="step-top">
@@ -499,19 +534,19 @@ npm run verify:mcp</code></pre>
               <button type="button" data-copy-target="firstPrompt">Copy</button>
             </div>
             <h3>Run the first prompt</h3>
-            <p>Use a bounded prompt that asks for approval before signing and keeps lifecycle tracking explicit.</p>
-            <pre class="prompt"><code id="firstPrompt">Scan TSLA spreads, validate one candidate, build unsigned_tx, ask for explicit approval, sign externally, broadcast, parse request_key, then poll request status.</code></pre>
-            <p class="expected">Expected: the agent returns a candidate, an unsigned transaction payload, and the signer handoff steps.</p>
+            <p>Start read-only. Confirm the position-holding address and execution compatibility before preparing a transaction.</p>
+            <pre class="prompt"><code id="firstPrompt">Use base (Base, chain 8453) for a read-only check. Call callput_get_network_info and inspect wallet_connection, collateral and testnet. Scan TSLA spreads only if the feed is fresh. Do not prepare, sign or broadcast a transaction.</code></pre>
+            <p class="expected">Expected: verified network and custody context, plus read-only candidates or a clear availability error. No transaction is prepared.</p>
           </article>
         </div>
         <div class="recovery-strip" aria-label="Common setup recovery steps">
           <div><strong>If tools are missing</strong><span>Run <code>npm run verify:mcp</code> and restart the agent runtime.</span></div>
-          <div><strong>If chain reads fail</strong><span>Set <code>RPC_URL=https://mainnet.base.org</code> and retry.</span></div>
+          <div><strong>If chain reads fail</strong><span id="rpcRecovery">Set <code>CALLPUT_NETWORK=base</code> and <code>RPC_URL=https://mainnet.base.org</code>, then retry.</span></div>
           <div><strong>If signing is requested</strong><span>Stop. Signing belongs to the external runtime wallet boundary.</span></div>
         </div>
         <div class="link-strip" aria-label="Repository links">
           <a href="https://github.com/ayggdrasil/callput-option-agent" target="_blank" rel="noreferrer">Source repo</a>
-          <a href="https://github.com/ayggdrasil/callput-option-agent/tree/v0.5.30/callput" target="_blank" rel="noreferrer">Install Bankr Skill</a>
+          <a href="https://github.com/ayggdrasil/callput-option-agent/tree/main/callput" target="_blank" rel="noreferrer">Install Bankr Skill</a>
           <a href="https://callput.app" target="_blank" rel="noreferrer">Callput.app</a>
         </div>
       </section>
@@ -557,9 +592,9 @@ npm run verify:mcp</code></pre>
           <section class="faq-group" aria-labelledby="faq-root-basics">
             <h3 id="faq-root-basics">Callput and MCP basics</h3><p class="faq-group-lede">Definitions and canonical integration identifiers.</p>
             <div class="faq-list">
-              <details class="faq-item"><summary>What is Callput Lite MCP?</summary><p>Callput Lite MCP is a public Model Context Protocol server and agent skill for scanning and managing defined-risk synthetic option spreads on Base. It provides market data, validation, unsigned transaction preparation, request tracking, position closing, and settlement tools.</p></details>
-              <details class="faq-item"><summary>What does the Callput MCP server do?</summary><p>The server reads the Callput market feed, validates option structures, ranks spread candidates, checks Base transaction constraints, and returns structured results to an agent. It does not hold a private key or sign a transaction.</p></details>
-              <details class="faq-item"><summary>What is the Callput MCP endpoint?</summary><p>Use https://mcp.callput.app/api/mcp as a Streamable HTTP MCP endpoint. The public endpoint does not require an API key, although clients must still follow the server's origin, rate-limit, and safety policies.</p></details>
+              <details class="faq-item"><summary>What is Callput Lite MCP?</summary><p>Callput Lite MCP is a public Model Context Protocol server and agent skill for scanning and managing defined-risk synthetic option spreads on Base, Robinhood Chain, and GIWA. It provides network-bound market data, validation, unsigned transaction preparation, request tracking, position closing, and settlement tools.</p></details>
+              <details class="faq-item"><summary>What does the Callput MCP server do?</summary><p>The server reads the selected network's Callput market feed, validates option structures, ranks spread candidates, checks chain-specific transaction constraints, and returns structured results to an agent. It does not hold a private key or sign a transaction.</p></details>
+              <details class="faq-item"><summary>What is the Callput MCP endpoint?</summary><p>Use https://mcp.callput.app/api/mcp for Base, https://mcp.callput.app/api/mcp?network=robinhood for Robinhood Chain, or https://mcp.callput.app/api/mcp?network=giwa for GIWA. The public Streamable HTTP endpoint does not require an API key, although clients must still follow the server's origin, rate-limit, and safety policies.</p></details>
               <details class="faq-item"><summary>Which repository, package, and server ID should I use?</summary><p>Clone https://github.com/ayggdrasil/callput-option-agent.git, use the package name callput-lite-mcp-skill, and configure the server ID callput-lite-agent-mcp. These identifiers belong to the same integration package.</p></details>
               <details class="faq-item"><summary>Is Callput Lite MCP a wallet, broker, or exchange?</summary><p>No. It is an MCP server and skill package that prepares data and unsigned transactions for Callput's on-chain protocol. Wallet custody, signing, broadcast, and user authorization stay outside the MCP.</p></details>
             </div>
@@ -567,7 +602,7 @@ npm run verify:mcp</code></pre>
           <section class="faq-group" aria-labelledby="faq-root-install">
             <h3 id="faq-root-install">Installation and agent compatibility</h3><p class="faq-group-lede">Connection requirements and read-only verification.</p>
             <div class="faq-list">
-              <details class="faq-item"><summary>How does an agent connect to Callput MCP?</summary><p>Add https://mcp.callput.app/api/mcp as an HTTP MCP server with no authentication, then list the available tools before attempting a scan. Begin with a read-only prompt and do not prepare or submit a transaction until the user explicitly chooses a candidate.</p></details>
+              <details class="faq-item"><summary>How does an agent connect to Callput MCP?</summary><p>Add the selected network's https://mcp.callput.app/api/mcp endpoint as an HTTP MCP server with no authentication, then call callput_get_network_info and list the tools before attempting a scan. Begin with a read-only prompt and do not prepare or submit a transaction until the user explicitly chooses a candidate. Inspect wallet_connection to distinguish the connected owner wallet from a CallPut Account holding funds and positions. Use the actual holding address for read-only portfolio and history calls.</p></details>
               <details class="faq-item"><summary>Which AI agents and MCP clients can use Callput?</summary><p>Any client that supports Streamable HTTP MCP and the advertised tool schemas can connect. The repository also contains skill instructions for compatible coding agents and agent runtimes.</p></details>
               <details class="faq-item"><summary>Do I need a Callput API key?</summary><p>No API key is required for the public MCP endpoint. The server still applies request ceilings, input validation, market-data freshness checks, and transaction safety limits.</p></details>
               <details class="faq-item"><summary>Can Bankr or OpenClaw use the same Callput tools?</summary><p>Yes, when the runtime supports the Callput MCP or installs the Callput skill. Each runtime remains responsible for its own wallet identity, authorization policy, signing, and broadcast.</p></details>
@@ -577,9 +612,9 @@ npm run verify:mcp</code></pre>
           <section class="faq-group" aria-labelledby="faq-root-markets">
             <h3 id="faq-root-markets">Supported markets and strategies</h3><p class="faq-group-lede">Assets, synthetic products, and defined-risk structures.</p>
             <div class="faq-list">
-              <details class="faq-item"><summary>Which blockchain does Callput use?</summary><p>Callput transaction preparation targets Base mainnet, chain ID 8453. Wallet funds, token approvals, gas handling, and transaction review must therefore use Base-compatible assets and addresses.</p></details>
-              <details class="faq-item"><summary>Which assets can Callput currently scan?</summary><p>The configured symbols are BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. Live candidates depend on the current feed, expiry set, direction, and option availability.</p></details>
-              <details class="faq-item"><summary>Are Callput stock and RWA options live?</summary><p>Yes. Synthetic stock and ETF options are live on Callput alongside BTC and ETH options. Individual markets depend on available unexpired option rows in the current feed. These synthetic on-chain options do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights.</p></details>
+              <details class="faq-item"><summary>Which blockchain does Callput use?</summary><p>Callput supports Base mainnet chain ID 8453, Robinhood Chain mainnet chain ID 4663, and GIWA Sepolia testnet chain ID 91342. Wallet funds, approvals, gas, contracts, and transaction review must match the selected network; GIWA is explicitly testnet.</p></details>
+              <details class="faq-item"><summary>Which assets can Callput currently scan?</summary><p>Base and Robinhood Chain configure BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. GIWA configures the first 13 symbols through DRAM. Candidates depend on a fresh selected-network feed, expiry set, direction, and option availability.</p></details>
+              <details class="faq-item"><summary>Are Callput stock and RWA options live?</summary><p>Callput has configured synthetic stock and ETF option markets alongside BTC and ETH. A market is available only when the selected network returns fresh, unexpired option rows; stale feeds pause quotes and new trade preparation. These synthetic on-chain options do not represent broker-listed option contracts, tokenized shares, securities ownership, dividends, or voting rights.</p></details>
               <details class="faq-item"><summary>Which option spread strategies are supported?</summary><p>Agents can scan and prepare BuyCallSpread, BuyPutSpread, SellCallSpread, and SellPutSpread verticals. Those capped-risk legs can also be composed into structures such as butterflies or iron condors when the agent and user manage every leg explicitly.</p></details>
               <details class="faq-item"><summary>Does a configured symbol always have a tradable spread?</summary><p>No. A configured symbol can return no candidates when contracts are unavailable, expired, stale, structurally invalid, or outside the selected constraints. Agents should query the live feed instead of assuming availability from the symbol list.</p></details>
             </div>
@@ -587,11 +622,11 @@ npm run verify:mcp</code></pre>
           <section class="faq-group" aria-labelledby="faq-root-transactions">
             <h3 id="faq-root-transactions">Transaction preparation and wallet control</h3><p class="faq-group-lede">Unsigned payloads, approval, risk, and fees.</p>
             <div class="faq-list">
-              <details class="faq-item"><summary>Does Callput MCP automatically execute trades?</summary><p>No. The MCP returns unsigned transaction data and cannot sign or broadcast it. A user-controlled wallet or authorized external signer must review and approve every on-chain action.</p></details>
-              <details class="faq-item"><summary>What is an `unsigned_tx` response?</summary><p>It is a transaction payload containing the destination, calldata, native value, and Base chain ID needed for external review. Receiving it does not mean that a transaction was signed, submitted, mined, or executed.</p></details>
-              <details class="faq-item"><summary>Why can a Callput trade require USDC approval?</summary><p>Premium or collateral may require the Base USDC allowance for the exact Callput spender. When allowance is insufficient, the response can include a bounded approval transaction that must be reviewed and confirmed before the option transaction.</p></details>
-              <details class="faq-item"><summary>How are maximum risk and minimum fill handled?</summary><p>Callput enforces a configured per-trade USDC risk ceiling and returns the calculated maximum amount at risk for the requested size. It also encodes a minimum-fill constraint so an execution below the user's accepted threshold can be rejected.</p></details>
-              <details class="faq-item"><summary>Why does the transaction include a Base ETH value?</summary><p>Callput's request flow can require a native execution fee paid in Base ETH. The prepared transaction shows both the exact wei value and its ETH representation so the signer can verify it before approval.</p></details>
+              <details class="faq-item"><summary>Does Callput MCP automatically execute trades?</summary><p>Source v0.8.0 adds wallet-approved account workflows when persistent storage and wallet approval routes are configured. Existing wallets sign login and bounded device Grants; the device signs orders and the protocol relay sponsors execution. The MCP never receives private keys. Deposits require a separately authorized owner transaction and gas cap. Direct-wallet preparation still requires explicit execution_route=direct_wallet on GIWA and Robinhood. Check live capabilities before acting.</p></details>
+              <details class="faq-item"><summary>What is an `unsigned_tx` response?</summary><p>It is a transaction payload containing the destination, calldata, native value, and selected chain ID needed for external review. Receiving it does not mean that a transaction was signed, submitted, mined, or executed.</p></details>
+              <details class="faq-item"><summary>Why can a Callput trade require collateral approval?</summary><p>Premium or collateral may require the selected network's collateral-token allowance: USDC on Base, USDG on Robinhood Chain, and test USDC on GIWA Sepolia. When allowance is insufficient, the legacy usdc_approval response can include a bounded approval transaction. Verify its token address, spender and amount before confirming it.</p></details>
+              <details class="faq-item"><summary>How are maximum risk and minimum fill handled?</summary><p>Callput enforces a configured per-trade risk ceiling in the selected network's collateral token: USDC on Base, USDG on Robinhood Chain, and test USDC on GIWA Sepolia. It returns the calculated maximum amount at risk and encodes a minimum-fill constraint so execution below the accepted threshold can be rejected.</p></details>
+              <details class="faq-item"><summary>Why does the transaction include a native-token value?</summary><p>Callput's request flow can require a native execution fee on the selected network. The prepared transaction shows the exact wei value and its readable representation so the signer can verify it before approval.</p></details>
             </div>
           </section>
           <section class="faq-group" aria-labelledby="faq-root-lifecycle">
@@ -609,9 +644,9 @@ npm run verify:mcp</code></pre>
             <div class="faq-list">
               <details class="faq-item"><summary>Does Callput receive or store private keys?</summary><p>No. Callput MCP does not request, receive, or store a seed phrase or private key. Signing policy and key custody remain with Bankr, another external wallet, or the user's authorized agent runtime.</p></details>
               <details class="faq-item"><summary>Why did a Callput scan return no candidates?</summary><p>The selected symbol, direction, expiry, size, or risk constraint may not match any valid live spread. Retry with another supported symbol or direction after confirming that the market endpoint reports current tradable contracts.</p></details>
-              <details class="faq-item"><summary>What happens when market data is stale or Base RPC fails?</summary><p>The MCP rejects stale or malformed market data and rejects RPC responses from the wrong chain. Agents should surface the error, avoid transaction preparation, and retry only after the upstream feed or Base RPC is healthy.</p></details>
-              <details class="faq-item"><summary>Why can an externally submitted transaction simulation revert?</summary><p>Common causes include insufficient Base USDC, insufficient allowance, insufficient Base ETH for the execution fee, expired calldata, changed market state, or contract-level validation. The agent should recheck balances and rebuild fresh transaction data instead of replaying a stale payload.</p></details>
-              <details class="faq-item"><summary>What is the safest first Callput workflow?</summary><p>Start with a read-only scan, choose a small defined-risk spread, inspect maximum risk and minimum fill, then prepare an unsigned transaction. Sign only after verifying the Base chain, destination, calldata intent, USDC approval, and native execution fee.</p></details>
+              <details class="faq-item"><summary>What happens when market data is stale or the selected RPC fails?</summary><p>The MCP rejects stale or malformed market data and rejects RPC responses from the wrong chain. Agents should surface the error, avoid transaction preparation, and retry only after the selected network's feed and RPC are healthy.</p></details>
+              <details class="faq-item"><summary>Why can an externally submitted transaction simulation revert?</summary><p>Common causes include insufficient collateral or ETH gas on the selected network, insufficient allowance, expired calldata, changed market state, or contract-level validation. Robinhood Chain collateral is USDG; Base and GIWA use USDC, with GIWA explicitly testnet. Recheck balances and rebuild fresh transaction data instead of replaying a stale payload.</p></details>
+              <details class="faq-item"><summary>What is the safest first Callput workflow?</summary><p>Start with callput_get_network_info and a read-only scan, choose a small defined-risk spread, inspect maximum risk and minimum fill, then prepare an unsigned transaction. Sign only after verifying the selected chain, destination, calldata intent, collateral token and approval, native execution fee, and testnet status.</p></details>
             </div>
           </section>
         </div>
@@ -620,17 +655,28 @@ npm run verify:mcp</code></pre>
       <section id="markets" class="panel">
         <div class="panel-head">
           <h2>Supported Markets</h2>
-          <p>Synthetic stock and ETF options are live on Callput. Availability below is read from the current feed; a listed symbol is not a guarantee that a spread will execute.</p>
+          <p>Configured synthetic stock, ETF, BTC, and ETH option markets vary by network. Availability below is read from the selected feed; a listed symbol is never a guarantee that a spread will execute.</p>
         </div>
-        <p><strong>20 configured markets:</strong> BTC, ETH, TSLA, QQQ, SPY, EWY, NVDA, COIN, SPCX, MU, SKHY, SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR.</p>
-        <p><strong>Added to MCP v0.5.30:</strong> SNDK, DRAM, META, GOOGL, AAPL, CRCL, AMZN, MSFT, and PLTR. Coverage reviewed on September 26, 2026. CRCL now has option chains; it is no longer described as reference-only.</p>
-        <p>These are synthetic onchain options. They do not confer shares, ETF ownership, dividends, voting rights, or physical delivery of the referenced asset. USDC is a quote asset, not an option underlying.</p>
-        <p><a href="https://docs.callput.app/live-scope-and-markets">Product documentation</a> · <a href="/api/bankr/assets">Current MCP market status</a> · <a href="https://app-data-base.s3.ap-southeast-1.amazonaws.com/market-data.json">Canonical market feed</a> · <a href="/llms.txt">AI documentation index</a></p>
+        <p><strong>Network coverage:</strong> Base and Robinhood Chain expose 20 configured markets; GIWA currently exposes 13. Always use the live response for the selected network as the source of truth.</p>
+        <p>These are synthetic onchain options. They do not confer shares, ETF ownership, dividends, voting rights, or physical delivery of the referenced asset. The selected network's collateral token (USDC on Base, USDG on Robinhood Chain, or test USDC on GIWA Sepolia) is not an option underlying.</p>
+        <p><a href="https://docs.callput.app/live-scope-and-markets">Product documentation</a> · <a href="/api/bankr/assets">Base market status</a> · <a href="/api/bankr/assets?network=robinhood">Robinhood market status</a> · <a href="/api/bankr/assets?network=giwa">GIWA market status</a> · <a href="/llms.txt">AI documentation index</a></p>
+        <div class="collateral-table-wrap">
+          <table class="collateral-table">
+            <caption>Network, collateral and wallet reference · checked 4 November 2026</caption>
+            <thead><tr><th scope="col">Network</th><th scope="col">Chain ID</th><th scope="col">Environment</th><th scope="col">Configured markets</th><th scope="col">Collateral token</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Base</th><td>8453</td><td>Mainnet</td><td>20</td><td><a href="https://basescan.org/address/0x833589fCD6eDb6E08f4C7C32D4f71b54bdA02913" target="_blank" rel="noopener noreferrer">USDC · 6 decimals</a></td></tr>
+              <tr><th scope="row">Robinhood Chain</th><td>4663</td><td>Mainnet</td><td>20</td><td><a href="https://robinhoodchain.blockscout.com/address/0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168" target="_blank" rel="noopener noreferrer">USDG · 6 decimals</a></td></tr>
+              <tr><th scope="row">GIWA Sepolia</th><td>91342</td><td>Testnet</td><td>13</td><td><a href="https://sepolia-explorer.giwa.io/address/0x79AD98fA252D64A9095f83cc6FaF4243E0d01d48" target="_blank" rel="noopener noreferrer">Test USDC · 6 decimals</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Start with <code>callput_get_network_info</code> and inspect <code>collateral.symbol</code>, <code>address</code> and <code>decimals</code>. Legacy <code>usdc_approval</code>, <code>usdc_balance</code> and <code>amount_in_usdc</code> field names remain for compatibility; on Robinhood Chain they refer to USDG. ETH pays native gas. See <a href="https://docs.callput.app/developers/contracts-addresses-and-data-sources">contracts and data sources</a>.</p>
         <p id="liveAvailabilityStatus" class="availability-status" role="status" aria-live="polite">Checking current Callput market availability…</p>
         <div class="scan-card" aria-label="Current market availability">
           <div class="scan-head">
             <span>Current market availability</span>
-            <strong>Base 8453</strong>
+            <strong id="selectedMarketNetwork">Base 8453 · mainnet</strong>
           </div>
           <div class="symbol-tabs" id="symbolTabs"></div>
           <div class="scan-table" id="scanTable"></div>
@@ -714,7 +760,7 @@ npm run verify:mcp</code></pre>
           <article class="flow-card">
             <span>Step 3</span>
             <h3>Build Transaction</h3>
-            <p>Generate unsigned calldata plus USDC approval details for an external signer.</p>
+            <p>Generate unsigned calldata plus network-specific collateral approval details for an external signer.</p>
           </article>
           <article class="flow-card">
             <span>Step 4</span>
@@ -755,7 +801,7 @@ npm run verify:mcp</code></pre>
           <div class="boundary-arrow">-&gt;</div>
           <div class="boundary-node">
             <strong>MCP</strong>
-            <span>Reads market data, verifies Base RPC, and returns unsigned transaction payloads.</span>
+            <span>Reads the selected feed, verifies the selected RPC chain, and returns network-bound unsigned transaction payloads.</span>
           </div>
           <div class="boundary-arrow">-&gt;</div>
           <div class="boundary-node trusted">
@@ -773,7 +819,7 @@ npm run verify:mcp</code></pre>
         <div class="panel-head">
           <h2>Operator Prompt Snippet</h2>
         </div>
-        <pre class="prompt"><code>Scan TSLA and ETH spreads, pick one valid candidate, build unsigned_tx, ask for explicit authorization, sign externally, broadcast, parse request_key, then poll request status.</code></pre>
+        <pre class="prompt"><code>Call callput_get_network_info, scan one supported market, pick one valid candidate, build unsigned_tx, ask for explicit authorization, verify the selected chain, sign externally, broadcast, parse request_key, then poll request status.</code></pre>
       </section>
     </main>
 

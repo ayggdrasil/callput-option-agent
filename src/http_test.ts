@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { handleMcpHttpRequest } from "./http.js";
+import { CALLPUT_VERSION } from "./version.js";
 
 async function main() {
   const forbidden = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
@@ -33,7 +34,7 @@ async function main() {
   assert.equal(initialize.status, 200);
   const initialized = await initialize.json() as any;
   assert.equal(initialized.result.serverInfo.name, "callput-lite-agent-mcp");
-  assert.equal(initialized.result.serverInfo.version, "0.5.30");
+  assert.equal(initialized.result.serverInfo.version, CALLPUT_VERSION);
 
   const toolList = await handleMcpHttpRequest(new Request("https://mcp.callput.app/api/mcp", {
     method: "POST",

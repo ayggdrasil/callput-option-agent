@@ -225,7 +225,7 @@ async function main() {
   assert.equal(normalizeAsset("SK Hynix"), "SKHY");
   assert.equal(normalizeAsset("HYNIX"), "SKHY");
 
-  const configSource = readProjectFile("src/config.ts");
+  const configSource = readProjectFile("src/baseConfig.ts");
   assert.match(configSource, /SPCX: \{ index: 9, decimals: 18, marketType: "STOCK"/);
   assert.match(configSource, /MU: \{ index: 10, decimals: 18, marketType: "STOCK", optionsToken: "0xbb2ec5c3da6c17cd470812c8b4e660a283390711" \}/);
   assert.match(configSource, /SKHY: \{ index: 11, decimals: 18, marketType: "STOCK", optionsToken: "0xe99db918aafac955fdb22a52e37a1a514c4332ef" \}/);
@@ -234,7 +234,14 @@ async function main() {
 
   const frontendApp = readProjectFile("frontend-v1/app.js");
   assert.doesNotMatch(frontendApp, /05JUN26|18JUN26|const scanRows/, "market status must not present expired sample spreads");
-  assert.match(frontendApp, /fetch\("\/api\/bankr\/assets"/, "the root console must refresh from the public assets endpoint");
+  const frontendStatus = readProjectFile("frontend-v1/market-status.js");
+  assert.match(frontendStatus, /\/api\/bankr\/assets\?network=/, "the root console must refresh from the network-scoped public assets endpoint");
+  for (const network of ["base", "robinhood", "giwa"]) {
+    assert.match(frontendApp, new RegExp(`slug: "${network}"`), `the root console must expose the ${network} selector`);
+  }
+  assert.match(frontendApp, /CALLPUT_ROBINHOOD_RPC_URL/);
+  assert.match(frontendApp, /CALLPUT_GIWA_RPC_URL/);
+  assert.match(frontendApp, /callput_get_network_info/);
 
   const frontendHtml = readProjectFile("frontend-v1/index.html");
   assert.doesNotMatch(frontendHtml, /<strong>11<\/strong> <span>currently tradable/);
@@ -249,8 +256,10 @@ async function main() {
   ]) assert.match(frontendHtml, new RegExp(heading));
 
   for (const phrase of [
-    "Streamable HTTP MCP endpoint",
-    "Base mainnet, chain ID <code>8453</code>",
+    "public Streamable HTTP endpoint",
+    "Base mainnet chain ID 8453",
+    "Robinhood Chain mainnet chain ID 4663",
+    "GIWA Sepolia testnet chain ID 91342",
     "request key",
     "settled results",
     "simulation revert"

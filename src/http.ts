@@ -1,4 +1,5 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { resolveNetwork } from "./config.js";
 import { createCallputMcpServer } from "./index.js";
 import { bodyWithinLimit, isAllowedHttpHost, rateLimitRequest } from "./httpSecurity.js";
 
@@ -47,7 +48,10 @@ export async function handleMcpHttpRequest(request: Request): Promise<Response> 
     return jsonError(413, "Request body is too large", origin);
   }
 
-  const server = createCallputMcpServer();
+  let network;
+  try { network = resolveNetwork(new URL(request.url).searchParams.get("network")); }
+  catch { return jsonError(400, "Unknown network. Use base, robinhood, or giwa.", origin); }
+  const server = createCallputMcpServer(network);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true

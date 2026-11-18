@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { CONFIG, ERC20_ABI, OPTIONS_TOKEN_ABI, POSITION_MANAGER_ABI, SETTLE_MANAGER_ABI } from "./config.js";
 
 export type UnderlyingAsset = keyof typeof CONFIG.UNDERLYINGS;
-const UNDERLYING_ASSETS = Object.keys(CONFIG.UNDERLYINGS) as UnderlyingAsset[];
+const underlyingAssets = () => Object.keys(CONFIG.UNDERLYINGS) as UnderlyingAsset[];
 export type OptionSide = "Call" | "Put";
 export type SpreadStrategy = "BuyCallSpread" | "SellCallSpread" | "BuyPutSpread" | "SellPutSpread";
 export const DEFAULT_MIN_FILL_RATIO = 0.78;
@@ -119,13 +119,14 @@ type ParsedTokenId = {
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
-let marketCache: {
+type MarketCache = {
   tsMs: number;
   updatedAtMs: number;
   options: MarketOption[];
   spot: Record<UnderlyingAsset, number>;
-} | null = null;
-let marketFetchInFlight: Promise<MarketDataPayload> | null = null;
+};
+const marketCaches = new Map<number, MarketCache>();
+const marketFetches = new Map<number, Promise<MarketDataPayload>>();
 
 const ASSET_ALIASES: Record<string, UnderlyingAsset> = {
   WBTC: "BTC",
@@ -204,7 +205,7 @@ export function decodeSpreadTokenId(tokenIdInput: string): {
   const flagByte = Number.parseInt(hex.slice(14, 16), 16);
   const nakedEncoded = Number.parseInt(hex.slice(16, 28), 16);
   const pairEncoded = Number.parseInt(hex.slice(28, 40), 16);
-  const isLong = flagByte === 0x56;
+  const isLong = flagByte === 0x56 || flagByte === 0x74;
   const nakedStrike = Math.floor(nakedEncoded / 8);
   const pairStrike = pairEncoded > 0 ? Math.floor(pairEncoded / 8) : 0;
   const optionType: OptionSide = (nakedEncoded % 8 & 4) !== 0 ? "Call" : "Put";
@@ -261,12 +262,13 @@ async function fetchRawMarketData(): Promise<MarketDataPayload> {
 }
 
 async function fetchRawMarketDataCoalesced(): Promise<MarketDataPayload> {
-  if (!marketFetchInFlight) {
-    marketFetchInFlight = fetchRawMarketData().finally(() => {
-      marketFetchInFlight = null;
-    });
+  const chainId = CONFIG.CHAIN_ID;
+  let pending = marketFetches.get(chainId);
+  if (!pending) {
+    pending = fetchRawMarketData().finally(() => { marketFetches.delete(chainId); });
+    marketFetches.set(chainId, pending);
   }
-  return marketFetchInFlight;
+  return pending;
 }
 
 function marketSchemaError(message: string): never {
@@ -329,6 +331,7 @@ export async function getMarketSnapshot(
   maxAgeMs = DEFAULT_MAX_MARKET_AGE_MS
 ): Promise<{ options: MarketOption[]; spot: Record<UnderlyingAsset, number> }> {
   const now = Date.now();
+  const marketCache = marketCaches.get(CONFIG.CHAIN_ID);
   if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) throw new Error("maxAgeMs must be > 0");
   if (
     !force &&
@@ -357,13 +360,13 @@ export async function getMarketSnapshot(
   const options: MarketOption[] = [];
   const seenOptionLegIds = new Map<string, string>();
   const spot = Object.fromEntries(
-    UNDERLYING_ASSETS.map((asset) => [
+    underlyingAssets().map((asset) => [
       asset,
       Number(spotIndices[asset] ?? spotIndices[asset.toLowerCase()] ?? 0)
     ])
   ) as Record<UnderlyingAsset, number>;
 
-  for (const asset of UNDERLYING_ASSETS) {
+  for (const asset of underlyingAssets()) {
     const assetData = market[asset];
     if (assetData === undefined) continue;
     if (!isRecord(assetData)) marketSchemaError(`data.market.${asset} must be an object`);
@@ -474,7 +477,7 @@ export async function getMarketSnapshot(
     }
   }
 
-  marketCache = { tsMs: now, updatedAtMs, options, spot };
+  marketCaches.set(CONFIG.CHAIN_ID, { tsMs: now, updatedAtMs, options, spot });
   return { options, spot };
 }
 
@@ -534,7 +537,7 @@ export async function getOptionChains(params: {
 }
 
 function mapAssetIndexToUnderlying(index: number): UnderlyingAsset | null {
-  return UNDERLYING_ASSETS.find((asset) => CONFIG.UNDERLYINGS[asset].index === index) ?? null;
+  return underlyingAssets().find((asset) => CONFIG.UNDERLYINGS[asset].index === index) ?? null;
 }
 
 function minSpreadValueForAsset(asset: UnderlyingAsset): number {
@@ -687,6 +690,7 @@ const validatedNetworkCache = new Map<string, Promise<void>>();
 async function getValidatedProvider(options: ProviderOptions = {}): Promise<ethers.JsonRpcProvider> {
   const rpcUrl = options.rpcUrl ?? CONFIG.RPC_URL;
   const key = [
+    CONFIG.CHAIN_ID,
     rpcUrl,
     process.env.CALLPUT_RPC_TIMEOUT_MS ?? "",
     options.unbatchedRpc ? "unbatched" : "batched"
@@ -697,7 +701,7 @@ async function getValidatedProvider(options: ProviderOptions = {}): Promise<ethe
     validation = (async () => {
       const chainId = BigInt(await provider.send("eth_chainId", []));
       if (chainId !== BigInt(CONFIG.CHAIN_ID)) {
-        throw new Error(`RPC provider is on chain ${chainId}, expected Base (${CONFIG.CHAIN_ID})`);
+        throw new Error(`RPC provider is on chain ${chainId}, expected ${CONFIG.NETWORK_NAME} (${CONFIG.CHAIN_ID})`);
       }
     })().catch((error) => {
       if (validatedNetworkCache.get(key) === validation) validatedNetworkCache.delete(key);
@@ -1386,7 +1390,7 @@ export async function getPositions(
   const tokenInterface = new ethers.Interface(OPTIONS_TOKEN_ABI);
 
   if (options.multicallRpc) {
-    const configuredAssets = UNDERLYING_ASSETS.filter((asset) => CONFIG.UNDERLYINGS[asset].optionsToken);
+    const configuredAssets = underlyingAssets().filter((asset) => CONFIG.UNDERLYINGS[asset].optionsToken);
     const multicall = new ethers.Contract(BASE_MULTICALL3, MULTICALL3_ABI, provider);
     const tokenResults = await multicall.aggregate3.staticCall(configuredAssets.map((asset) => ({
       target: CONFIG.UNDERLYINGS[asset].optionsToken,
@@ -1437,8 +1441,8 @@ export async function getPositions(
       return buildAssetPositions(asset, tokenIds, balances);
     };
     const positionLookupBatchSize = 8;
-    for (let offset = 0; offset < UNDERLYING_ASSETS.length; offset += positionLookupBatchSize) {
-      const assets = UNDERLYING_ASSETS.slice(offset, offset + positionLookupBatchSize);
+    for (let offset = 0; offset < underlyingAssets().length; offset += positionLookupBatchSize) {
+      const assets = underlyingAssets().slice(offset, offset + positionLookupBatchSize);
       const results = await Promise.allSettled(assets.map(readAssetPositions));
       for (let index = 0; index < results.length; index++) {
         const result = results[index];
@@ -1591,7 +1595,7 @@ export async function getSettledPnl(params: {
     total_settled_positions: settlements.length,
     total_amount_out_usd: Math.round(totalAmountOutUsd * 100) / 100,
     settlements,
-    note: "amount_out_usd is gross USDC received at settlement. Subtract entry_cost_usd (from portfolio_summary or open position records) to get realized P&L."
+    note: "amount_out_usd is gross selected-network collateral received at settlement (USDG on Robinhood Chain; USDC on Base or GIWA testnet). Subtract entry_cost_usd (from portfolio_summary or open position records) to get realized P&L."
   };
 }
 

@@ -120,13 +120,14 @@ async function startRpcServer(): Promise<{ server: http.Server; url: string; sta
 
 test("trade core safety gates", async (t) => {
   const originalFetch = globalThis.fetch;
-  const originalRpcUrl = CONFIG.RPC_URL;
+  const originalRpcUrl = process.env.RPC_URL;
   const rpc = await startRpcServer();
-  (CONFIG as any).RPC_URL = rpc.url;
+  process.env.RPC_URL = rpc.url;
 
   t.after(async () => {
     globalThis.fetch = originalFetch;
-    (CONFIG as any).RPC_URL = originalRpcUrl;
+    if (originalRpcUrl === undefined) delete process.env.RPC_URL;
+    else process.env.RPC_URL = originalRpcUrl;
     await new Promise<void>((resolve, reject) => rpc.server.close((error) => error ? reject(error) : resolve()));
   });
 
@@ -338,7 +339,7 @@ test("trade core safety gates", async (t) => {
 
   await t.test("shares one validated Base provider across concurrent lifecycle requests", async () => {
     const priorRpcUrl = CONFIG.RPC_URL;
-    (CONFIG as any).RPC_URL = `${rpc.url}?provider-cache=concurrent`;
+    process.env.RPC_URL = `${rpc.url}?provider-cache=concurrent`;
     rpc.state.chainIdCalls = 0;
     ownedBalanceRaw = 100_000_000n;
     const input = {
@@ -353,7 +354,7 @@ test("trade core safety gates", async (t) => {
       await Promise.all([closePosition(input), closePosition(input)]);
       assert.equal(rpc.state.chainIdCalls, 1, "concurrent requests must share the provider chain validation");
     } finally {
-      (CONFIG as any).RPC_URL = priorRpcUrl;
+      process.env.RPC_URL = priorRpcUrl;
     }
   });
 

@@ -1,0 +1,32 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {Interface,TypedDataEncoder} from 'ethers';
+
+test('sponsored receipt binds account calldata, sponsor, canonical inclusion and both event emitters',async()=>{
+  const file=new URL('../scripts/sponsored-receipt.mjs',import.meta.url);
+  await assert.doesNotReject(fs.access(file),'account receipt verifier must exist');
+  const {verifySponsoredReceipt,accountOpenAbi,openTypes}=await import(file);
+  const account='0x'+'1'.repeat(40),sponsor='0x'+'2'.repeat(40),manager='0x'+'3'.repeat(40),hash='0x'+'4'.repeat(64),block='0x'+'5'.repeat(64),key='0x'+'6'.repeat(64);
+  const grant={signer:sponsor,nonce:'0',epoch:'0',validAfter:'1',validUntil:'1000',underlyings:['2'],strategies:'32',maxAmountPerOpen:'100000',maxAmount:'100000',maxOpens:'1',maxCloses:'0',maxFeePerTrade:'1000000000000000',maxFees:'1000000000000000'};
+  const intent={sessionId:'0x'+'7'.repeat(64),epoch:'0',nonce:'0',deadline:'999',source:'0'};
+  const params={underlyingAssetIndex:'2',length:'2',isBuys:[true,false,false,false],optionIds:['0x'+'8'.repeat(64),'0x'+'9'.repeat(64),'0x'+'0'.repeat(64),'0x'+'0'.repeat(64)],isCalls:[true,true,false,false],minSize:'1',amountIn:'3000'};
+  const expected={grant,intent,params,signature:'0x'+'a'.repeat(130)};
+  const domain={name:'CallPut Trading Account',version:'1',chainId:'4663',verifyingContract:account};
+  const digest=TypedDataEncoder.hash(domain,openTypes,{...intent,params});
+  const abi=new Interface(accountOpenAbi),pm=new Interface(['event GenerateRequestKey(address indexed account,bytes32 indexed key,bool indexed isOpen)']);
+  const session=abi.encodeEventLog(abi.getEvent('SessionRequest'),[intent.sessionId,0,digest,key,true,60000000000000n]);
+  const generated=pm.encodeEventLog(pm.getEvent('GenerateRequestKey'),[account,key,true]);
+  const transaction={hash,to:account,from:sponsor,chainId:4663n,blockHash:block,blockNumber:12,value:60000000000000n,data:abi.encodeFunctionData('openWithSession',[grant,intent,params,expected.signature])};
+  const receipt={hash,to:account,from:sponsor,status:1,blockHash:block,blockNumber:12,logs:[{address:account,...session},{address:manager,...generated}]};
+  const profile={chainId:'4663',sponsor,positionManager:manager};
+  const verify=(tx=transaction,r=receipt)=>verifySponsoredReceipt({transaction:tx,receipt:r,expected,account,profile,domain});
+  assert.equal(verify().request_key,key);
+  assert.throws(()=>verify({...transaction,to:manager}),/account|destination/i);
+  assert.throws(()=>verify({...transaction,from:account}),/sponsor/i);
+  assert.throws(()=>verify({...transaction,chainId:91342n}),/chain/i);
+  assert.throws(()=>verify({...transaction,data:'0x1234'}),/calldata/i);
+  assert.throws(()=>verify(transaction,{...receipt,status:0}),/succeed/i);
+  assert.throws(()=>verify(transaction,{...receipt,blockHash:'0x'+'f'.repeat(64)}),/inclusion/i);
+  assert.throws(()=>verify(transaction,{...receipt,logs:[receipt.logs[0],{...receipt.logs[1],address:account}]}),/event|request/i);
+});

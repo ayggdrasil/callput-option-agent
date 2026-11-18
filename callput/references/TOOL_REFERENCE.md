@@ -521,3 +521,24 @@ For buy spreads, `amount_in_usdc` uses the live spread mark plus the relevant ma
 10. **Settle** with `callput_settle_position` after expiry
 
 For P&L tracking, always pass saved `request_keys` to `portfolio_summary`. Use `close_pnl_est_usd` for profit-taking decisions.
+
+## Account workflow tools — source 0.8.0
+
+The 13 original market/direct-wallet tools remain. These 12 tools add existing Web3 wallet account setup and bounded trading:
+
+- `callput_account_resolve`: independently verify current/legacy account origins and balances.
+- `callput_workflow_start`: select one `underlying_asset` and `strategy`, freeze owner, account, deposit/trade/gas policy, and obtain a private workflow reference.
+- `callput_wallet_connect`: existing owner wallet plus separate device public signer, or app-origin approval link.
+- `callput_workflow_status`: read progress/evidence and executable `next_actions`.
+- `callput_action_prepare`: exact typed signature or fixed-nonce transfer request for login/create/deposit/register/open/close/settle/revoke.
+- `callput_action_begin`: first durable wallet prompt claim only; do not repeat an unknown transfer.
+- `callput_action_retry_wallet`: explicit recovery of the same request/digest/nonce only.
+- `callput_action_submit`: signature/hash/empty creation result; no keys/passwords.
+- `callput_action_status`: canonical receipt, keeper and position proof, without resubmitting.
+- `callput_session_status`: chain session state and remaining policy.
+- `callput_session_revoke`: prepare owner-signed revocation alongside pending trades.
+- `callput_workflow_recover`: finalized expired zero-use grant only; preserve signed unknown orders and the cap.
+
+Read `callput://account/workflow` or `callput_get_network_info.account_workflow` for the configured underlyings and strategies. Robinhood and GIWA support all four defined-risk spreads when the selected market has a fresh quote. The default is ETH and `BuyCallSpread`. Each Grant authorizes the selected market and strategy for one open and one close.
+
+If login preparation stops in `preparing` with `relay_dns_unavailable` or `relay_outcome_unknown`, read `callput_workflow_status` and retry its `callput_action_prepare` entry after the relay recovers. The same workflow resumes the original action ID.
