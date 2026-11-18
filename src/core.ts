@@ -1995,6 +1995,12 @@ export async function getPortfolioSummary(params: {
       lifecycle: pos.lifecycle,
       days_to_expiry: daysToExpiry,
       size: absSize,
+      ...(CONFIG.NETWORK === "base" ? {} : {
+        size_raw: pos.raw_balance,
+        strategy: ({
+          5: "BuyCallSpread", 6: "SellCallSpread", 7: "BuyPutSpread", 8: "SellPutSpread",
+        } as Record<number, string>)[Number((BigInt(pos.token_id) >> 196n) & 15n)] ?? null,
+      }),
       // Mark-to-market (fair mid price)
       current_spread_mark: currentSpreadMark,
       current_value_usd: currentValueUsd,

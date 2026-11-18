@@ -37,6 +37,8 @@ const abi = new Interface([
   "function sessionState(bytes32) view returns((bool installed,bool revoked,uint32 opens,uint32 closes,uint256 amountSpent,uint256 feesSpent))",
   "function sessionNonceUsed(bytes32,uint256) view returns(bool)",
   "event Transfer(address indexed from,address indexed to,uint256 value)",
+  "event OwnerAuthorizationUsed(uint256 indexed epoch,uint256 indexed nonce,bytes32 indexed digest)",
+  "function withdrawBySignature((uint8 kind,address token,uint256 id,uint256 amount,address to,uint256 epoch,uint256 nonce,uint48 deadline),bytes signature)",
   "event SessionRequest(bytes32 indexed sessionId,uint256 indexed nonce,bytes32 indexed digest,bytes32 requestKey,bool isOpen,uint256 executionFee)",
   "event GenerateRequestKey(address indexed account,bytes32 indexed key,bool indexed isOpen)",
 ]);
@@ -484,16 +486,46 @@ export class AccountChain {
       };
     }, true);
   }
+  async withdrawalProof(state: any, action: any, hash: string) {
+    return this.use(state.network, async (p) => {
+      const m = accountManifest(state.network);
+      const [tx, receipt, finalized] = await Promise.all([
+        p.getTransaction(hash), p.getTransactionReceipt(hash), p.getBlock("finalized"),
+      ]);
+      if (!tx || !receipt || !finalized || receipt.blockNumber > finalized.number) return null;
+      const { params, signature } = action.envelope;
+      ensure(receipt.status === 1 && tx.chainId === BigInt(m.chainId) &&
+        tx.to?.toLowerCase() === state.account && tx.value === 0n &&
+        m.sponsors.includes(tx.from.toLowerCase()) &&
+        tx.data.toLowerCase() === abi.encodeFunctionData("withdrawBySignature", [params, signature]).toLowerCase(),
+        "withdrawal_receipt_intent_mismatch");
+      const matching = (address: string, predicate: (log: NonNullable<ReturnType<Interface["parseLog"]>>) => boolean) =>
+        receipt.logs.filter(l => l.address.toLowerCase() === address).filter(l => {
+          try { const parsed = abi.parseLog(l); return !!parsed && predicate(parsed); }
+          catch { return false; }
+        });
+      ensure(matching(state.account, e => e.name === "OwnerAuthorizationUsed" &&
+        e.args.epoch === BigInt(params.epoch) && e.args.nonce === BigInt(params.nonce) &&
+        e.args.digest === action.digest).length === 1 &&
+        matching(m.token, e => e.name === "Transfer" && e.args.from.toLowerCase() === state.account &&
+          e.args.to.toLowerCase() === params.to && e.args.value === BigInt(params.amount)).length === 1 &&
+        (await p.getBlock(receipt.blockNumber))?.hash === receipt.blockHash,
+        "withdrawal_evidence_mismatch");
+      return { transaction_hash: hash, block_number: receipt.blockNumber, block_hash: receipt.blockHash,
+        amount_raw: params.amount, token: params.token, recipient: params.to };
+    }, true);
+  }
   async settlementProof(state: any, action: any, hash: string) {
     return this.use(
       state.network,
       async (p) => {
         const m = accountManifest(state.network),
-          [tx, r] = await Promise.all([
+          [tx, r, finalized] = await Promise.all([
             p.getTransaction(hash),
             p.getTransactionReceipt(hash),
+            p.getBlock("finalized"),
           ]);
-        if (!tx || !r) return null;
+        if (!tx || !r || !finalized || r.blockNumber > finalized.number) return null;
         const settle = new Interface([
           "function settleExpired(uint256[] optionTokenIds)",
           "event SettlePosition(address indexed account,uint16 indexed underlyingAssetIndex,uint40 indexed expiry,uint256 optionTokenId,uint256 size,address[] path,uint256 amountOut,uint256 settlePrice)",

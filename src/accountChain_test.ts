@@ -332,3 +332,40 @@ test("unused signed expiry proof pins the nonce bit to the same finalized block 
   unavailable = true;
   await assert.rejects(chain.expiredProof(state, orders), /historical state unavailable/);
 });
+
+test("withdrawal proof requires finality, the signed owner digest, and the exact USDG transfer", async () => {
+  const m = accountManifest("robinhood"), account = Wallet.createRandom().address.toLowerCase(),
+    recipient = Wallet.createRandom().address.toLowerCase(), owner = Wallet.createRandom(),
+    hash = "0x"+"a".repeat(64), blockHash = "0x"+"b".repeat(64);
+  const params = { kind:"0",token:m.token,id:"0",amount:"1000",to:recipient,epoch:"0",nonce:(1n<<128n).toString(),deadline:"1000" };
+  const types={Withdrawal:accountTypes.Withdrawal}, domain=accountDomain(m.chainId,account);
+  const signature=await owner.signTypedData(domain,types,params);
+  const digest=TypedDataEncoder.hash(domain,types,params);
+  const wire=new Interface([
+    "function withdrawBySignature((uint8 kind,address token,uint256 id,uint256 amount,address to,uint256 epoch,uint256 nonce,uint48 deadline),bytes signature)",
+    "event OwnerAuthorizationUsed(uint256 indexed epoch,uint256 indexed nonce,bytes32 indexed digest)",
+    "event Transfer(address indexed from,address indexed to,uint256 value)",
+  ]);
+  let finalized=99, amount="1000";
+  class Fake extends AccountChain {
+    override async use<T>(_n:string, fn:(p:any)=>Promise<T>, historical:boolean) {
+      assert.equal(historical,true);
+      return fn({
+        getBlock:async (value:unknown)=>value==="finalized"?{number:finalized}:{hash:blockHash},
+        getTransaction:async()=>({chainId:4663n,to:account,from:m.sponsors[0],value:0n,
+          data:wire.encodeFunctionData("withdrawBySignature",[params,signature])}),
+        getTransactionReceipt:async()=>({status:1,blockNumber:100,blockHash,logs:[
+          {address:account,...wire.encodeEventLog("OwnerAuthorizationUsed",[params.epoch,params.nonce,digest])},
+          {address:m.token,...wire.encodeEventLog("Transfer",[account,recipient,amount])},
+        ]}),
+      });
+    }
+  }
+  const c=new Fake(), state={network:"robinhood",account};
+  const action={digest,envelope:{params,signature}};
+  assert.equal(await c.withdrawalProof(state,action,hash),null);
+  finalized=100;
+  assert.equal((await c.withdrawalProof(state,action,hash))?.amount_raw,"1000");
+  amount="999";
+  await assert.rejects(c.withdrawalProof(state,action,hash),/withdrawal_evidence_mismatch/);
+});

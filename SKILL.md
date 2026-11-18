@@ -6,9 +6,9 @@ license: MIT
 
 # Callput Lite Trader Skill
 
-## Existing Web3 wallet and account workflow — source v0.8.1
+## Existing Web3 wallet and account workflow — source v0.8.2
 
-The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
+The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Read `callput://account/workflow` and use the exact prepared requests with your external owner and device signers. No browser page is required. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 
 Set `underlying_asset` and `strategy` in `callput_workflow_start` before the owner signs the Grant. All configured option markets on Robinhood and GIWA support `BuyCallSpread`, `SellCallSpread`, `BuyPutSpread`, and `SellPutSpread` when quotes are available. Each 10-minute Grant authorizes one selected underlying and strategy, one open, and one close. Omitting the fields selects ETH and BuyCallSpread. Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
 

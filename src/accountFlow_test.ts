@@ -467,3 +467,138 @@ test("transaction and request key survive restart and relay outage until finaliz
   assert.equal(terminal.evidence.request_key, pending.trade.request_key);
   assert.equal(f.requests.filter((r) => r.path === "/v1/trades").length, 1);
 });
+
+test("account creation after a lost response reconciles from the pinned account and leaves the next deposit discoverable", async (t) => {
+  const f = await flowFixture();
+  t.after(f.cleanup);
+  let created = false;
+  const resolve = f.ports.resolve, relay = f.ports.relay;
+  f.ports.resolve = async (...args) => ({...await resolve(...args), created, balance: "0"});
+  f.ports.relay = async (s, path, body) => {
+    if (path === "/v1/accounts") {
+      assert.equal(body.subIndex, "0");
+      created = true;
+      throw Error("relay_outcome_unknown");
+    }
+    if (path.startsWith("/v1/operations/")) throw Error("relay_404_not_found");
+    return relay(s, path, body);
+  };
+  await f.store.update(f.token, async (s) => { s.policy.deposit_amount_raw="1000000"; s.policy.max_deposit_gas_wei="500000"; });
+  const prepared = await f.engine.prepare(f.token, "create", {});
+  await assert.rejects(f.engine.submit(f.token, prepared.action_id, {}), /relay_outcome_unknown/);
+  const status = await f.engine.status(f.token);
+  assert.equal(status.actions.at(-1).state, "confirmed");
+  assert.equal(Reflect.get(status.next_actions[0].arguments,"step"), "deposit");
+});
+
+test("close-only grant commits a zero open cap and never produces an OpenIntent", async (t) => {
+  const f = await flowFixture();
+  t.after(f.cleanup);
+  const w = await f.engine.start("robinhood", {owner:f.owner.address, session_mode:"close_only", max_user_amount_raw:"0"});
+  await f.engine.connect(w.workflow_id,{owner:f.owner.address,chain_id:4663,device_signer:f.device.address});
+  const login = await f.engine.prepare(w.workflow_id,"login",{});
+  await f.engine.submit(w.workflow_id,login.action_id,await f.sign(login));
+  const action=await f.engine.prepare(w.workflow_id,"register",{});
+  const {message}=JSON.parse(action.wallet_request.params[1]);
+  assert.equal(message.maxOpens,"0");
+  assert.equal(message.maxAmount,"0");
+  assert.equal(message.maxCloses,"1");
+  await f.engine.submit(w.workflow_id,action.action_id,await f.sign(action));
+  const ready=await f.engine.status(w.workflow_id);
+  assert.equal(ready.next_actions[0].tool,"callput_portfolio_summary");
+  await assert.rejects(f.engine.prepare(w.workflow_id,"open",{}),/close_only_session/);
+});
+
+test("expired owned position settles via the owner login without requiring a device grant", async (t) => {
+  const f = await flowFixture();
+  t.after(f.cleanup);
+  const relay=f.ports.relay, tx="0x"+"7".repeat(64);
+  let removed=false;
+  f.ports.portfolio=async()=>({positions:removed?[]:[{token_id:"291",expiry_sec:1,size:1}]});
+  f.ports.relay=async(s,path,body)=>{
+    if(path==="/v1/settlements" && body) {
+      assert.equal(body.optionTokenId,"291");
+      assert.equal(body.account,f.account);
+      return {id:body.requestId,account:f.account,action:"settle",hash:tx};
+    }
+    if(path.startsWith("/v1/trades/")) return {id:path.split("/").at(-1),account:f.account,action:"settle",hash:tx};
+    return relay(s,path,body);
+  };
+  f.ports.settlementProof=async()=>{removed=true;return {transaction_hash:tx};};
+  const action=await f.engine.prepare(f.token,"settle",{option_token_id:"291"});
+  assert.equal(action.wallet_request,null);
+  assert.equal(action.submit_result_with.result_kind,"empty_object");
+  await f.engine.submit(f.token,action.action_id,{});
+  assert.equal((await f.engine.status(f.token)).actions.at(-1).state,"executed");
+});
+
+test("withdrawal binds the owner, USDG, exact recipient and amount and waits for independent proof", async (t)=>{
+  const f=await flowFixture();
+  t.after(f.cleanup);
+  const relay=f.ports.relay, owner=f.owner.address.toLowerCase(), tx="0x"+"5".repeat(64);
+  let sends=0,final=false;
+  f.ports.relay=async(s,path,body)=>{
+    if(path.startsWith("/v1/owner-context/")) return {account:f.account,owner,chainId:"4663",epoch:"0",nonce:(1n<<128n).toString(),pending:null};
+    if(path==="/v1/owner-actions" && body){
+      sends++;
+      assert.equal(body.action.params.to,owner);
+      return {id:body.action.reservation,action:"withdraw",account:f.account,hash:tx};
+    }
+    if(path.startsWith("/v1/owner-actions/")) return {id:path.split("/").at(-1),account:f.account,action:"withdraw",hash:tx,state:"confirmed"};
+    return relay(s,path,body);
+  };
+  Object.assign(f.ports,{ownerProof:async()=>final?{transaction_hash:tx}:null});
+  const action=await f.engine.prepare(f.token,"withdraw",{amount_raw:"10000",recipient:owner});
+  const request=JSON.parse(action.wallet_request.params[1]);
+  assert.equal(action.signer,owner);
+  assert.equal(request.primaryType,"Withdrawal");
+  assert.equal(request.message.amount,"10000");
+  assert.equal(request.message.token,"0x5fc5360d0400a0fd4f2af552add042d716f1d168");
+  await f.engine.submit(f.token,action.action_id,await f.sign(action));
+  assert.equal((await f.engine.status(f.token)).actions.at(-1).state,"submitted");
+  final=true;
+  assert.equal((await f.engine.status(f.token)).actions.at(-1).state,"confirmed");
+  assert.equal(sends,1);
+});
+
+test("exact order legs and per-order collateral ceiling are both enforced before signing", async (t) => {
+  const f = await installedFlow(t);
+  const quote = await f.ports.quote!({});
+  const pair = {long_leg_id:quote.long_leg_id,short_leg_id:quote.short_leg_id};
+  const get = f.ports.quote;
+  f.ports.quote = async (s, selected) => {
+    assert.deepEqual(selected,pair);
+    return get!(s);
+  };
+  await assert.rejects(f.engine.prepare(f.token,"open",{...pair,max_amount_in_raw:"1599"}),/quote_exceeds_budget_or_balance/);
+  const open=await f.engine.prepare(f.token,"open",{...pair,max_amount_in_raw:"1600"});
+  const {params}=JSON.parse(open.wallet_request.params[1]).message;
+  assert.deepEqual(params.optionIds.slice(0,2),Object.values(pair));
+  assert.equal(params.amountIn,"1600");
+});
+
+test("creation uses the logical account operation when the relay deduplicates a different UUID", async (t)=>{
+  const f=await flowFixture();
+  t.after(f.cleanup);
+  const relay=f.ports.relay, resolve=f.ports.resolve, other="de6135a0-7c0c-41dc-b31a-e07de30c3921";
+  let created=false,posts=0;
+  f.ports.resolve=async(...args)=>({...await resolve(...args),created});
+  f.ports.relay=async(s,p,b)=>{
+    if(p==="/v1/accounts") {
+      posts++;
+      return {id:other,account:f.account,action:"create",state:"queued"};
+    }
+    if(p.startsWith("/v1/operations/")){
+      assert.equal(p,"/v1/operations/"+other);
+      return {id:other,account:f.account,action:"create",state:"queued"};
+    }
+    return relay(s,p,b);
+  };
+  const prepared=await f.engine.prepare(f.token,"create",{});
+  const submitted=await f.engine.submit(f.token,prepared.action_id,{});
+  assert.equal(submitted.actions.at(-1).relay_id,other);
+  await f.engine.submit(f.token,prepared.action_id,{});
+  created=true;
+  assert.equal((await f.engine.status(f.token)).actions.at(-1).state,"confirmed");
+  assert.equal(posts,1);
+});

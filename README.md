@@ -1,12 +1,12 @@
 # Callput Lite MCP + Skill
 
-## Existing Web3 wallet and account workflow — source v0.8.1
+## Existing Web3 wallet and account workflow — source v0.8.2
 
-The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
+The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Read `callput://account/workflow` and use the exact prepared requests with your external owner and device signers. No browser page is required. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 
 Set `underlying_asset` and `strategy` in `callput_workflow_start` before the owner signs the Grant. All configured option markets on Robinhood and GIWA support `BuyCallSpread`, `SellCallSpread`, `BuyPutSpread`, and `SellPutSpread` when quotes are available. Each 10-minute Grant authorizes one selected underlying and strategy, one open, and one close. Omitting the fields selects ETH and BuyCallSpread. Owner=the device signer is forbidden by the account contract. Deposit amount, trade collateral cap, owner deposit gas and sponsor fees are separate. Direct deposit uses ERC20 transfer without approve. Robinhood fixes transfer nonce/gas/price before approval; GIWA direct deposits are blocked when a hard total fee bound cannot be enforced. Funded GIWA accounts can trade.
 
-Runbook: [Account workflow](https://mcp.callput.app/account-workflow). See the [Robinhood relay recovery runbook](docs/robinhood-relay-recovery.md). Deployment configuration and wallet-origin proxy: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
+Runbook: [Account workflow](https://mcp.callput.app/account-workflow). See the [MCP-only Robinhood lifecycle](docs/robinhood-mcp-lifecycle.md) and the [Robinhood relay recovery runbook](docs/robinhood-relay-recovery.md). Deployment configuration and wallet-origin proxy: `docs/releases/2026-11-08-account-workflow.md`. Source registration and tests do not prove production rollout or a real fill.
 
 
 Minimal documentation package for external agents (OpenClaw, Bankr, others) to trade Callput crypto and synthetic stock/ETF options on Base, Robinhood Chain and GIWA Sepolia.
@@ -31,7 +31,7 @@ Keep the selected network with each quote, wallet, transaction and request key. 
 
 All three CallPut apps currently offer `email_otp` through Privy and `external_wallet` connections through wagmi. Email OTP connects a Privy embedded EVM owner wallet; external wallet rows connect directly, without Privy wallet login or a connect-time signature. Social login providers are not enabled. Email and Privy user IDs are not signing addresses. Base trading uses direct wallet custody. GIWA and Robinhood app modes are deposit-only and can use a separate CallPut Account contract for funds and positions.
 
-The owner wallet authorizes the distinct CallPut Account holding collateral and positions. Source v0.8.1 account workflows prepare and submit owner/device-authorized relay actions. The original unsigned tools still reject execution_route=callput_account; use callput_workflow_start instead. For portfolio/history, use the actual account holding the positions.
+The owner wallet authorizes the distinct CallPut Account holding collateral and positions. Source v0.8.2 account workflows prepare and submit owner/device-authorized relay actions. The original unsigned tools still reject execution_route=callput_account; use callput_workflow_start instead. For portfolio/history, use the actual account holding the positions.
 
 The MCP source accepts `execution_route="direct_wallet"` on write tools. Base may omit it for backward compatibility; GIWA and Robinhood require it explicitly. Direct-wallet preparation returns an unsigned transaction for the connected owner wallet to review and sign. It does not sign or broadcast. Inspect hosted initialization and runtime readiness; a source build does not establish a deployed version.
 

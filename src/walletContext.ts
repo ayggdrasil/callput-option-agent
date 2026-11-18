@@ -3,7 +3,7 @@ import { CONFIG } from "./config.js";
 import {workflowAvailability} from './accountManifest.js';
 
 export const executionRouteSchema = z.enum(["direct_wallet", "callput_account"]).optional()
-  .describe("Use direct_wallet only for a separately funded external signer owning the positions. CallPut Account session execution is not supported. Required on GIWA and Robinhood; optional on Base.");
+  .describe("Use direct_wallet only for a separately funded external signer owning the positions. These tools build direct-wallet transactions only. For a CallPut Account, use callput_workflow_start instead. On Base this field is optional.");
 
 export function walletConnectionInfo() {
   const network = CONFIG.NETWORK;
@@ -35,6 +35,6 @@ export function requireDirectWalletRoute(route?: "direct_wallet" | "callput_acco
     throw new Error(`CallPut Account execution is not supported by this direct-wallet tool. Use callput_workflow_start and the account workflow tools; do not replace the account with its owner wallet or sign account calldata as a wallet transaction.`);
   }
   if (CONFIG.NETWORK !== "base" && route !== "direct_wallet") {
-    throw new Error(`${CONFIG.NETWORK_NAME} app uses a CallPut Account. Set execution_route="direct_wallet" only for an explicitly chosen, separately funded external wallet owning these positions. Account session execution is not supported; use ${walletConnectionInfo().account_url}.`);
+    throw new Error(`${CONFIG.NETWORK_NAME} app uses a CallPut Account. Set execution_route="direct_wallet" only for an explicitly chosen, separately funded external wallet owning these positions. For a CallPut Account, use callput_workflow_start and callput://account/workflow.`);
   }
 }

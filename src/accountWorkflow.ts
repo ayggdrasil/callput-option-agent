@@ -20,6 +20,8 @@ import { AccountChain } from "./accountChain.js";
 import { withNetwork } from "./config.js";
 import {
   scanSpreads,
+  calculateSpreadOpenQuote,
+  validateSpread,
   getPortfolioSummary,
   parseOptionTokenId,
 } from "./core.js";
@@ -40,6 +42,9 @@ const integer = (x: any, max = 2n ** 256n - 1n) => {
 // legacy trade reservation allocator owns [0, 2^128).
 const TRADE_NONCE_MIN = 1n << 128n;
 const UINT256_MAX = (1n << 256n) - 1n;
+const noWallet = (a: any) => a.step === "create" || a.settlementAuthority === "owner_login";
+const ownerControlStep = (step: string) => step === "revoke" || step === "withdraw";
+type SpreadSelection = { long_leg_id: string; short_leg_id: string };
 const tradeStep = (step: string) => step === "open" || step === "close";
 const isTerminal = (state: string) =>
   ["confirmed", "executed", "cancelled"].includes(state);
@@ -57,6 +62,8 @@ const orderIdentity = (a: any) => a.envelope?.intent && {
   request_key: a.evidence?.request_key ?? null,
 };
 type ExpiringOrder = { nonce: string; deadline: string };
+const integerOptionId = (value: unknown) => typeof value === "string" &&
+  /^0x[0-9a-fA-F]{1,64}$/.test(value) ? value : integer(value);
 const exact = (value: any, keys: string[]) =>
   check(
     value &&
@@ -80,7 +87,8 @@ export type WorkflowStep =
   | "open"
   | "close"
   | "settle"
-  | "revoke";
+  | "revoke"
+  | "withdraw";
 export interface WorkflowPorts {
   resolve(
     network: string,
@@ -93,7 +101,8 @@ export interface WorkflowPorts {
   verifyLogin(state: any, challenge: any): void;
   verifyDeposit(state: any, action: any, hash: string): Promise<any>;
   depositTransaction?(state: any, data: string): Promise<any>;
-  quote?(state: any): Promise<any>;
+  quote?(state: any, selection?: SpreadSelection): Promise<any>;
+  ownerProof?(state: any, action: any, hash: string): Promise<any>;
   nonceUsed?(state: any, nonce: string): Promise<boolean>;
   requestProof?(state: any, action: any, hash: string): Promise<any>;
   portfolio?(state: any): Promise<any>;
@@ -132,6 +141,7 @@ export function productionWorkflowPorts(): WorkflowPorts {
     depositTransaction: (s, data) => chain.depositTransaction(s, data),
     nonceUsed: (s, n) => chain.sessionNonce(s, n),
     requestProof: (...args) => chain.requestProof(...args),
+    ownerProof: (...args) => chain.withdrawalProof(...args),
     expiredProof: (...args) => chain.expiredProof(...args),
     settlementProof: (...args) => chain.settlementProof(...args),
     positionBalance: (s, id) => chain.positionBalance(s, id),
@@ -209,11 +219,24 @@ export function productionWorkflowPorts(): WorkflowPorts {
       }
       return data;
     },
-    quote: (s) =>
+    quote: (s, selection) =>
       withNetwork(s.network, async () => {
         const { asset, strategy } = accountTradeSelection(
           accountManifest(s.network).network, s.policy,
         );
+        if (selection) {
+          const { details: d } = await validateSpread(strategy, selection.long_leg_id, selection.short_leg_id);
+          check(d.asset === asset, "spread_underlying_mismatch");
+          const quote = calculateSpreadOpenQuote({
+            strategy, size: 1, spotPrice: Number(d.spot_price), spreadMarkPrice: d.spread_cost,
+            strikeDiff: d.strike_diff,
+            longRiskPremiumRateForBuy: d.long_leg.risk_premium_rate_for_buy,
+            longRiskPremiumRateForSell: d.long_leg.risk_premium_rate_for_sell,
+            shortRiskPremiumRateForBuy: d.short_leg.risk_premium_rate_for_buy,
+            shortRiskPremiumRateForSell: d.short_leg.risk_premium_rate_for_sell,
+          });
+          return { ...selection, strategy, estimated_amount_in_per_unit: quote.amount_in_usdc };
+        }
         const scan = await scanSpreads({
           underlyingAsset: asset,
           bias: accountOpenStrategies[strategy].bias,
@@ -243,23 +266,27 @@ export class AccountWorkflow {
       "max_deposit_gas_wei",
       "underlying_asset",
       "strategy",
+      "session_mode",
     ]);
     const m = accountManifest(network),
       owner = getAddress(input.owner).toLowerCase();
     const trade = accountTradeSelection(m.network, input);
+    const mode = input.session_mode ?? "open_close";
+    check(["open_close", "close_only"].includes(mode), "invalid_session_mode");
     const policy = {
+      session_mode: mode,
       underlying_asset: trade.asset,
       strategy: trade.strategy,
       deposit_amount_raw: integer(input.deposit_amount_raw ?? "0", 100000000n),
       max_user_amount_raw: integer(
-        input.max_user_amount_raw ?? "100000",
+        input.max_user_amount_raw ?? (mode === "close_only" ? "0" : "100000"),
         100000000n,
       ),
       max_deposit_gas_wei: integer(input.max_deposit_gas_wei ?? "0"),
     };
     check(
-      BigInt(policy.max_user_amount_raw) > 0n,
-      "positive_trade_budget_required",
+      mode === "close_only" ? policy.max_user_amount_raw === "0" : BigInt(policy.max_user_amount_raw) > 0n,
+      mode === "close_only" ? "close_only_open_cap_must_be_zero" : "positive_trade_budget_required",
     );
     if (BigInt(policy.deposit_amount_raw) > 0n)
       check(
@@ -320,7 +347,7 @@ export class AccountWorkflow {
     else if (!hasOwnerLogin(s, m.relayBase))
       state = "auth_required";
     else if (!s.context.created) state = "account_required";
-    else if (BigInt(s.context.balance) === 0n && !s.depositConfirmed)
+    else if (s.policy.session_mode !== "close_only" && BigInt(s.context.balance) === 0n && !s.depositConfirmed)
       state = "deposit_required";
     const step =
       state === "auth_required"
@@ -331,7 +358,7 @@ export class AccountWorkflow {
             ? "deposit"
             : state === "session_required"
               ? "register"
-              : state === "session_ready"
+              : state === "session_ready" && s.policy.session_mode !== "close_only"
                 ? "open"
                 : undefined;
     const grantExpired = s.grant &&
@@ -339,14 +366,23 @@ export class AccountWorkflow {
     const signedTrade = s.actions.some((a: any) =>
       (tradeStep(a.step) || a.step === "settle") && !!a.result &&
       a.reason !== "finalized_unused_expired");
-    const next_actions = active
+    const walletApproval = process.env.CALLPUT_ACCOUNT_WALLET_APPROVAL_ENABLED === "true"
+      ? { wallet_approval_url: `${m.origin}/mcp-wallet.html#${token}` }
+      : {};
+    const needsFundingPlan = state === "deposit_required" && s.policy.deposit_amount_raw === "0";
+    const next_actions = needsFundingPlan ? [{
+      tool: "callput_workflow_start",
+      arguments: { owner: s.owner, account: s.account, sub_index: s.sub_index,
+        underlying_asset: trade.asset, strategy: trade.strategy, max_user_amount_raw: s.policy.max_user_amount_raw },
+      required_external_input: ["deposit_amount_raw", "max_deposit_gas_wei"],
+    }] : active
       ? [
           {
             tool:
               active.state === "preparing"
                 ? "callput_action_prepare"
                 : active.state === "prepared"
-                  ? active.step === "create"
+                  ? noWallet(active)
                     ? "callput_action_submit"
                     : "callput_action_begin"
                   : "callput_action_status",
@@ -356,11 +392,11 @@ export class AccountWorkflow {
                 : {
                     workflow_id: token,
                     action_id: active.id,
-                    ...(active.step === "create" && active.state === "prepared"
+                    ...(noWallet(active) && active.state === "prepared"
                       ? { result: {} }
                       : {}),
                   },
-            wallet_approval_url: `${m.origin}/mcp-wallet.html#${token}`,
+            ...walletApproval,
           },
         ]
       : step
@@ -376,11 +412,14 @@ export class AccountWorkflow {
           ? [
               {
                 tool: "callput_wallet_connect",
-                arguments: { workflow_id: token },
-                wallet_approval_url: `${m.origin}/mcp-wallet.html#${token}`,
+                arguments: { workflow_id: token, owner: s.owner, chain_id: m.chainId },
+                required_external_input: ["device_signer"],
+                ...walletApproval,
               },
             ]
-          : [];
+          : state === "trade_executed" || state === "session_ready"
+            ? [{ tool: "callput_portfolio_summary", arguments: { address: s.account } }]
+            : [];
     return {
       workflow_id: token,
       state,
@@ -390,7 +429,7 @@ export class AccountWorkflow {
       account: s.account,
       sub_index: s.sub_index,
       device_signer: s.device ?? null,
-      policy: { ...s.policy, underlying_asset: trade.asset, strategy: trade.strategy,
+      policy: { session_mode: "open_close", ...s.policy, underlying_asset: trade.asset, strategy: trade.strategy,
         underlying_asset_index: String(trade.index) },
       policy_version: s.manifest_version,
       context: s.context,
@@ -403,7 +442,8 @@ export class AccountWorkflow {
             valid_until: s.grant.validUntil,
           }
         : null,
-      wallet_approval_url: `${m.origin}/mcp-wallet.html#${token}`,
+      ...walletApproval,
+      wallet_approval_available: !!walletApproval.wallet_approval_url,
       next_actions,
       recovery_evidence: s.history?.at(-1)?.proof ?? null,
       recovery: grantExpired ? {
@@ -504,7 +544,7 @@ export class AccountWorkflow {
         result_kind:
           a.step === "deposit"
             ? "transaction_hash"
-            : a.step === "create"
+            : noWallet(a)
               ? "empty_object"
               : "signature",
       },
@@ -570,6 +610,7 @@ export class AccountWorkflow {
     return this.store.update(token, async (s, checkpoint) => {
       try {
         check(s.device, "wallet_connection_required");
+        check(step !== "open" || s.policy.session_mode !== "close_only", "close_only_session");
         check(
           s.manifest_version === accountManifest(s.network).version,
           "deployment_policy_changed",
@@ -686,7 +727,8 @@ export class AccountWorkflow {
             !s.grant || (a.grant && equal(s.grant, a.grant)),
             "existing_grant_budget_reserved",
           );
-          check(BigInt(c.balance) > 0n, "account_not_funded");
+          const closeOnly = s.policy.session_mode === "close_only";
+          check(closeOnly || BigInt(c.balance) > 0n, "account_not_funded");
           const recovery = await this.ports.relay(
             s,
             `/v1/grant-recovery/${s.account}`,
@@ -725,10 +767,10 @@ export class AccountWorkflow {
             strategies: strategy.bit,
             maxAmountPerOpen: s.policy.max_user_amount_raw,
             maxAmount: s.policy.max_user_amount_raw,
-            maxOpens: "1",
+            maxOpens: closeOnly ? "0" : "1",
             maxCloses: "1",
             maxFeePerTrade: m.maxFeePerTrade,
-            maxFees: (BigInt(m.maxFeePerTrade) * 2n).toString(),
+            maxFees: (BigInt(m.maxFeePerTrade) * (closeOnly ? 1n : 2n)).toString(),
           };
           check(
             grant.nonce === reservation.nonce &&
@@ -760,7 +802,9 @@ export class AccountWorkflow {
             grant,
             s.owner,
           );
-          a.summary = `Authorize device ${s.device} for one ${trade.asset} ${trade.strategy}, one close, maximum ${grant.maxAmount} raw ${m.symbol}, for 10 minutes. No withdrawals.`;
+          a.summary = closeOnly
+            ? `Authorize device ${s.device} to close one ${trade.asset} ${trade.strategy} in 10 minutes. No opens or withdrawals.`
+            : `Authorize device ${s.device} for one ${trade.asset} ${trade.strategy}, one close, maximum ${grant.maxAmount} raw ${m.symbol}, for 10 minutes. No withdrawals.`;
         } else if (step === "open" || step === "close") {
           check(
             s.sessionInstalled &&
@@ -782,7 +826,14 @@ export class AccountWorkflow {
           );
           let params: any;
           if (step === "open") {
-            exact(input, ["size", "min_fill_ratio"]);
+            exact(input, ["size", "min_fill_ratio", "long_leg_id", "short_leg_id", "max_amount_in_raw"]);
+            const selection = input.long_leg_id !== undefined || input.short_leg_id !== undefined
+              ? {
+                long_leg_id: toBeHex(BigInt(integerOptionId(input.long_leg_id)), 32),
+                short_leg_id: toBeHex(BigInt(integerOptionId(input.short_leg_id)), 32),
+              } : undefined;
+            const explicitCap = input.max_amount_in_raw === undefined
+              ? s.policy.max_user_amount_raw : integer(input.max_amount_in_raw);
             const size = input.size ?? "0.0001",
               ratio = input.min_fill_ratio ?? 0.78,
               isBuy = trade.strategy.startsWith("Buy"),
@@ -796,7 +847,10 @@ export class AccountWorkflow {
                 ratio <= 1,
               "invalid_open_input",
             );
-            const candidate = await this.ports.quote!(s);
+            const candidate = await this.ports.quote!(s, selection);
+            if (selection)
+              check(BigInt(candidate.long_leg_id) === BigInt(selection.long_leg_id) &&
+                BigInt(candidate.short_leg_id) === BigInt(selection.short_leg_id), "spread_selection_changed");
             check(
               candidate.strategy === trade.strategy &&
                 Number.isFinite(candidate.estimated_amount_in_per_unit) &&
@@ -819,6 +873,7 @@ export class AccountWorkflow {
             check(
               amount > 0n &&
                 amount <= BigInt(s.policy.max_user_amount_raw) &&
+                amount <= BigInt(explicitCap) &&
                 amount <= BigInt(c.balance),
               "quote_exceeds_budget_or_balance",
             );
@@ -852,7 +907,7 @@ export class AccountWorkflow {
             exact(input, ["option_token_id", "size_raw", "min_amount_out_raw"]);
             params = {
               underlyingAssetIndex: assetIndex,
-              optionTokenId: integer(input.option_token_id),
+              optionTokenId: BigInt(integerOptionId(input.option_token_id)).toString(),
               size: integer(input.size_raw),
               minAmountOut: integer(input.min_amount_out_raw),
             };
@@ -927,9 +982,10 @@ export class AccountWorkflow {
           a.summary = `${step === "open" ? `Open one ${trade.asset} ${trade.strategy}` : `Close one ${trade.asset} position`} within the installed grant. Protocol sponsors native execution; no owner-wallet transaction.`;
         } else if (step === "settle") {
           exact(input, ["option_token_id"]);
-          check(s.sessionInstalled && !s.sessionRevoked, "session_required");
+          const deviceSettlement = s.sessionInstalled && !s.sessionRevoked && s.grantId;
+          check(deviceSettlement || hasOwnerLogin(s, m.relayBase), "owner_login_or_registered_device_required");
           const value = {
-            optionTokenId: integer(input.option_token_id),
+            optionTokenId: BigInt(integerOptionId(input.option_token_id)).toString(),
             requestId: a.id,
             retryOf: "",
           };
@@ -943,19 +999,32 @@ export class AccountWorkflow {
             ),
             "expired_owned_position_required",
           );
-          this.typed(
-            s,
-            a,
-            "SponsoredSettlement",
-            { SponsoredSettlement: accountTypes.SponsoredSettlement },
-            value,
-            s.device,
-          );
+          if (deviceSettlement) {
+            this.typed(s, a, "SponsoredSettlement",
+              { SponsoredSettlement: accountTypes.SponsoredSettlement }, value, s.device);
+            a.settlementGrantId = s.grantId;
+            a.settlementAuthority = "device";
+          } else {
+            a.wallet_request = null;
+            a.settlementAuthority = "owner_login";
+          }
+          // The relay's fixed-recipient settlement is independent of the trade grant window.
+          a.expires_at = new Date(Date.now() + 120_000).toISOString();
           a.summary =
             "Ask the protocol sponsor to settle this expired account position. Recipient is fixed by the protocol.";
-        } else if (step === "revoke") {
-          exact(input, []);
-          check(s.sessionId, "session_required");
+        } else if (ownerControlStep(step)) {
+          const withdrawal = step === "withdraw";
+          exact(input, withdrawal ? ["amount_raw", "recipient"] : []);
+          if (!withdrawal) check(s.sessionId, "session_required");
+          let funding: any;
+          if (withdrawal) {
+            const amount = integer(input.amount_raw);
+            const to = getAddress(input.recipient ?? s.owner).toLowerCase();
+            check(BigInt(amount) > 0n && BigInt(amount) <= BigInt(c.balance), "withdrawal_amount_exceeds_available_balance");
+            check(!["0x" + "0".repeat(40), s.account, m.token, ...m.origins.map(o => o.factory)].includes(to),
+              "withdrawal_recipient_invalid");
+            funding = { kind: "0", token: m.token, id: "0", amount, to };
+          }
           const control = await this.ports.relay(
             s,
             `/v1/owner-context/${s.account}`,
@@ -968,30 +1037,29 @@ export class AccountWorkflow {
               !control.pending,
             "owner_context_mismatch_or_pending",
           );
+          const nonce = integer(control.nonce);
+          check(BigInt(nonce) >= TRADE_NONCE_MIN && BigInt(nonce) < (1n << 255n), "owner_nonce_range_invalid");
           const params = {
-            sessionId: s.sessionId,
+            ...(withdrawal ? funding : { sessionId: s.sessionId }),
             epoch: c.epoch,
-            nonce: integer(control.nonce),
+            nonce,
             deadline: (BigInt(c.blockTimestamp) + 120n).toString(),
           };
-          this.typed(
-            s,
-            a,
-            "RevokeSession",
-            { RevokeSession: accountTypes.RevokeSession },
-            params,
-            s.owner,
-          );
+          if (withdrawal)
+            this.typed(s, a, "Withdrawal", { Withdrawal: accountTypes.Withdrawal }, params, s.owner);
+          else
+            this.typed(s, a, "RevokeSession", { RevokeSession: accountTypes.RevokeSession }, params, s.owner);
           a.envelope = {
             version: 1,
             chainId: String(m.chainId),
             account: s.account,
             reservation: a.id,
-            action: "revoke",
+            action: step,
             params,
           };
-          a.summary =
-            "Revoke only this device session using the owner signature. No withdrawal.";
+          a.summary = withdrawal
+            ? `Withdraw exactly ${funding.amount} raw ${m.symbol} from ${s.account} to ${funding.to}. The owner alone can approve.`
+            : "Revoke only this device session using the owner signature. No withdrawal.";
         } else throw Error("unsupported_workflow_step");
         a.state = "prepared";
         delete a.reason;
@@ -1043,7 +1111,8 @@ export class AccountWorkflow {
             return this.publicAction(s, a, token);
           check(a.observationReason === relayNotFound, "submission_outcome_unknown_observe_only");
         } else {
-          check(a.retry404, "submission_outcome_unknown_observe_only");
+          check(a.retry404 && !a.hash && (!a.expires_at || Date.parse(a.expires_at) > Date.now()),
+            "submission_outcome_unknown_observe_only");
         }
       } else {
         check(canSignTrade(a), "legacy_trade_nonce_requires_reconciliation");
@@ -1060,7 +1129,7 @@ export class AccountWorkflow {
             hash(result.transaction_hash) && !result.signature,
             "deposit_transaction_hash_required",
           );
-        else if (a.step !== "create") {
+        else if (!noWallet(a)) {
           check(
             typeof result.signature === "string" &&
               /^0x[0-9a-fA-F]{130}$/.test(result.signature) &&
@@ -1080,7 +1149,7 @@ export class AccountWorkflow {
         } else
           check(
             Object.keys(result).length === 0,
-            "creation_has_no_wallet_transaction",
+            "action_has_no_wallet_transaction",
           );
         a.result = result;
         if (tradeStep(a.step)) a.tradeGrantId ??= s.grantId;
@@ -1153,18 +1222,24 @@ export class AccountWorkflow {
               order: a.envelope,
             });
           }
-          if (a.step === "settle")
-            response = await this.ports.relay(s, "/v1/session-settlements", {
-              grantRequestId: s.grantId,
-              settlement: {
-                account: s.account,
-                optionTokenId: a.input.option_token_id,
-                requestId: a.id,
-                retryOf: null,
-                signature: result.signature,
-              },
-            });
-          if (a.step === "revoke")
+          if (a.step === "settle") {
+            const settlement = {
+              account: s.account,
+              optionTokenId: BigInt(integerOptionId(a.input.option_token_id)).toString(),
+              requestId: a.id,
+              retryOf: null,
+            };
+            if (a.settlementAuthority === "owner_login") {
+              check(hasOwnerLogin(s, accountManifest(s.network).relayBase), "owner_login_required");
+              response = await this.ports.relay(s, "/v1/settlements", settlement);
+            } else {
+              response = await this.ports.relay(s, "/v1/session-settlements", {
+                grantRequestId: a.settlementGrantId ?? s.grantId,
+                settlement: { ...settlement, signature: result.signature },
+              });
+            }
+          }
+          if (ownerControlStep(a.step))
             response = await this.ports.relay(s, "/v1/owner-actions", {
               owner: s.owner,
               action: a.envelope,
@@ -1176,9 +1251,11 @@ export class AccountWorkflow {
             "relay_submission_identity_mismatch",
           );
           check(
-            a.step === "settle" || response.id === a.id,
+            a.step === "settle" || response.id === a.id ||
+              (a.step === "create" && response.action === "create"),
             "relay_request_id_mismatch",
           );
+          check(!response.action || response.action === a.step, "relay_action_identity_mismatch");
           check(!response.hash || hash(response.hash), "invalid_relay_transaction_hash");
           if (tradeStep(a.step)) {
             check((!response.action || response.action === a.step) &&
@@ -1251,12 +1328,17 @@ export class AccountWorkflow {
       s.sessionRevoked = true;
       return;
     }
+    if (a.step === "create" && s.context.created) {
+      a.state = "confirmed";
+      a.evidence = { account: s.account, block_hash: s.context.blockHash };
+      return;
+    }
     if (tradeStep(a.step) && !a.admission && definitiveTradeRejections.has(a.reason))
       a.admission = { state: "rejected_before_admission", reason: a.reason };
-    const id = a.relayId ?? a.id,
-      path = ["open", "close", "settle"].includes(a.step)
+    let id = a.relayId ?? a.id;
+    const path = ["open", "close", "settle"].includes(a.step)
         ? `/v1/trades/${id}`
-        : a.step === "revoke"
+        : ownerControlStep(a.step)
           ? `/v1/owner-actions/${id}`
           : `/v1/operations/${id}`;
     let r: any;
@@ -1266,12 +1348,28 @@ export class AccountWorkflow {
       a.state = "unknown";
       a.reason = a.observationReason = safeWorkflowError(error);
       a.retry404 = a.observationReason === relayNotFound;
-      // A status outage cannot discard a transaction hash already observed.
-      if (!tradeStep(a.step) || !a.hash) return;
+      if (a.step === "create" && a.retry404 && !a.relayId &&
+          hasOwnerLogin(s, accountManifest(s.network).relayBase)) {
+        try {
+          const logical = await this.ports.relay(s, `/v1/accounts/${s.sub_index}`);
+          check(logical?.action === "create" && logical.account === s.account &&
+            /^[a-f0-9-]{36}$/.test(logical.id), "relay_creation_identity_mismatch");
+          r = logical;
+          id = logical.id;
+        } catch (readError) {
+          a.reason = a.observationReason = safeWorkflowError(readError);
+          a.retry404 = a.observationReason === relayNotFound;
+          return;
+        }
+      } else {
+        // A status outage cannot discard a transaction hash already observed.
+        if (!(tradeStep(a.step) || a.step === "settle" || a.step === "withdraw") || !a.hash) return;
+      }
     }
     if (r) {
       check(r.account === s.account && r.id === id, "relay_status_identity_mismatch");
       check(!r.hash || hash(r.hash), "invalid_relay_transaction_hash");
+      check(!r.action || r.action === a.step, "relay_action_identity_mismatch");
       if (tradeStep(a.step)) {
         check((!r.action || r.action === a.step) && (!r.digest || r.digest === a.digest),
           "relay_trade_digest_mismatch");
@@ -1290,11 +1388,6 @@ export class AccountWorkflow {
         // Transport cancellation/revert conveys no PositionManager outcome.
         return;
       }
-    }
-    if (a.step === "create" && s.context.created) {
-      a.state = "confirmed";
-      a.evidence = { account: s.account, block_hash: s.context.blockHash };
-      return;
     }
     if (tradeStep(a.step) && a.hash) {
       const proof = await this.ports.requestProof!(s, a, a.hash);
@@ -1349,6 +1442,14 @@ export class AccountWorkflow {
       a.evidence = { ...proof, keeper: fill, position_verified: true };
       a.state = "executed";
       delete a.reason;
+    }
+    if (a.step === "withdraw" && a.hash) {
+      const proof = await this.ports.ownerProof!(s, a, a.hash);
+      if (proof) {
+        a.state = "confirmed";
+        a.evidence = proof;
+        delete a.reason;
+      }
     }
     if (a.step === "settle" && a.hash) {
       const proof = await this.ports.settlementProof!(s, a, a.hash);

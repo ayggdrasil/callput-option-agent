@@ -22,6 +22,7 @@ const actionId = z.string().uuid(),
     "close",
     "settle",
     "revoke",
+    "withdraw",
   ]);
 export { workflowAvailability };
 function engine(network?: string) {
@@ -50,13 +51,17 @@ const result = (value: any) => ({
   content: [{ type: "text" as const, text: JSON.stringify(value) }],
   structuredContent: value,
 });
-export function registerAccountTools(server: McpServer, network: string) {
+export function registerAccountTools(server: McpServer, network: string,
+  deps: { workflow?: () => AccountWorkflow; resolve?: AccountChain["resolve"] } = {}) {
+  const workflow = deps.workflow ?? (() => engine(network));
+  const chain = new AccountChain();
+  const resolve = deps.resolve ?? chain.resolve.bind(chain);
   server.registerResource(
     "account-workflow",
     "callput://account/workflow",
     {
       description:
-        "Complete existing-wallet account/deposit/session/order runbook and explicit execution capabilities.",
+        "Machine-readable Robinhood/GIWA account creation, signer handoff, funding, trading, position management and withdrawal guide.",
       mimeType: "application/json",
     },
     async (uri) => ({
@@ -71,8 +76,8 @@ export function registerAccountTools(server: McpServer, network: string) {
               "get_network_info: verify chain, collateral, manifest, configured storage and supported strategy",
               "account_resolve: owner/sub_index and existing account before any funding",
               "workflow_start: select underlying_asset and strategy before Grant; set deposit raw amount, total trade collateral cap and owner native gas cap",
-              "wallet_connect: returned app-origin URL or external signer with separate device public address; never a private key",
-              "action_prepare: follow next_actions through login, create, deposit, register; empty input except open/close/settle",
+              "wallet_connect: use a separate external device public address and confirm the owner and chain. Never pass a private key.",
+              "action_prepare: follow next_actions through login, create, deposit and register; open, close, settle and withdraw use the fields below",
               "action_begin: only wallet_request_may_execute=true permits starting the exact wallet request",
               "wallet approval: existing wallet personal_sign/typed Grant or eth_sendTransaction; separate local device typed order",
               "action_submit: signature, existing transfer hash, or empty result for sponsored creation; preserve same original action",
@@ -80,13 +85,36 @@ export function registerAccountTools(server: McpServer, network: string) {
               "session_revoke: owner signature remains available alongside an unresolved order",
               "workflow_recover: expires only with finalized zero use; a signed open/close also requires a finalized unused nonce and matching relay lookup. Unknown remains reserved without proof",
             ],
-            open_input: { size: "0.0001", min_fill_ratio: 0.78 },
+            signer_handoff: {
+              owner: "Existing owner EOA or protocol-supported delegated EOA. Use the owner to sign login, Grant and withdrawals.",
+              device: "Create or select a separate local EOA and pass only device_signer (address), owner and chain_id to callput_wallet_connect.",
+              protocol: [
+                "callput_action_prepare returns the exact wallet_request and signer.",
+                "callput_action_begin must return wallet_request_may_execute=true before the external signer acts.",
+                "personal_sign: sign the exact hex message bytes; eth_signTypedData_v4: sign the exact typed-data object; eth_sendTransaction: broadcast the exact owner transaction once.",
+                "callput_action_submit uses signature or transaction_hash as returned by the external signer. Keep these private. For a null wallet_request and empty_object result_kind, submit result {} without asking the wallet.",
+                "Observe the same action with callput_action_status. A timeout or 404 alone cannot authorize a replacement.",
+              ],
+              browser_handoff_required: false,
+              private_keys_accepted: false,
+            },
+            open_input: { size: "0.0001", min_fill_ratio: 0.78, long_leg_id: "from callput_scan_spreads or the option chain", short_leg_id: "same asset/expiry/type", max_amount_in_raw: "explicit USDG ceiling as a decimal integer" },
+            create_input: {},
+            deposit_input: {},
+            close_only_workflow: { session_mode: "close_only", max_user_amount_raw: "0", deposit_amount_raw: "0", select: "Use a fresh owner-approved grant for the held position's underlying and strategy. No open permitted." },
+            positions: { tool: "callput_portfolio_summary", input: { address: "CallPut Account address" }, close_fields: ["token_id", "size_raw", "strategy", "underlying", "lifecycle"] },
             close_input_fields: [
               "option_token_id",
               "size_raw",
               "min_amount_out_raw",
             ],
             settle_input_fields: ["option_token_id"],
+            withdraw_input_fields: ["amount_raw", "recipient"],
+            notes: {
+              deposit: "Robinhood direct token transfer spends native gas from the owner wallet. Set an explicit max_deposit_gas_wei before preparing the deposit.",
+              settle: "An expired owned lot can settle through an eligible saved device binding or fresh owner login. The recipient is fixed to the account.",
+              cancel: "Users cannot cancel a submitted PositionManager request on Robinhood. Observe keeper cancellation and never treat relay transport cancellation as keeper cancellation.",
+            },
             units:
               "Collateral raw integers use 6 decimals; native gas caps use wei.",
             signing_boundary:
@@ -179,12 +207,12 @@ export function registerAccountTools(server: McpServer, network: string) {
         account: address.optional(),
       })
       .strict(),
-    (a) => new AccountChain().resolve(network, a.owner, a.sub_index, a.account),
+    (a) => resolve(network, a.owner, a.sub_index, a.account),
     true,
   );
   register(
     "callput_workflow_start",
-    "Start a durable account workflow using an existing Web3 wallet. Select one configured underlying_asset and one spread strategy before the owner approves the Grant (defaults ETH/BuyCallSpread). Specify authorized deposit raw amount, maximum total collateral at risk and owner deposit gas cap. Returns wallet approval URL and next_actions. No keys, deposit or signature is performed by this call.",
+    "Start a durable account workflow using an existing Web3 wallet. Select one configured underlying_asset and one spread strategy before the owner approves the Grant (defaults ETH/BuyCallSpread). Specify deposit amount and gas cap and the total trade collateral cap. Use session_mode=close_only for a held unexpired position after the original grant ends; no open allowance. Returns signer-oriented next_actions. No keys, deposit or signature is performed by this call.",
     z
       .object({
         owner: address,
@@ -193,15 +221,16 @@ export function registerAccountTools(server: McpServer, network: string) {
         underlying_asset: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional(),
         strategy: z.enum(accountOpenStrategyNames).optional(),
         deposit_amount_raw: uint.default("0"),
-        max_user_amount_raw: uint.default("100000"),
+        max_user_amount_raw: uint.optional(),
+        session_mode: z.enum(["open_close", "close_only"]).optional(),
         max_deposit_gas_wei: uint.default("0"),
       })
       .strict(),
-    (a) => engine(network).start(network, a),
+    (a) => workflow().start(network, a),
   );
   register(
     "callput_wallet_connect",
-    "Connect the existing owner wallet using returned approval URL. External signer runtimes may provide the separate device public address, owner and confirmed chain ID. Never pass a private key. No signer=owner grants are allowed.",
+    "Connect a local/external signer by passing the separate device public address, owner and confirmed chain ID. See callput://account/workflow for the exact signing sequence. Never pass a private key. No signer=owner grants are allowed.",
     base
       .extend({
         owner: address.optional(),
@@ -211,31 +240,31 @@ export function registerAccountTools(server: McpServer, network: string) {
       .strict(),
     (a) =>
       a.device_signer
-        ? engine(network).connect(a.workflow_id, {
+        ? workflow().connect(a.workflow_id, {
             owner: a.owner,
             chain_id: a.chain_id,
             device_signer: a.device_signer,
           })
-        : engine(network).pending(a.workflow_id),
+        : workflow().pending(a.workflow_id),
   );
   register(
     "callput_workflow_status",
     "Observe only: current account, action and grant state, next_actions and evidence. Does not allocate nonces, sign, submit, renew grants or resend transfers.",
     base,
-    (a) => engine(network).status(a.workflow_id),
+    (a) => workflow().status(a.workflow_id),
     true,
   );
   register(
     "callput_action_prepare",
-    "Prepare the next explicit login/create/deposit/register/open/close/settle/revoke action. Returns exact wallet RPC request, signer, digest, fees and human summary. May reserve UUID/nonce/budget. Sponsored open uses the selected underlying and strategy and accepts size decimal string in underlying units and min_fill_ratio. Close on the granted underlying accepts option_token_id,size_raw,min_amount_out_raw. Settle accepts option_token_id. Other steps take empty input. Never submit a wallet transaction twice after an unknown result.",
+    "Prepare the next explicit login/create/deposit/register/open/close/settle/revoke/withdraw action. Returns exact wallet RPC request, signer, digest, fees and human summary. May reserve UUID/nonce/budget. Sponsored open uses the selected underlying and strategy and accepts size, min_fill_ratio, paired long_leg_id and short_leg_id, and max_amount_in_raw. Close on the granted underlying accepts option_token_id,size_raw,min_amount_out_raw. Settle accepts option_token_id. Withdraw accepts amount_raw and optional recipient (defaults to owner) and always requires the owner signature. Other steps take empty input. Never submit a wallet transaction twice after an unknown result.",
     base
       .extend({ step, input: z.record(z.string(), z.unknown()).default({}) })
       .strict(),
-    (a) => engine(network).prepare(a.workflow_id, a.step, a.input),
+    (a) => workflow().prepare(a.workflow_id, a.step, a.input),
   );
   register(
     "callput_action_submit",
-    "Submit only the result of the exact prepared action: signature for SIWE/typed data, transaction_hash for owner-sent deposit, or empty result for sponsored creation. Enforces signer/identity/digest. If an unacknowledged trade is eligible for retry, reuses only the original UUID, nonce and signed result. Private keys/passwords are forbidden.",
+    "Submit only the result of the exact prepared action: signature for SIWE/typed data, transaction_hash for owner-sent deposit, or empty result when result_kind=empty_object (sponsored creation or owner-login settlement). Enforces signer/identity/digest. If an unacknowledged trade is eligible for retry, reuses only the original UUID, nonce and signed result. Private keys/passwords are forbidden.",
     action
       .extend({
         result: z
@@ -252,27 +281,27 @@ export function registerAccountTools(server: McpServer, network: string) {
           .strict(),
       })
       .strict(),
-    (a) => engine(network).submit(a.workflow_id, a.action_id, a.result),
+    (a) => workflow().submit(a.workflow_id, a.action_id, a.result),
   );
   register(
     "callput_action_begin",
     "Durably mark the exact action before a wallet prompt. Only the first call returns wallet_request_may_execute=true. If false, recover the original wallet result instead of sending another transaction.",
     action,
-    (a) => engine(network).begin(a.workflow_id, a.action_id),
+    (a) => workflow().begin(a.workflow_id, a.action_id),
   );
   register(
     "callput_action_retry_wallet",
     "Explicitly review the same interrupted/rejected wallet request again. Preserves exact action, digest and deposit nonce/gas. Never creates another transfer nonce, grant or order. Prefer submitting an already returned wallet result.",
     action,
-    (a) => engine(network).retryWallet(a.workflow_id, a.action_id),
+    (a) => workflow().retryWallet(a.workflow_id, a.action_id),
   );
   register(
     "callput_action_status",
     "Observe the durable action: admission, relay status, nonce/digest/session/deadline, transaction hash, and request key. Included is not executed. Check finalized keeper outcome and position change; a missing relay record is inconclusive. Never submits a replacement.",
     action,
     async (a) => {
-      await engine(network).status(a.workflow_id);
-      return engine(network).action(a.workflow_id, a.action_id);
+      await workflow().status(a.workflow_id);
+      return workflow().action(a.workflow_id, a.action_id);
     },
     true,
   );
@@ -280,20 +309,20 @@ export function registerAccountTools(server: McpServer, network: string) {
     "callput_session_status",
     "Observe the selected installed session, expiry, revocation, chain counters and reserved policy. This is separate from owner login.",
     base,
-    (a) => engine(network).status(a.workflow_id),
+    (a) => workflow().status(a.workflow_id),
     true,
   );
   register(
     "callput_session_revoke",
     "Prepare an owner-signed request to revoke this exact session. The returned wallet request must be approved and submitted; this call does not revoke by itself.",
     base,
-    (a) => engine(network).prepare(a.workflow_id, "revoke", {}),
+    (a) => workflow().prepare(a.workflow_id, "revoke", {}),
   );
   register(
     "callput_workflow_recover",
     "Release an expired unused grant only with independent finalized code, ownership and zero-use proof. Signed opens/closes additionally require a finalized unused nonce and no known relay admission or transaction, plus a fresh relay lookup. Missing proof preserves the original reservation.",
     base,
-    (a) => engine(network).recover(a.workflow_id),
+    (a) => workflow().recover(a.workflow_id),
   );
 }
 const origins = new Set([

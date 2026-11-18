@@ -44,6 +44,7 @@ export function accountManifest(network: string) {
       close: "protocol_sponsor",
       settle: "protocol_sponsor",
       revoke: "protocol_sponsor",
+      withdraw: "protocol_sponsor",
     },
     maxFeePerTrade: "1000000000000000",
   };
@@ -142,6 +143,7 @@ export const accountTypes = {
   CloseIntent: fields(
     "bytes32 sessionId,uint256 epoch,uint256 nonce,uint48 deadline,uint8 source,Close params",
   ),
+  Withdrawal: fields("uint8 kind,address token,uint256 id,uint256 amount,address to,uint256 epoch,uint256 nonce,uint48 deadline"),
   RevokeSession: fields(
     "bytes32 sessionId,uint256 epoch,uint256 nonce,uint48 deadline",
   ),
@@ -184,6 +186,12 @@ export function workflowAvailability(network?: AccountNetwork) {
     storage: configured ? "encrypted_persistent" : "not_configured",
     blocked_reason: configured ? null : "persistent_workflow_store_required",
     setup_guide: "https://mcp.callput.app/account-workflow",
+    mcp_guide_resource: "callput://account/workflow",
+    external_signer_required: true,
+    browser_approval_available: process.env.CALLPUT_ACCOUNT_WALLET_APPROVAL_ENABLED === "true",
+    operations: ["resolve", "create", "deposit", "register", "open", "close", "settle", "withdraw", "revoke", "recover"],
+    session_modes: ["open_close", "close_only"],
+    manual_order_cancellation_supported: false,
     supported_open_strategies: accountOpenStrategyNames,
     ...(network ? { supported_open_underlyings: Object.keys(DEPLOYMENTS[network].underlyings) } : {}),
     sponsored_deposit_supported: false,

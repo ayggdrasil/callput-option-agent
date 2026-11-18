@@ -1,6 +1,6 @@
 {
   "name": "callput-lite-mcp-skill",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Callput MCP for Base, Robinhood Chain, and GIWA Sepolia options",
   "type": "module",
   "main": "build/src/index.js",
