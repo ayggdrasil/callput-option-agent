@@ -1,6 +1,6 @@
 # FAQ (Frontend V1)
 
-## Existing Web3 wallet and account workflow — source v0.8.3
+## Existing Web3 wallet and account workflow — source v0.8.4
 
 The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Open the returned app-origin wallet approval URL or use the exact prepared requests with an external signer. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 

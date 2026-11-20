@@ -632,6 +632,25 @@ test("invalid size reports its field before allocating an order or a nonce", asy
   assert.deepEqual(after.grant, before.grant);
 });
 
+test("open signing window uses chain time after portfolio and nonce checks", async (t) => {
+  const f = await installedFlow(t);
+  const before = await f.store.read(f.token);
+  const grantEnd = BigInt(before.grant.validUntil);
+  let nonceChecked = false;
+  const nonceUsed = f.ports.nonceUsed!;
+  f.ports.nonceUsed = async (state, nonce) => {
+    nonceChecked = true;
+    return nonceUsed(state, nonce);
+  };
+  f.ports.tradeTimestamp = async () => {
+    assert.equal(nonceChecked, true);
+    return (grantEnd - 175n).toString();
+  };
+  const open = await f.engine.prepare(f.token, "open", { size: "0.0001" });
+  const message = JSON.parse(open.wallet_request.params[1]).message;
+  assert.equal(BigInt(message.deadline), grantEnd - 55n);
+});
+
 test("legacy unsigned invalid preparation repairs the same action after restart", async (t) => {
   const f = await installedFlow(t);
   const id = "6158ff22-d3cc-42ae-8901-5455435d3b91";

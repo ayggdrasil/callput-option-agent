@@ -128,6 +128,7 @@ export interface WorkflowPorts {
   quote?(state: any, selection?: SpreadSelection): Promise<any>;
   ownerProof?(state: any, action: any, hash: string): Promise<any>;
   nonceUsed?(state: any, nonce: string): Promise<boolean>;
+  tradeTimestamp?(network: string): Promise<string>;
   requestProof?(state: any, action: any, hash: string): Promise<any>;
   portfolio?(state: any): Promise<any>;
   fill?(state: any, key: string, isOpen: boolean): Promise<any>;
@@ -164,6 +165,7 @@ export function productionWorkflowPorts(): WorkflowPorts {
     verifyDeposit: (...args) => chain.deposit(...args),
     depositTransaction: (s, data) => chain.depositTransaction(s, data),
     nonceUsed: (s, n) => chain.sessionNonce(s, n),
+    tradeTimestamp: (network) => chain.tradeTimestamp(network),
     requestProof: (...args) => chain.requestProof(...args),
     ownerProof: (...args) => chain.withdrawalProof(...args),
     expiredProof: (...args) => chain.expiredProof(...args),
@@ -887,6 +889,7 @@ export class AccountWorkflow {
             "session_action_limit_reached",
           );
           let params: any;
+          const before = await this.ports.portfolio!(s);
           if (step === "open") {
             exact(input, ["size", "min_fill_ratio", "long_leg_id", "short_leg_id", "max_amount_in_raw"]);
             const selection = input.long_leg_id !== undefined || input.short_leg_id !== undefined
@@ -968,6 +971,21 @@ export class AccountWorkflow {
               BigInt(params.size) > 0n && BigInt(params.minAmountOut) > 0n,
               "positive_close_floor_required",
             );
+            check(
+              before.positions.some(
+                (p: any) =>
+                  BigInt(p.token_id) === BigInt(params.optionTokenId) &&
+                  p.underlying === trade.asset &&
+                  p.expiry_sec > Number(c.blockTimestamp),
+              ),
+              "unexpired_owned_position_required",
+            );
+            check(
+              BigInt(
+                await this.ports.positionBalance!(s, params.optionTokenId),
+              ) >= BigInt(params.size),
+              "close_size_exceeds_owned_balance",
+            );
           }
           // Upgrade only the allocator, never an existing envelope. Old counters
           // were in the relay-reserved range; the chain bitmap scopes this per session.
@@ -976,16 +994,25 @@ export class AccountWorkflow {
           const nonce = (next < TRADE_NONCE_MIN ? TRADE_NONCE_MIN : next).toString();
           check(this.ports.nonceUsed && !(await this.ports.nonceUsed(s, nonce)),
             "session_nonce_already_used_or_unverified");
+          const timestamp = this.ports.tradeTimestamp
+            ? BigInt(await this.ports.tradeTimestamp(s.network))
+            : BigInt(c.blockTimestamp);
+          const validUntil = BigInt(s.grant.validUntil);
+          check(timestamp >= BigInt(c.blockTimestamp) && validUntil > timestamp + 30n,
+            "session_expired_or_not_installed");
+          if (step === "open")
+            check(BigInt(parseOptionTokenId(params.optionIds[0]).expirySec) > timestamp + 60n,
+              "invalid_spread_identity");
+          else
+            check(before.positions.some((p: any) =>
+              BigInt(p.token_id) === BigInt(params.optionTokenId) && p.expiry_sec > Number(timestamp)),
+              "unexpired_owned_position_required");
           s.next_nonce = BigInt(nonce) === UINT256_MAX ? null : (BigInt(nonce) + 1n).toString();
           const intent = {
             sessionId: s.sessionId,
             epoch: s.grant.epoch,
             nonce,
-            deadline: (BigInt(c.blockTimestamp) + 120n <
-            BigInt(s.grant.validUntil)
-              ? BigInt(c.blockTimestamp) + 120n
-              : BigInt(s.grant.validUntil)
-            ).toString(),
+            deadline: (timestamp + 120n < validUntil ? timestamp + 120n : validUntil).toString(),
             source: "0",
           };
           const types =
@@ -1014,24 +1041,7 @@ export class AccountWorkflow {
             intent,
             params,
           };
-          a.before = await this.ports.portfolio!(s);
-          if (step === "close") {
-            check(
-              a.before.positions.some(
-                (p: any) =>
-                  BigInt(p.token_id) === BigInt(params.optionTokenId) &&
-                  p.underlying === trade.asset &&
-                  p.expiry_sec > Number(c.blockTimestamp),
-              ),
-              "unexpired_owned_position_required",
-            );
-            check(
-              BigInt(
-                await this.ports.positionBalance!(s, params.optionTokenId),
-              ) >= BigInt(params.size),
-              "close_size_exceeds_owned_balance",
-            );
-          }
+          a.before = before;
           a.summary = `${step === "open" ? `Open one ${trade.asset} ${trade.strategy}` : `Close one ${trade.asset} position`} within the installed grant. Protocol sponsors native execution; no owner-wallet transaction.`;
         } else if (step === "settle") {
           exact(input, ["option_token_id"]);

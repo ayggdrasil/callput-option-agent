@@ -385,6 +385,14 @@ export class AccountChain {
       return abi.decodeFunctionResult("sessionNonceUsed", raw)[0] as boolean;
     });
   }
+  async tradeTimestamp(network: string) {
+    return this.use(network, async (p) => {
+      const block = await p.getBlock("latest");
+      ensure(block?.hash && Math.abs(Date.now() / 1000 - block.timestamp) < 30,
+        "stale_trade_clock");
+      return String(block!.timestamp);
+    });
+  }
   async positionBalance(state: any, id: string) {
     return this.use(state.network, async (p) => {
       const assetIndex = Number(BigInt(id) >> 240n);
