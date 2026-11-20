@@ -602,3 +602,109 @@ test("creation uses the logical account operation when the relay deduplicates a 
   assert.equal((await f.engine.status(f.token)).actions.at(-1).state,"confirmed");
   assert.equal(posts,1);
 });
+
+test("decimal numeric size 0.02 prepares the same bounded ETH intent as a decimal string", async (t) => {
+  for (const size of [0.02, "0.02"]) {
+    const f = await installedFlow(t);
+    await f.store.update(f.token, async (s) => {
+      s.policy.max_user_amount_raw = "500000";
+      s.grant.maxAmount = s.grant.maxAmountPerOpen = "500000";
+    });
+    const open = await f.engine.prepare(f.token, "open", { size, min_fill_ratio: 0.78 });
+    const params = JSON.parse(open.wallet_request.params[1]).message.params;
+    assert.equal(params.amountIn, "320000");
+    assert.equal(params.minSize, "15600000000000000");
+    assert.equal(f.requests.filter(r => r.path === "/v1/trades").length, 0);
+  }
+});
+
+test("invalid size reports its field before allocating an order or a nonce", async (t) => {
+  const f = await installedFlow(t);
+  const before = await f.store.read(f.token);
+  await assert.rejects(f.engine.prepare(f.token, "open", { size: "0.02 ETH" }), (error: any) => {
+    assert.equal(error.message, "invalid_open_input");
+    assert.equal(error.fieldErrors[0].field, "size");
+    return true;
+  });
+  const after = await f.store.read(f.token);
+  assert.equal(after.actions.length, before.actions.length);
+  assert.equal(after.next_nonce, before.next_nonce);
+  assert.deepEqual(after.grant, before.grant);
+});
+
+test("legacy unsigned invalid preparation repairs the same action after restart", async (t) => {
+  const f = await installedFlow(t);
+  const id = "6158ff22-d3cc-42ae-8901-5455435d3b91";
+  await f.store.update(f.token, async (s) => {
+    s.policy.max_user_amount_raw = "500000";
+    s.grant.maxAmount = s.grant.maxAmountPerOpen = "500000";
+    s.actions.push({ id, step: "open", input: { size: false }, state: "preparing",
+      reason: "invalid_open_input", signer: s.device, fee_payer: "protocol_sponsor" });
+  });
+  const restart = new AccountWorkflow(f.store, f.ports);
+  const observed: any = await restart.status(f.token);
+  assert.equal(observed.actions.at(-1).preparation_recovery.safe_to_repair, true);
+  assert.equal(observed.next_actions[0].arguments.action_id, id);
+  assert.deepEqual(observed.next_actions[0].required_external_input, ["input"]);
+  assert.equal(observed.next_actions[0].arguments.input, undefined);
+  assert.equal(observed.next_actions[0].input_errors[0].field, "size");
+  const repaired = await restart.prepare(f.token, "open", { size: "0.02", min_fill_ratio: 0.78 });
+  assert.equal(repaired.action_id, id);
+  assert.equal(repaired.action_state, "prepared");
+  assert.equal(repaired.blocked_reason, null);
+  const saved = await f.store.read(f.token);
+  assert.equal(saved.actions.filter((a: any) => a.step === "open").length, 1);
+  assert.equal(saved.actions.at(-1).result, undefined);
+  assert.equal(f.requests.filter(r => r.path === "/v1/trades").length, 0);
+});
+
+test("a failed preparation retaining an envelope never repairs its signed identity", async (t) => {
+  const f = await installedFlow(t);
+  const open = await f.engine.prepare(f.token, "open", { size: "0.0001" });
+  await f.store.update(f.token, async (s) => { s.actions.at(-1).state = "preparing"; });
+  const before = await f.store.read(f.token);
+  await assert.rejects(f.engine.prepare(f.token, "open", { size: "0.02" }), /unresolved_action_must_be_preserved/);
+  const after = await f.store.read(f.token);
+  assert.deepEqual(after.actions.at(-1).envelope, before.actions.at(-1).envelope);
+  assert.equal(after.next_nonce, before.next_nonce);
+});
+
+test("open ratio and asset precision remain bounded with field-specific errors", async (t) => {
+  const f = await installedFlow(t);
+  const before = await f.store.read(f.token);
+  for (const [input, field] of [
+    [{ size: "0.02", min_fill_ratio: 78 }, "min_fill_ratio"],
+    [{ size: "0.02", min_fill_ratio: "0.78" }, "min_fill_ratio"],
+    [{ size: "0" }, "size"],
+    [{ size: "0.0000000000000000001" }, "size"],
+    [{ size: "2e-2" }, "size"],
+    [{ size: 9007199254740992 }, "size"],
+  ] as const) {
+    await assert.rejects(f.engine.prepare(f.token, "open", input), (error: any) => {
+      assert.ok(error.fieldErrors.some((x: any) => x.field === field));
+      return true;
+    });
+  }
+  assert.equal((await f.store.read(f.token)).next_nonce, before.next_nonce);
+});
+
+test("explicit preparation repair preserves an expired grant and refuses an unrelated action ID", async (t) => {
+  const f = await installedFlow(t);
+  const id = "ae300b16-177b-4e21-85a2-889c1d32c162";
+  await f.store.update(f.token, async (s) => {
+    s.actions.push({ id, step: "open", input: { size: 0.02 }, state: "preparing", reason: "invalid_open_input" });
+    s.grant.validUntil = "1";
+  });
+  const status = await f.engine.status(f.token);
+  assert.equal(status.state, "blocked");
+  assert.equal(status.next_actions[0].tool, "callput_workflow_recover");
+  await assert.rejects(f.engine.prepare(f.token, "open", { size: "0.02" }, "9e1466c2-5803-4cd4-bbdc-e24b24ebf185"),
+    /preparation_action_mismatch/);
+  await assert.rejects(f.engine.prepare(f.token, "open", { size: "0.02" }, id),
+    /session_expired_or_not_installed/);
+  const saved = await f.store.read(f.token);
+  assert.equal(saved.actions.at(-1).id, id);
+  assert.equal(saved.grant.validUntil, "1");
+  assert.equal(saved.actions.at(-1).envelope, undefined);
+  assert.equal(f.requests.filter(r => r.path === "/v1/trades").length, 0);
+});

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ACCOUNT_APP_ORIGIN, accountManifest, accountOpenStrategyNames, workflowAvailability } from "./accountManifest.js";
 import { AccountChain } from "./accountChain.js";
+import { OpenInputError } from "./accountOpenInput.js";
 import { AccountWorkflow, safeWorkflowError } from "./accountWorkflow.js";
 import { configuredWorkflowStore, type WorkflowStore } from "./accountStore.js";
 import {
@@ -99,6 +100,12 @@ export function registerAccountTools(server: McpServer, network: string,
               private_keys_accepted: false,
             },
             open_input: { size: "0.0001", min_fill_ratio: 0.78, long_leg_id: "from callput_scan_spreads or the option chain", short_leg_id: "same asset/expiry/type", max_amount_in_raw: "explicit USDG ceiling as a decimal integer" },
+            open_input_types: {
+              size: 'Positive decimal string or JSON number in underlying units, e.g. "0.02" or 0.02.',
+              min_fill_ratio: "JSON number from 0.5 to 1 inclusive. Defaults to 0.78.",
+              max_amount_in_raw: "Decimal integer string, e.g. 500000 for 0.5 USDG.",
+            },
+            unsigned_preparation_repair: "For input_required or legacy preparing/invalid_open_input, read status, then repeat callput_action_prepare for the same workflow, step and action_id with corrected input. A repair is offered only before typed data, signatures, or relay identity exist. Grant expiry still requires the documented recovery proof.",
             create_input: {},
             deposit_input: {},
             close_only_workflow: { session_mode: "close_only", max_user_amount_raw: "0", deposit_amount_raw: "0", select: "Use a fresh owner-approved grant for the held position's underlying and strategy. No open permitted." },
@@ -186,6 +193,23 @@ export function registerAccountTools(server: McpServer, network: string,
         try {
           return result(await fn(args));
         } catch (error) {
+          if (error instanceof OpenInputError) {
+            const failure = error as OpenInputError & { actionId?: string; preparationRecovery?: unknown };
+            return result({
+              state: "input_required",
+              blocked_reason: error.message,
+              action_id: failure.actionId,
+              input_errors: error.fieldErrors,
+              preparation_recovery: failure.preparationRecovery,
+              next_actions: [{
+                tool: "callput_action_prepare",
+                arguments: { workflow_id: args.workflow_id, step: args.step,
+                  ...(failure.actionId ? { action_id: failure.actionId } : {}) },
+                required_external_input: ["input"],
+              }],
+              retry_after_ms: null,
+            });
+          }
           return result({
             state: "blocked",
             blocked_reason: safeWorkflowError(error),
@@ -256,11 +280,28 @@ export function registerAccountTools(server: McpServer, network: string,
   );
   register(
     "callput_action_prepare",
-    "Prepare the next explicit login/create/deposit/register/open/close/settle/revoke/withdraw action. Returns exact wallet RPC request, signer, digest, fees and human summary. May reserve UUID/nonce/budget. Sponsored open uses the selected underlying and strategy and accepts size, min_fill_ratio, paired long_leg_id and short_leg_id, and max_amount_in_raw. Close on the granted underlying accepts option_token_id,size_raw,min_amount_out_raw. Settle accepts option_token_id. Withdraw accepts amount_raw and optional recipient (defaults to owner) and always requires the owner signature. Other steps take empty input. Never submit a wallet transaction twice after an unknown result.",
+    "Prepare the next explicit login/create/deposit/register/open/close/settle/revoke/withdraw action. Returns exact wallet RPC request, signer, digest, fees and human summary. May reserve UUID/nonce/budget. Sponsored open uses the selected underlying and strategy and accepts size (positive decimal string or JSON number such as 0.02), min_fill_ratio (JSON number 0.5 to 1, default 0.78), paired long_leg_id and short_leg_id, and max_amount_in_raw. Close on the granted underlying accepts option_token_id,size_raw,min_amount_out_raw. Settle accepts option_token_id. Withdraw accepts amount_raw and optional recipient (defaults to owner) and always requires the owner signature. Other steps take empty input. Never submit a wallet transaction twice after an unknown result.",
     base
-      .extend({ step, input: z.record(z.string(), z.unknown()).default({}) })
+      .extend({
+        step,
+        action_id: actionId.optional().describe("Resume this exact action when repairing an unsigned preparation."),
+        input: z.object({
+          size: z.union([z.string(), z.number()]).optional()
+            .describe('Open quantity in underlying units. Positive decimal string or JSON number, e.g. "0.02" or 0.02. A decimal string preserves full precision.'),
+          min_fill_ratio: z.number().min(0.5).max(1).optional()
+            .describe("Open minimum fill ratio from 0.5 to 1, e.g. 0.78. Defaults to 0.78."),
+          long_leg_id: z.string().optional().describe("Open option leg ID, paired with short_leg_id."),
+          short_leg_id: z.string().optional().describe("Open option leg ID, paired with long_leg_id."),
+          max_amount_in_raw: uint.optional().describe("Open collateral ceiling in raw units. USDG has 6 decimals."),
+          option_token_id: z.string().optional().describe("Owned position ID for close or settle."),
+          size_raw: uint.optional().describe("Close quantity in raw underlying units."),
+          min_amount_out_raw: uint.optional().describe("Explicit positive close output floor in raw collateral units."),
+          amount_raw: uint.optional().describe("Withdrawal amount in raw collateral units."),
+          recipient: address.optional().describe("Withdrawal recipient, defaults to the owner."),
+        }).strict().default({}).describe("Only fields belonging to the selected step are accepted. Login, create, deposit, register and revoke use {}."),
+      })
       .strict(),
-    (a) => workflow().prepare(a.workflow_id, a.step, a.input),
+    (a) => workflow().prepare(a.workflow_id, a.step, a.input, a.action_id),
   );
   register(
     "callput_action_submit",

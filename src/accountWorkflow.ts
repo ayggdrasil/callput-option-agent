@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import {
   getAddress,
   Interface,
@@ -16,6 +17,7 @@ import {
   accountTradeSelection,
   accountTypes,
 } from "./accountManifest.js";
+import { normalizeAccountOpenInput, OpenInputError } from "./accountOpenInput.js";
 import { AccountChain } from "./accountChain.js";
 import { withNetwork } from "./config.js";
 import {
@@ -42,6 +44,28 @@ const integer = (x: any, max = 2n ** 256n - 1n) => {
 // legacy trade reservation allocator owns [0, 2^128).
 const TRADE_NONCE_MIN = 1n << 128n;
 const UINT256_MAX = (1n << 256n) - 1n;
+const repairablePreparation = (a: any) =>
+  a?.state === "preparing" && !a.result && !a.envelope && !a.grant &&
+  !a.typed && !a.digest && !a.wallet_request && !a.hash && !a.relayId && !a.admission;
+const preparationRecovery = (a: any) =>
+  a?.step === "open" && repairablePreparation(a) ? {
+    safe_to_repair: true,
+    action_id: a.id,
+    authorization_prepared: false,
+    signature_saved: false,
+    relay_submission_recorded: false,
+  } : null;
+const openInputErrors = (a: any, decimals: number) => {
+  if (a.inputErrors) return a.inputErrors;
+  if (a.reason !== "invalid_open_input" || !preparationRecovery(a) || !a.input) return [];
+  try {
+    normalizeAccountOpenInput(a.input, decimals);
+  } catch (error) {
+    if (error instanceof OpenInputError) return error.fieldErrors;
+    throw error;
+  }
+  return [];
+};
 const noWallet = (a: any) => a.step === "create" || a.settlementAuthority === "owner_login";
 const ownerControlStep = (step: string) => step === "revoke" || step === "withdraw";
 type SpreadSelection = { long_leg_id: string; short_leg_id: string };
@@ -370,7 +394,12 @@ export class AccountWorkflow {
       ? { wallet_approval_url: `${m.origin}/mcp-wallet.html#${token}` }
       : {};
     const needsFundingPlan = state === "deposit_required" && s.policy.deposit_amount_raw === "0";
-    const next_actions = needsFundingPlan ? [{
+    const inputNeedsCorrection = preparationRecovery(active) && active.reason === "invalid_open_input";
+    const expiredUnsignedOpen = grantExpired && !signedTrade && preparationRecovery(active);
+    if (expiredUnsignedOpen) state = "blocked";
+    const next_actions = expiredUnsignedOpen
+      ? [{ tool: "callput_workflow_recover", arguments: { workflow_id: token } }]
+      : needsFundingPlan ? [{
       tool: "callput_workflow_start",
       arguments: { owner: s.owner, account: s.account, sub_index: s.sub_index,
         underlying_asset: trade.asset, strategy: trade.strategy, max_user_amount_raw: s.policy.max_user_amount_raw },
@@ -388,7 +417,9 @@ export class AccountWorkflow {
                   : "callput_action_status",
             arguments:
               active.state === "preparing"
-                ? { workflow_id: token, step: active.step, input: active.input }
+                ? { workflow_id: token, step: active.step,
+                    ...(preparationRecovery(active) ? { action_id: active.id } : {}),
+                    ...(inputNeedsCorrection ? {} : { input: active.input }) }
                 : {
                     workflow_id: token,
                     action_id: active.id,
@@ -396,6 +427,8 @@ export class AccountWorkflow {
                       ? { result: {} }
                       : {}),
                   },
+            ...(inputNeedsCorrection
+              ? { required_external_input: ["input"], input_errors: openInputErrors(active, trade.decimals) } : {}),
             ...walletApproval,
           },
         ]
@@ -451,11 +484,11 @@ export class AccountWorkflow {
         requires: "finalized_expired_zero_use_and_signed_order_reconciliation",
       } : null,
       blocked_reason:
-        active?.reason ??
+        (expiredUnsignedOpen ? "session_expired_or_revoked_budget_reserved" : active?.reason) ??
         (s.grant && state === "blocked"
           ? "session_expired_or_revoked_budget_reserved"
           : null),
-      retry_after_ms: active && active.state !== "prepared" ? 3000 : null,
+      retry_after_ms: active && active.state !== "prepared" && !inputNeedsCorrection && !expiredUnsignedOpen ? 3000 : null,
       actions: s.actions.map((a: any) => ({
         action_id: a.id,
         step: a.step,
@@ -468,6 +501,8 @@ export class AccountWorkflow {
         observation_reason: a.observationReason ?? null,
         relay_state: a.relayState ?? null,
         trade: orderIdentity(a) ?? null,
+        preparation_recovery: preparationRecovery(a),
+        input_errors: openInputErrors(a, trade.decimals),
       })),
       wallet_capabilities_required: [
         "personal_sign",
@@ -606,8 +641,9 @@ export class AccountWorkflow {
       return this.publicAction(s, a, token);
     });
   }
-  async prepare(token: string, step: WorkflowStep, input: any) {
+  async prepare(token: string, step: WorkflowStep, input: any, actionId?: string) {
     return this.store.update(token, async (s, checkpoint) => {
+      let preparing: any;
       try {
         check(s.device, "wallet_connection_required");
         check(step !== "open" || s.policy.session_mode !== "close_only", "close_only_session");
@@ -620,12 +656,27 @@ export class AccountWorkflow {
             (!["revoke", "login"].includes(step) || a.step === step) &&
             !["confirmed", "executed", "cancelled"].includes(a.state),
         );
+        if (actionId !== undefined)
+          check(existing?.id === actionId && existing.step === step, "preparation_action_mismatch");
+        const repairingOpen = step === "open" && existing?.step === "open" && repairablePreparation(existing);
+        let savedInput = existing?.input;
+        if (step === "open" && (!existing || existing.step === "open" || repairablePreparation(existing))) {
+          if (repairingOpen) preparing = existing;
+          exact(input, ["size", "min_fill_ratio", "long_leg_id", "short_leg_id", "max_amount_in_raw"]);
+          const trade = accountTradeSelection(accountManifest(s.network).network, s.policy);
+          input = normalizeAccountOpenInput(input, trade.decimals);
+          if (existing?.step === "open" && !repairingOpen) {
+            try {
+              savedInput = normalizeAccountOpenInput(savedInput, trade.decimals);
+            } catch (error) {
+              if (!(error instanceof OpenInputError)) throw error;
+              throw Error("unresolved_action_must_be_preserved");
+            }
+          }
+        }
         if (
-          existing?.state === "preparing" &&
+          !repairingOpen && repairablePreparation(existing) &&
           ["open", "close", "deposit", "settle"].includes(existing.step) &&
-          !existing.result &&
-          !existing.envelope &&
-          !existing.grant &&
           (!equal(existing.input, input) || existing.step !== step)
         ) {
           existing.state = "cancelled";
@@ -646,7 +697,8 @@ export class AccountWorkflow {
         }
         if (existing) {
           check(
-            existing.step === step && equal(existing.input, input),
+            existing.step === step && (repairingOpen || (step === "open"
+              ? isDeepStrictEqual(savedInput, input) : equal(existing.input, input))),
             "unresolved_action_must_be_preserved",
           );
           if (existing.state !== "preparing")
@@ -673,6 +725,11 @@ export class AccountWorkflow {
           check(c.created, "account_creation_required");
         if (["login", "create", "deposit", "register"].includes(step))
           exact(input, []);
+        if (step === "open") {
+          check(s.sessionInstalled && !s.sessionRevoked && s.grant &&
+            BigInt(s.grant.validUntil) > BigInt(c.blockTimestamp) + 30n,
+            "session_expired_or_not_installed");
+        }
         const a = existing ?? {
           id: randomUUID(),
           step,
@@ -681,7 +738,12 @@ export class AccountWorkflow {
           signer: s.owner,
           fee_payer: m.fees[step as keyof typeof m.fees] ?? "none",
         };
+        if (repairingOpen) {
+          a.input = input;
+          delete a.inputErrors;
+        }
         if (!existing) s.actions.push(a);
+        preparing = a;
         await checkpoint();
         if (step === "login") {
           const challenge = await this.ports.relay(s, "/v1/auth/challenge", {
@@ -838,15 +900,6 @@ export class AccountWorkflow {
               ratio = input.min_fill_ratio ?? 0.78,
               isBuy = trade.strategy.startsWith("Buy"),
               isCall = trade.strategy.includes("Call");
-            check(
-              typeof size === "string" &&
-                /^(0|[1-9]\d{0,17})(\.\d{1,18})?$/.test(size) &&
-                (size.split(".")[1]?.length ?? 0) <= trade.decimals &&
-                typeof ratio === "number" &&
-                ratio >= 0.5 &&
-                ratio <= 1,
-              "invalid_open_input",
-            );
             const candidate = await this.ports.quote!(s, selection);
             if (selection)
               check(BigInt(candidate.long_leg_id) === BigInt(selection.long_leg_id) &&
@@ -1063,10 +1116,19 @@ export class AccountWorkflow {
         } else throw Error("unsupported_workflow_step");
         a.state = "prepared";
         delete a.reason;
+        delete a.inputErrors;
         return this.publicAction(s, a, token);
       } catch (error) {
-        const failed = s.actions.find((a: any) => a.state === "preparing");
-        if (failed) failed.reason = safeWorkflowError(error);
+        if (preparing?.state === "preparing") {
+          preparing.reason = safeWorkflowError(error);
+          if (error instanceof OpenInputError) preparing.inputErrors = error.fieldErrors;
+        }
+        if (error instanceof OpenInputError) {
+          Object.assign(error, {
+            actionId: preparing?.id,
+            preparationRecovery: preparing ? preparationRecovery(preparing) : null,
+          });
+        }
         await checkpoint();
         throw error;
       }

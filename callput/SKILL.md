@@ -14,7 +14,7 @@ mcp:
 
 # Callput Lite Trader
 
-## Existing Web3 wallet and account workflow — source v0.8.2
+## Existing Web3 wallet and account workflow — source v0.8.3
 
 The source registers 25 tools: 13 existing market/direct-wallet tools plus 12 account workflow tools. On Robinhood/GIWA, use `callput_account_resolve`, `callput_workflow_start`, then follow `next_actions` through owner login, account creation, direct deposit, bounded device Grant and sponsored order. Read `callput://account/workflow` and use the exact prepared requests with your external owner and device signers. No browser page is required. Never pass owner/device private keys. Storage availability and scope are explicit in `callput_get_network_info.account_workflow`; missing encrypted persistent storage blocks execution.
 
